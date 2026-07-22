@@ -797,8 +797,8 @@ input[type='range']::-moz-range-thumb {
   stroke-width: 1;
 }
 
-.cashflow-chart__area {
-  fill: var(--accent-bg);
+.cashflow-chart__zero-area {
+  fill: var(--danger-bg);
   stroke: none;
 }
 
@@ -822,6 +822,13 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__line--target {
   stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  fill: none;
+}
+
+.cashflow-chart__line--zero-cash {
+  stroke: var(--danger);
   stroke-width: 1;
   stroke-dasharray: 2 3;
   fill: none;

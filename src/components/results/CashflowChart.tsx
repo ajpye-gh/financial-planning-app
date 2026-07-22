@@ -59,11 +59,11 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
   const scaleCashY = (value: number) => PADDING.top + innerHeight - ((value - cashMin) / cashRange) * innerHeight;
 
   const primaryLine = buildPath(primaryValues, scaleX, scalePrimaryY);
-  const primaryBaseline = scalePrimaryY(Math.max(primaryMin, 0));
-  const primaryArea =
-    hasPrimary ? `${primaryLine} L ${scaleX(count - 1)} ${primaryBaseline} L ${scaleX(0)} ${primaryBaseline} Z` : '';
   const unallocatedLine = buildPath(unallocatedSavings, scaleX, scaleUnallocatedY);
   const cashLine = buildPath(freeCash, scaleX, scaleCashY);
+  // Only worth calling out where $0 actually is if free cash dips below it somewhere.
+  const cashEverNegative = freeCash.some((value) => value < 0);
+  const zeroCashY = scaleCashY(0);
 
   const xTickIndexes = [0, Math.round((count - 1) / 3), Math.round(((count - 1) * 2) / 3), count - 1];
   const primaryTicks = axisTicks(primaryMin, primaryMax, AXIS_TICK_COUNT);
@@ -128,10 +128,28 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
           />
         ))}
 
-        {primaryArea && <path d={primaryArea} className="cashflow-chart__area" />}
+        {cashEverNegative && (
+          <rect
+            x={PADDING.left}
+            y={zeroCashY}
+            width={innerWidth}
+            height={Math.max(HEIGHT - PADDING.bottom - zeroCashY, 0)}
+            className="cashflow-chart__zero-area"
+          />
+        )}
+
         {hasPrimary && <path d={primaryLine} className="cashflow-chart__line cashflow-chart__line--primary" />}
         <path d={unallocatedLine} className="cashflow-chart__line cashflow-chart__line--unallocated" />
         <path d={cashLine} className="cashflow-chart__line cashflow-chart__line--cash" />
+        {cashEverNegative && (
+          <line
+            x1={PADDING.left}
+            x2={WIDTH - PADDING.right}
+            y1={zeroCashY}
+            y2={zeroCashY}
+            className="cashflow-chart__line--zero-cash"
+          />
+        )}
         {targetAmount !== undefined && (
           <line
             x1={PADDING.left}
