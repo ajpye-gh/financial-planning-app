@@ -4,6 +4,7 @@ import { ControlsPanel } from './components/controls/ControlsPanel';
 import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRaiseBreakpoints';
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
+import { PlanControls } from './components/PlanControls';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
 import { MetricCards, type Metric } from './components/results/MetricCards';
@@ -126,6 +127,8 @@ function App() {
         trade off against your free cash.
       </p>
 
+      <PlanControls onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
+
       <div className="app-shell">
         <aside className="app-shell__sidebar">
           <ControlsPanel
@@ -166,10 +169,6 @@ function App() {
           </div>
           <MetricCards metrics={metrics} />
           <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
-
-          <button type="button" onClick={draft.startOver}>
-            Start over
-          </button>
         </div>
       </div>
     </main>

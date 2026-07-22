@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Answers } from '../lib/questions';
-import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '../lib/baseData';
+import type { BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
 import { generateChildId, isValidChild, nextChildYear, type Child } from '../lib/children';
 import { isValidGoal, rebalanceAllocations, sanitizeAllocations, type Goal } from '../lib/goals';
+import { freshPlan, isValidJobLossYear, type Plan } from '../lib/plans';
 import {
-  DEFAULT_SALARY_RAISES,
   applyRaiseUpdate,
   generateBreakpointId,
   isValidBreakpoint,
@@ -15,38 +15,9 @@ import {
 
 const STORAGE_KEY = 'financial-planning-app:draft';
 const AUTOSAVE_DEBOUNCE_MS = 400;
-const HORIZON_YEARS = 18;
 
-interface Draft {
-  answers: Answers;
-  baseInputs: BaseInputs;
-  goals: Goal[];
-  salaryRaises: SalaryRaiseBreakpoint[];
-  jobLossYear: number | undefined;
-  partnerSalaryRaises: SalaryRaiseBreakpoint[];
-  partnerJobLossYear: number | undefined;
-  children: Child[];
-}
-
-function freshDraft(): Draft {
-  return {
-    answers: { housing: 'own' },
-    baseInputs: baseDefaults(DEFAULT_BASE_RANGES),
-    goals: [],
-    salaryRaises: DEFAULT_SALARY_RAISES.map((breakpoint) => ({ id: generateBreakpointId(), ...breakpoint })),
-    jobLossYear: undefined,
-    partnerSalaryRaises: [],
-    partnerJobLossYear: undefined,
-    children: [],
-  };
-}
-
-function isValidJobLossYear(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= HORIZON_YEARS;
-}
-
-function loadDraft(): Draft {
-  const fresh = freshDraft();
+function loadDraft(): Plan {
+  const fresh = freshPlan();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -114,11 +85,14 @@ export interface UseDraftStateResult {
   addChild: () => void;
   removeChild: (id: string) => void;
   updateChild: (id: string, year: number) => void;
-  startOver: () => void;
+  /** Current draft, shaped for a named Save (see lib/plans.ts). */
+  planForSaving: () => Plan;
+  /** Replaces the entire draft with a loaded plan (see lib/plans.ts). */
+  loadPlan: (plan: Plan) => void;
 }
 
 export function useDraftState(): UseDraftStateResult {
-  const [draft, setDraft] = useState<Draft>(loadDraft);
+  const [draft, setDraft] = useState<Plan>(loadDraft);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -235,13 +209,10 @@ export function useDraftState(): UseDraftStateResult {
     }));
   }, []);
 
-  const startOver = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore - nothing to clean up if storage isn't accessible
-    }
-    setDraft(freshDraft());
+  const planForSaving = useCallback((): Plan => draft, [draft]);
+
+  const loadPlan = useCallback((plan: Plan) => {
+    setDraft(plan);
   }, []);
 
   return {
@@ -271,6 +242,7 @@ export function useDraftState(): UseDraftStateResult {
     addChild,
     removeChild,
     updateChild,
-    startOver,
+    planForSaving,
+    loadPlan,
   };
 }

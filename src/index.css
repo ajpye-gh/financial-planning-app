@@ -229,6 +229,30 @@ legend {
   margin-top: 0;
 }
 
+/* Plan controls */
+
+.plan-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.plan-controls__load {
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.875rem;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.plan-controls__error {
+  font-size: 13px;
+  color: var(--danger);
+}
+
 /* Tooltip */
 
 .tooltip {
