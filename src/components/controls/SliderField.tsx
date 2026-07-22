@@ -16,17 +16,19 @@ export function SliderField({ meta, range, value, onChange }: Readonly<SliderFie
       <label className="slider-field__label" htmlFor={meta.id}>
         <Tooltip tip={meta.tooltip}>{meta.label}</Tooltip>
       </label>
-      <input
-        id={meta.id}
-        className="slider-field__input"
-        type="range"
-        min={range.min}
-        max={range.max}
-        step={range.step}
-        value={value}
-        onChange={(event) => onChange(meta.id, Number(event.target.value))}
-      />
-      <span className="slider-field__value">{formatSliderValue(value, meta.format)}</span>
+      <div className="slider-field__control">
+        <input
+          id={meta.id}
+          className="slider-field__input"
+          type="range"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={value}
+          onChange={(event) => onChange(meta.id, Number(event.target.value))}
+        />
+        <span className="slider-field__value">{formatSliderValue(value, meta.format)}</span>
+      </div>
     </div>
   );
 }

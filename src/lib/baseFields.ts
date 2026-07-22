@@ -42,7 +42,7 @@ export interface BaseFieldGroup {
 
 export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   {
-    title: "Today's position",
+    title: 'Income',
     fields: [
       {
         id: 'netIncomeMo',
@@ -50,6 +50,42 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         format: '$',
         tooltip: 'Household take-home per month today, after tax, benefits and retirement contributions.',
       },
+      { id: 'salaryY0K', label: 'Salary, yr 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
+      { id: 'salaryY1K', label: 'Salary, yr 1', format: 'k', tooltip: 'Expected gross salary one year out.' },
+      { id: 'salaryY4K', label: 'Salary, yr 4', format: 'k', tooltip: 'Expected gross salary at year 4.' },
+      { id: 'salaryY6K', label: 'Salary, yr 6', format: 'k', tooltip: 'Expected gross salary at year 6.' },
+      { id: 'salaryY10K', label: 'Salary, yr 10', format: 'k', tooltip: 'Expected gross salary at year 10.' },
+      {
+        id: 'salaryGrowthAfterY10Pct',
+        label: 'Growth after yr 10',
+        format: '%',
+        tooltip: 'Annual growth past year 10, once milestone-based projections run out.',
+      },
+      {
+        id: 'netKeepRatePct',
+        label: 'Net keep rate',
+        format: '%',
+        tooltip: 'Share of each additional gross dollar you keep after taxes and deductions. Marginal, not average.',
+      },
+      {
+        id: 'partnerNetIncomeMo',
+        label: "Partner's income /mo",
+        format: '$',
+        tooltip: "Your spouse or partner's monthly take-home contribution.",
+        visibleIf: (a) => a.hasPartnerIncome === true,
+      },
+      {
+        id: 'partnerIncomeStopsYear',
+        label: 'Partner income stops in yr',
+        format: 'yr',
+        tooltip: 'Year that income ends (e.g. to stay home with kids). Set beyond your horizon for "never."',
+        visibleIf: (a) => a.hasPartnerIncome === true,
+      },
+    ],
+  },
+  {
+    title: 'Expenses',
+    fields: [
       {
         id: 'expensesMo',
         label: 'Expenses /mo',
@@ -69,6 +105,25 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         tooltip: 'The principal and interest slice of your mortgage payment. Fixed forever; the remainder is escrow, which inflates.',
         visibleIf: ownsHome,
       },
+      {
+        id: 'kidsAdded',
+        label: 'Kids added',
+        format: 'n',
+        tooltip: 'Children beyond your current household, arriving roughly every 2.5 years.',
+        visibleIf: (a) => a.hasKids === true,
+      },
+      {
+        id: 'costPerKidMo',
+        label: 'Cost per kid /mo',
+        format: '$',
+        tooltip: "Incremental monthly cost per additional child in today's dollars.",
+        visibleIf: (a) => a.hasKids === true,
+      },
+    ],
+  },
+  {
+    title: 'Assets',
+    fields: [
       {
         id: 'homeValueK',
         label: 'Home value',
@@ -95,72 +150,17 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         format: 'k',
         tooltip: 'Current emergency savings.',
       },
+    ],
+  },
+  {
+    title: 'Assumptions',
+    fields: [
       {
         id: 'reserveTargetK',
         label: 'Reserve target',
         format: 'k',
         tooltip: 'Emergency fund goal. The model tops cash up to this before investing anything else.',
       },
-    ],
-  },
-  {
-    title: 'Your salary path',
-    fields: [
-      { id: 'salaryY0K', label: 'Year 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
-      { id: 'salaryY1K', label: 'Year 1', format: 'k', tooltip: 'Expected gross salary one year out.' },
-      { id: 'salaryY4K', label: 'Year 4', format: 'k', tooltip: 'Expected gross salary at year 4.' },
-      { id: 'salaryY6K', label: 'Year 6', format: 'k', tooltip: 'Expected gross salary at year 6.' },
-      { id: 'salaryY10K', label: 'Year 10', format: 'k', tooltip: 'Expected gross salary at year 10.' },
-      {
-        id: 'salaryGrowthAfterY10Pct',
-        label: 'After yr 10',
-        format: '%',
-        tooltip: 'Annual growth past year 10, once milestone-based projections run out.',
-      },
-      {
-        id: 'netKeepRatePct',
-        label: 'Net keep rate',
-        format: '%',
-        tooltip: 'Share of each additional gross dollar you keep after taxes and deductions. Marginal, not average.',
-      },
-    ],
-  },
-  {
-    title: 'Household',
-    fields: [
-      {
-        id: 'partnerNetIncomeMo',
-        label: "Partner's income /mo",
-        format: '$',
-        tooltip: "Your spouse or partner's monthly take-home contribution.",
-        visibleIf: (a) => a.hasPartnerIncome === true,
-      },
-      {
-        id: 'partnerIncomeStopsYear',
-        label: 'Partner income stops in yr',
-        format: 'yr',
-        tooltip: 'Year that income ends (e.g. to stay home with kids). Set beyond your horizon for "never."',
-        visibleIf: (a) => a.hasPartnerIncome === true,
-      },
-      {
-        id: 'kidsAdded',
-        label: 'Kids added',
-        format: 'n',
-        tooltip: 'Children beyond your current household, arriving roughly every 2.5 years.',
-        visibleIf: (a) => a.hasKids === true,
-      },
-      {
-        id: 'costPerKidMo',
-        label: 'Cost per kid /mo',
-        format: '$',
-        tooltip: "Incremental monthly cost per additional child in today's dollars.",
-        visibleIf: (a) => a.hasKids === true,
-      },
-    ],
-  },
-  {
-    title: 'Assumptions',
-    fields: [
       {
         id: 'inflationPct',
         label: 'Inflation',

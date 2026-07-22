@@ -1,5 +1,9 @@
 import { visibleBaseFieldGroups } from '@src/lib/baseFields';
 
+function fieldIdsIn(title: string, groups: ReturnType<typeof visibleBaseFieldGroups>): string[] {
+  return groups.find((group) => group.title === title)?.fields.map((field) => field.id) ?? [];
+}
+
 describe('visibleBaseFieldGroups', () => {
   it('hides home value/mortgage fields for a renter', () => {
     const groups = visibleBaseFieldGroups({ housing: 'rent' });
@@ -11,32 +15,33 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIds).toContain('housingPaymentMo');
   });
 
-  it('shows home value/mortgage fields for an owner', () => {
+  it('shows home value/mortgage fields under Assets for an owner', () => {
     const groups = visibleBaseFieldGroups({ housing: 'own' });
-    const fieldIds = groups.flatMap((group) => group.fields.map((field) => field.id));
 
-    expect(fieldIds).toContain('homeValueK');
-    expect(fieldIds).toContain('mortgageBalanceK');
-    expect(fieldIds).toContain('housingPrincipalInterestMo');
+    expect(fieldIdsIn('Assets', groups)).toEqual(
+      expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'brokerageTodayK', 'cashTodayK']),
+    );
+    expect(fieldIdsIn('Expenses', groups)).toContain('housingPrincipalInterestMo');
   });
 
-  it('drops the Household group entirely when it has no visible fields', () => {
-    const groups = visibleBaseFieldGroups({ housing: 'rent', hasPartnerIncome: false, hasKids: false });
-    expect(groups.some((group) => group.title === 'Household')).toBe(false);
+  it('hides partner fields under Income until hasPartnerIncome is answered yes', () => {
+    expect(fieldIdsIn('Income', visibleBaseFieldGroups({ hasPartnerIncome: false }))).not.toContain(
+      'partnerNetIncomeMo',
+    );
+    expect(fieldIdsIn('Income', visibleBaseFieldGroups({ hasPartnerIncome: true }))).toEqual(
+      expect.arrayContaining(['partnerNetIncomeMo', 'partnerIncomeStopsYear']),
+    );
   });
 
-  it('includes the Household group once a partner or kids question is answered yes', () => {
-    const groups = visibleBaseFieldGroups({ housing: 'rent', hasPartnerIncome: true, hasKids: false });
-    const household = groups.find((group) => group.title === 'Household');
-
-    expect(household).toBeDefined();
-    expect(household?.fields.map((field) => field.id)).toEqual(['partnerNetIncomeMo', 'partnerIncomeStopsYear']);
+  it('hides kid-cost fields under Expenses until hasKids is answered yes', () => {
+    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({ hasKids: false }))).not.toContain('kidsAdded');
+    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({ hasKids: true }))).toEqual(
+      expect.arrayContaining(['kidsAdded', 'costPerKidMo']),
+    );
   });
 
-  it('always includes the always-on groups regardless of answers', () => {
+  it('always includes all four groups, since each has at least one always-visible field', () => {
     const groups = visibleBaseFieldGroups({});
-    const titles = groups.map((group) => group.title);
-
-    expect(titles).toEqual(expect.arrayContaining(["Today's position", 'Your salary path', 'Assumptions']));
+    expect(groups.map((group) => group.title)).toEqual(['Income', 'Expenses', 'Assets', 'Assumptions']);
   });
 });

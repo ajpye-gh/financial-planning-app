@@ -77,7 +77,7 @@ body {
 }
 
 .page {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px 48px;
 }
@@ -296,17 +296,48 @@ input[type='range']::-moz-range-thumb {
   cursor: pointer;
 }
 
+/* App shell */
+
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  margin-top: 1rem;
+
+  @media (max-width: 900px) {
+    flex-direction: column;
+  }
+}
+
+.app-shell__sidebar {
+  flex: 0 0 300px;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100svh - 48px);
+  overflow-y: auto;
+
+  @media (max-width: 900px) {
+    position: static;
+    max-height: none;
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
+.app-shell__main {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Controls */
 
 .controls-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px 28px;
-  margin: 1rem 0 1.5rem;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .control-group {
-  flex: 1 1 310px;
   background: var(--surface-1);
   border: 0.5px solid var(--border);
   border-radius: var(--radius);
@@ -322,9 +353,9 @@ input[type='range']::-moz-range-thumb {
 
 .slider-field {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 9px;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
 }
 
 .slider-field:last-child {
@@ -334,7 +365,12 @@ input[type='range']::-moz-range-thumb {
 .slider-field__label {
   font-size: 13px;
   color: var(--text-secondary);
-  min-width: 130px;
+}
+
+.slider-field__control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .slider-field__value {

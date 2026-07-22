@@ -21,15 +21,17 @@ export function GoalCard({ goal, runningTotal, onChangeAmount, onRemove }: Reado
       </div>
       <div className="slider-field">
         <span className="slider-field__label">Monthly amount</span>
-        <input
-          type="range"
-          min={goal.monthlyAmountRange.min}
-          max={goal.monthlyAmountRange.max}
-          step={goal.monthlyAmountRange.step}
-          value={goal.monthlyAmount}
-          onChange={(event) => onChangeAmount(goal.id, Number(event.target.value))}
-        />
-        <span className="slider-field__value">{formatCurrency(goal.monthlyAmount)}/mo</span>
+        <div className="slider-field__control">
+          <input
+            type="range"
+            min={goal.monthlyAmountRange.min}
+            max={goal.monthlyAmountRange.max}
+            step={goal.monthlyAmountRange.step}
+            value={goal.monthlyAmount}
+            onChange={(event) => onChangeAmount(goal.id, Number(event.target.value))}
+          />
+          <span className="slider-field__value">{formatCurrency(goal.monthlyAmount)}/mo</span>
+        </div>
       </div>
       {goal.mode === 'accumulate' && runningTotal !== undefined && (
         <div className="goal-card__total">

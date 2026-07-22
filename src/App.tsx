@@ -70,28 +70,38 @@ function App() {
         trade off against your free cash.
       </p>
 
-      <div className="page__section-title">Your position</div>
-      <ControlsPanel answers={draft.answers} ranges={DEFAULT_BASE_RANGES} values={draft.baseInputs} onChange={draft.setBaseInput} />
+      <div className="app-shell">
+        <aside className="app-shell__sidebar">
+          <ControlsPanel
+            answers={draft.answers}
+            ranges={DEFAULT_BASE_RANGES}
+            values={draft.baseInputs}
+            onChange={draft.setBaseInput}
+          />
+        </aside>
 
-      <div className="page__section-title">Goals</div>
-      <GoalsPanel
-        goals={draft.goals}
-        runningTotals={runningTotals}
-        onAdd={draft.addGoal}
-        onRemove={draft.removeGoal}
-        onChangeAmount={draft.updateGoal}
-      />
+        <div className="app-shell__main">
+          <div className="page__section-title">Goals</div>
+          <GoalsPanel
+            goals={draft.goals}
+            runningTotals={runningTotals}
+            onAdd={draft.addGoal}
+            onRemove={draft.removeGoal}
+            onChangeAmount={draft.updateGoal}
+          />
 
-      <div className="page__section-title">Results</div>
-      <VerdictBanner verdict={result.verdict} />
-      <MetricCards metrics={metrics} />
-      <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
-      <CashflowChart chart={result.chart} primary={primary} />
-      <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
+          <div className="page__section-title">Results</div>
+          <VerdictBanner verdict={result.verdict} />
+          <MetricCards metrics={metrics} />
+          <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
+          <CashflowChart chart={result.chart} primary={primary} />
+          <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
 
-      <button type="button" onClick={draft.startOver}>
-        Start over
-      </button>
+          <button type="button" onClick={draft.startOver}>
+            Start over
+          </button>
+        </div>
+      </div>
     </main>
   );
 }
