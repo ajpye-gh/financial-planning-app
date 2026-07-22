@@ -44,7 +44,8 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         id: 'netIncomeMo',
         label: 'Net income /mo',
         format: '$',
-        tooltip: 'Household take-home per month today, after tax, benefits and retirement contributions.',
+        tooltip:
+          "Your take-home per month today, after tax, benefits and retirement contributions - not including a partner's income, entered separately below.",
       },
       { id: 'salaryY0K', label: 'Salary, yr 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
       {
@@ -63,7 +64,8 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         id: 'partnerNetIncomeMo',
         label: "Partner's income /mo",
         format: '$',
-        tooltip: "Your spouse or partner's monthly take-home contribution.",
+        tooltip:
+          "Your spouse or partner's monthly take-home contribution, added on top of Net income /mo for the years they're working.",
         visibleIf: (a) => a.hasPartnerIncome === true,
       },
       {

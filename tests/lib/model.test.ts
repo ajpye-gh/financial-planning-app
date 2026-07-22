@@ -207,4 +207,35 @@ describe('runModel', () => {
       expect(higherY0.chart.freeCash[4]).toBe(base.chart.freeCash[4]);
     });
   });
+
+  describe('partner income', () => {
+    const withPartner = (partnerNetIncomeMo: number, partnerIncomeStopsYear: number) =>
+      run({ goals: [], base: { ...BASE, partnerNetIncomeMo, partnerIncomeStopsYear } });
+
+    it('raises free cash in the years the partner is working', () => {
+      const noPartner = run({ goals: [], base: { ...BASE, partnerNetIncomeMo: 0, partnerIncomeStopsYear: 10 } });
+      const withIncome = withPartner(2000, 10);
+
+      // Year 5 (< stopsYear 10): partner income should add straight through to free cash.
+      expect(withIncome.chart.freeCash[4] - noPartner.chart.freeCash[4]).toBeCloseTo(2000, 6);
+    });
+
+    it('has no effect at all in years after the partner stops working - never negative', () => {
+      const lowIncome = withPartner(2000, 10);
+      const highIncome = withPartner(8000, 10);
+
+      // Year 11 (>= stopsYear 10): partner already stopped, so a bigger partner income shouldn't
+      // change anything this year - and definitely shouldn't make free cash worse.
+      expect(highIncome.chart.freeCash[10]).toBe(lowIncome.chart.freeCash[10]);
+    });
+
+    it('increasing partner income never decreases free cash in any year', () => {
+      const lower = withPartner(1000, 8);
+      const higher = withPartner(6000, 8);
+
+      for (let year = 1; year <= 18; year++) {
+        expect(higher.chart.freeCash[year - 1]).toBeGreaterThanOrEqual(lower.chart.freeCash[year - 1]);
+      }
+    });
+  });
 });
