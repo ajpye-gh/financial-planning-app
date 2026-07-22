@@ -64,3 +64,25 @@ describe('GoalCard name editing', () => {
     expect(screen.getByText('Travel fund')).toBeInTheDocument();
   });
 });
+
+describe('GoalCard balance', () => {
+  it('shows a tooltip explaining the "current / target" split when a target is set', async () => {
+    const user = userEvent.setup();
+    const goalWithTarget: Goal = { ...baseGoal, targetAmount: 80000 };
+    render(<GoalCard goal={goalWithTarget} runningTotal={54000} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+
+    expect(screen.getByText('$54k')).toBeInTheDocument();
+    expect(screen.getByText(/\$80k/)).toBeInTheDocument();
+
+    await user.hover(screen.getByText('$54k'));
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Projected balance by year 18, against the $80k target');
+  });
+
+  it('renders just the balance, with no tooltip, when the goal has no target', () => {
+    render(<GoalCard goal={baseGoal} runningTotal={54000} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+
+    expect(screen.getByText('$54k')).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+});

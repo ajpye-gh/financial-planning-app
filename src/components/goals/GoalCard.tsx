@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { HORIZON_YEARS } from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
+import { Tooltip } from '../Tooltip';
 import type { Goal } from '../../lib/goals';
 
 interface GoalCardProps {
@@ -123,8 +124,17 @@ export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<Go
 
       {goal.mode === 'accumulate' && runningTotal !== undefined && (
         <div className="goal-card__total">
-          Balance: <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span>
-          {goal.targetAmount !== undefined ? ` / ${formatCurrencyCompact(goal.targetAmount)}` : null}
+          Balance:{' '}
+          {goal.targetAmount !== undefined ? (
+            <Tooltip
+              tip={`Projected balance by year ${HORIZON_YEARS}, against the ${formatCurrencyCompact(goal.targetAmount)} target you set for this goal.`}
+            >
+              <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span> /{' '}
+              {formatCurrencyCompact(goal.targetAmount)}
+            </Tooltip>
+          ) : (
+            <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span>
+          )}
         </div>
       )}
     </div>
