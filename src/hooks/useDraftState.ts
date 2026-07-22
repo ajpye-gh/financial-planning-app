@@ -3,7 +3,7 @@ import type { Answers } from '../lib/questions';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
 import { generateChildId, isValidChild, nextChildYear, type Child } from '../lib/children';
-import { isValidGoal, type Goal } from '../lib/goals';
+import { isValidGoal, rebalanceAllocations, sanitizeAllocations, type Goal } from '../lib/goals';
 import {
   DEFAULT_SALARY_RAISES,
   applyRaiseUpdate,
@@ -136,7 +136,15 @@ export function useDraftState(): UseDraftStateResult {
   }, []);
 
   const setBaseInput = useCallback((id: BaseFieldId, value: number) => {
-    setDraft((prev) => ({ ...prev, baseInputs: { ...prev.baseInputs, [id]: value } }));
+    setDraft((prev) => {
+      const baseInputs = { ...prev.baseInputs, [id]: value };
+      // Shrinking Cash today / Brokerage today can leave goals promised more than's actually there.
+      const goals =
+        id === 'cashTodayK' || id === 'brokerageTodayK'
+          ? rebalanceAllocations(prev.goals, baseInputs.cashTodayK * 1000, baseInputs.brokerageTodayK * 1000)
+          : prev.goals;
+      return { ...prev, baseInputs, goals };
+    });
   }, []);
 
   const addGoal = useCallback((goal: Goal) => {
@@ -148,10 +156,13 @@ export function useDraftState(): UseDraftStateResult {
   }, []);
 
   const updateGoal = useCallback((id: string, patch: Partial<Goal>) => {
-    setDraft((prev) => ({
-      ...prev,
-      goals: prev.goals.map((goal) => (goal.id === id ? { ...goal, ...patch } : goal)),
-    }));
+    setDraft((prev) => {
+      const goals = prev.goals.map((goal) => (goal.id === id ? sanitizeAllocations({ ...goal, ...patch }) : goal));
+      return {
+        ...prev,
+        goals: rebalanceAllocations(goals, prev.baseInputs.cashTodayK * 1000, prev.baseInputs.brokerageTodayK * 1000),
+      };
+    });
   }, []);
 
   const addSalaryRaise = useCallback(() => {

@@ -3,18 +3,24 @@ import { HORIZON_YEARS } from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
 import { Tooltip } from '../Tooltip';
-import type { Goal } from '../../lib/goals';
+import { canAllocateBrokerage, canAllocateCash, type Goal } from '../../lib/goals';
 
 interface GoalCardProps {
   goal: Goal;
   runningTotal?: number;
+  /** Cash today / Brokerage today not yet promised to any goal (including this one's own current
+   *  allocation) - each slider's max is this plus what this goal already has, so no goal can be
+   *  dragged into over-allocating the shared pool. */
+  cashRemaining: number;
+  brokerageRemaining: number;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
   onRemove: (id: string) => void;
 }
 
 const TARGET_AMOUNT_RANGE = { min: 0, max: 1000000, step: 10000 };
+const ALLOCATION_STEP = 500;
 
-export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<GoalCardProps>) {
+export function GoalCard({ goal, runningTotal, cashRemaining, brokerageRemaining, onUpdate, onRemove }: Readonly<GoalCardProps>) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(goal.name);
 
@@ -119,6 +125,40 @@ export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<Go
             <span className="slider-field__value">
               {goal.targetAmount ? formatCurrency(goal.targetAmount) : 'No target'}
             </span>
+          </div>
+        </div>
+      )}
+
+      {canAllocateCash(goal) && (
+        <div className="slider-field">
+          <span className="slider-field__label">From cash today</span>
+          <div className="slider-field__control">
+            <input
+              type="range"
+              min={0}
+              max={cashRemaining + goal.cashAllocated}
+              step={ALLOCATION_STEP}
+              value={goal.cashAllocated}
+              onChange={(event) => onUpdate(goal.id, { cashAllocated: Number(event.target.value) })}
+            />
+            <span className="slider-field__value">{formatCurrency(goal.cashAllocated)}</span>
+          </div>
+        </div>
+      )}
+
+      {canAllocateBrokerage(goal) && (
+        <div className="slider-field">
+          <span className="slider-field__label">From brokerage today</span>
+          <div className="slider-field__control">
+            <input
+              type="range"
+              min={0}
+              max={brokerageRemaining + goal.brokerageAllocated}
+              step={ALLOCATION_STEP}
+              value={goal.brokerageAllocated}
+              onChange={(event) => onUpdate(goal.id, { brokerageAllocated: Number(event.target.value) })}
+            />
+            <span className="slider-field__value">{formatCurrency(goal.brokerageAllocated)}</span>
           </div>
         </div>
       )}

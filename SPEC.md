@@ -88,9 +88,17 @@ interface RecurringGoal {
   id: string;
   name: string;                 // "Travel", "College (529)", "Emergency top-up", user-defined
   mode: 'accumulate' | 'consume';
+  category: 'emergency' | 'retirement' | 'other'; // fixed at creation from the catalog; not editable via `name`
   monthlyAmount: number;        // the slider value
   monthlyAmountRange: { min: number; max: number; step: number };
   targetAmount?: number;        // only meaningful when mode === 'accumulate'; renders a target line (§6.4)
+  // One-time starting balances, carried over from the shared Cash today / Brokerage today pool (§4.1)
+  // instead of accumulating from $0. cashAllocated only permitted for category: 'emergency'; brokerageAllocated
+  // permitted for anything except category: 'retirement' (see canAllocateCash/canAllocateBrokerage in goals.ts).
+  // The sum of every goal's allocation of a given asset can never exceed that asset's base total -
+  // rebalanceAllocations scales all of them down proportionally if the base slider shrinks below what's promised.
+  cashAllocated: number;
+  brokerageAllocated: number;
 }
 
 /** A one-time purchase at a definite future year, optionally financed and/or funded by selling an existing asset,

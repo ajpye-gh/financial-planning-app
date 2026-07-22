@@ -69,10 +69,13 @@ const TRAVEL_GOAL: RecurringGoal = {
   id: 'travel',
   name: 'Travel',
   mode: 'consume',
+  category: 'other',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   startYear: 1,
   endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
 };
 
 const COLLEGE_GOAL: RecurringGoal = {
@@ -80,11 +83,14 @@ const COLLEGE_GOAL: RecurringGoal = {
   id: 'college',
   name: 'College',
   mode: 'accumulate',
+  category: 'other',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   targetAmount: 80000,
   startYear: 1,
   endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
 };
 
 describe('runModel', () => {
@@ -209,6 +215,31 @@ describe('runModel', () => {
 
       const freeCashY1 = result.snapshot.freeCash;
       expect(result.chart.unallocatedSavings[1]).toBe(Math.round(70000 + freeCashY1 * 12));
+    });
+  });
+
+  describe('goal asset allocation (cashAllocated / brokerageAllocated)', () => {
+    it("seeds an accumulate goal's Y0 balance from its allocation, and pulls that out of the shared pool", () => {
+      const funded: RecurringGoal = { ...COLLEGE_GOAL, cashAllocated: 5000, brokerageAllocated: 10000 };
+      const result = run({ goals: [funded], base: { ...BASE, cashTodayK: 20, brokerageTodayK: 50 } });
+
+      expect(result.chart.goalBalances.college[0]).toBe(15000);
+      // The shared pool starts with the remainder: (20000 cash + 50000 brokerage) - 15000 allocated.
+      expect(result.chart.unallocatedSavings[0]).toBe(55000);
+    });
+
+    it('conserves total starting assets: pool + every allocated goal balance sums to cash + brokerage today', () => {
+      const funded: RecurringGoal = { ...COLLEGE_GOAL, cashAllocated: 5000, brokerageAllocated: 10000 };
+      const result = run({ goals: [funded], base: { ...BASE, cashTodayK: 20, brokerageTodayK: 50 } });
+
+      expect(result.chart.unallocatedSavings[0] + result.chart.goalBalances.college[0]).toBe(70000);
+    });
+
+    it('leaves an unallocated goal starting at $0, with the full pool untouched', () => {
+      const result = run({ goals: [COLLEGE_GOAL], base: { ...BASE, cashTodayK: 20, brokerageTodayK: 50 } });
+
+      expect(result.chart.goalBalances.college[0]).toBe(0);
+      expect(result.chart.unallocatedSavings[0]).toBe(70000);
     });
   });
 

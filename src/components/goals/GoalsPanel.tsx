@@ -4,18 +4,36 @@ import { GOAL_CATALOG, generateGoalId, type Goal } from '../../lib/goals';
 interface GoalsPanelProps {
   goals: Goal[];
   runningTotals: Record<string, number>;
+  cashRemaining: number;
+  brokerageRemaining: number;
   onAdd: (goal: Goal) => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
 }
 
-export function GoalsPanel({ goals, runningTotals, onAdd, onRemove, onUpdate }: Readonly<GoalsPanelProps>) {
+export function GoalsPanel({
+  goals,
+  runningTotals,
+  cashRemaining,
+  brokerageRemaining,
+  onAdd,
+  onRemove,
+  onUpdate,
+}: Readonly<GoalsPanelProps>) {
   return (
     <div>
       {goals.length > 0 && (
         <div className="goals-panel">
           {goals.map((goal) => (
-            <GoalCard key={goal.id} goal={goal} runningTotal={runningTotals[goal.id]} onUpdate={onUpdate} onRemove={onRemove} />
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              runningTotal={runningTotals[goal.id]}
+              cashRemaining={cashRemaining}
+              brokerageRemaining={brokerageRemaining}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+            />
           ))}
         </div>
       )}

@@ -98,6 +98,11 @@ function App() {
     }
   }
 
+  const cashAllocatedTotal = draft.goals.reduce((sum, goal) => sum + goal.cashAllocated, 0);
+  const brokerageAllocatedTotal = draft.goals.reduce((sum, goal) => sum + goal.brokerageAllocated, 0);
+  const cashRemaining = Math.max(0, draft.baseInputs.cashTodayK * 1000 - cashAllocatedTotal);
+  const brokerageRemaining = Math.max(0, draft.baseInputs.brokerageTodayK * 1000 - brokerageAllocatedTotal);
+
   const metrics: Metric[] = [
     {
       id: 'free-cash',
@@ -140,6 +145,8 @@ function App() {
           <GoalsPanel
             goals={draft.goals}
             runningTotals={runningTotals}
+            cashRemaining={cashRemaining}
+            brokerageRemaining={brokerageRemaining}
             onAdd={draft.addGoal}
             onRemove={draft.removeGoal}
             onUpdate={draft.updateGoal}

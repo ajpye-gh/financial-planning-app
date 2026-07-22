@@ -14,11 +14,14 @@ const ACCUMULATE_GOAL: RecurringGoal = {
   id: 'college',
   name: 'College',
   mode: 'accumulate',
+  category: 'other',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   targetAmount: 80000,
   startYear: 1,
   endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
 };
 
 const CONSUME_GOAL: RecurringGoal = {
@@ -26,10 +29,13 @@ const CONSUME_GOAL: RecurringGoal = {
   id: 'travel',
   name: 'Travel',
   mode: 'consume',
+  category: 'other',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   startYear: 1,
   endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
 };
 
 describe('chartToggleOptions', () => {

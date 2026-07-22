@@ -266,8 +266,21 @@ export function runModel(inputs: ModelInputs): ModelResult {
   const fixedHousing = ownsHome ? base.housingPrincipalInterestMo : 0;
   const inflatingHousingBase = ownsHome ? base.housingPaymentMo - base.housingPrincipalInterestMo : base.housingPaymentMo;
 
-  const pool: UnallocatedPool = { brokerage: base.brokerageTodayK * 1000, cash: base.cashTodayK * 1000 };
+  // Cash/brokerage allocated to a goal (see goals.ts's cashAllocated/brokerageAllocated) leaves the
+  // shared pool and becomes that goal's starting balance instead.
+  const cashAllocatedTotal = goals.reduce((sum, goal) => sum + goal.cashAllocated, 0);
+  const brokerageAllocatedTotal = goals.reduce((sum, goal) => sum + goal.brokerageAllocated, 0);
+
+  const pool: UnallocatedPool = {
+    brokerage: base.brokerageTodayK * 1000 - brokerageAllocatedTotal,
+    cash: base.cashTodayK * 1000 - cashAllocatedTotal,
+  };
   const goalBalances: Record<string, number> = {};
+  for (const goal of goals) {
+    if (goal.mode === 'accumulate') {
+      goalBalances[goal.id] = goal.cashAllocated + goal.brokerageAllocated;
+    }
+  }
   const goalSeries = initGoalSeries(goals);
 
   let everNegative = false;
