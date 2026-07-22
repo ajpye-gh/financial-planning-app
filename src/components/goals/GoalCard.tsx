@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { HORIZON_YEARS } from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
+import { EditIcon, SaveIcon } from '../icons';
 import type { Goal } from '../../lib/goals';
 
 interface GoalCardProps {
@@ -10,7 +12,23 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<GoalCardProps>) {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(goal.name);
+
   const clampYear = (value: number) => Math.min(Math.max(Math.round(value), 1), HORIZON_YEARS);
+
+  const startEditingName = () => {
+    setDraftName(goal.name);
+    setIsEditingName(true);
+  };
+
+  const commitName = () => {
+    const trimmed = draftName.trim();
+    if (trimmed && trimmed !== goal.name) {
+      onUpdate(goal.id, { name: trimmed });
+    }
+    setIsEditingName(false);
+  };
 
   const handleStartYearChange = (value: number) => {
     const startYear = clampYear(value);
@@ -25,13 +43,32 @@ export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<Go
   return (
     <div className="goal-card">
       <div className="goal-card__header">
-        <input
-          type="text"
-          className="goal-card__name-input"
-          value={goal.name}
-          onChange={(event) => onUpdate(goal.id, { name: event.target.value })}
-          aria-label="Goal name"
-        />
+        {isEditingName ? (
+          <input
+            type="text"
+            className="goal-card__name-input"
+            value={draftName}
+            autoFocus
+            onChange={(event) => setDraftName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                commitName();
+              }
+            }}
+            aria-label="Goal name"
+          />
+        ) : (
+          <span className="goal-card__name">{goal.name}</span>
+        )}
+        <button
+          type="button"
+          className="goal-card__edit-name"
+          onClick={isEditingName ? commitName : startEditingName}
+          aria-label={isEditingName ? `Save ${goal.name}` : `Rename ${goal.name}`}
+          title={isEditingName ? 'Save' : 'Rename'}
+        >
+          {isEditingName ? <SaveIcon /> : <EditIcon />}
+        </button>
         <button
           type="button"
           className="goal-card__remove"

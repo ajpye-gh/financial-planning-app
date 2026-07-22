@@ -232,16 +232,13 @@ legend {
 /* Tooltip */
 
 .tooltip {
-  position: relative;
   display: inline-flex;
   border-bottom: 1px dotted var(--text-secondary);
   cursor: help;
 }
 
 .tooltip__bubble {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 8px);
+  position: fixed;
   transform: translateX(-50%);
   z-index: 20;
   width: max-content;
@@ -255,14 +252,7 @@ legend {
   line-height: 1.5;
   font-weight: 400;
   box-shadow: var(--shadow);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s;
-}
-
-.tooltip:hover .tooltip__bubble,
-.tooltip:focus-within .tooltip__bubble {
-  opacity: 1;
 }
 
 /* Range input */
@@ -500,6 +490,31 @@ input[type='range']::-moz-range-thumb {
 .goal-card__name-input:focus {
   outline: none;
   border-bottom-color: var(--accent);
+}
+
+.goal-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-card__edit-name {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text-secondary);
+}
+
+.goal-card__edit-name:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 
 .goal-card__remove {
