@@ -11,9 +11,18 @@ interface ControlGroupProps {
   /** Lets a caller inject extra, non-slider content (e.g. a dynamic list editor) right after a
    *  specific field within this group. */
   renderAfterField?: (fieldId: BaseFieldId) => ReactNode;
+  /** Overrides a specific field's slider value display - e.g. to show a derived figure alongside it. */
+  valueLabelForField?: (fieldId: BaseFieldId) => string | undefined;
 }
 
-export function ControlGroup({ group, ranges, values, onChange, renderAfterField }: Readonly<ControlGroupProps>) {
+export function ControlGroup({
+  group,
+  ranges,
+  values,
+  onChange,
+  renderAfterField,
+  valueLabelForField,
+}: Readonly<ControlGroupProps>) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -32,7 +41,13 @@ export function ControlGroup({ group, ranges, values, onChange, renderAfterField
       {!collapsed &&
         group.fields.map((field) => (
           <Fragment key={field.id}>
-            <SliderField meta={field} range={ranges[field.id]} value={values[field.id]} onChange={onChange} />
+            <SliderField
+              meta={field}
+              range={ranges[field.id]}
+              value={values[field.id]}
+              onChange={onChange}
+              valueLabel={valueLabelForField?.(field.id)}
+            />
             {renderAfterField?.(field.id)}
           </Fragment>
         ))}

@@ -1,6 +1,7 @@
 import { ControlGroup } from './ControlGroup';
 import { SalaryRaiseBreakpoints } from './SalaryRaiseBreakpoints';
 import { visibleBaseFieldGroups, type BaseFieldId } from '../../lib/baseFields';
+import { formatCurrency, formatSliderValue } from '../../lib/format';
 import type { Answers } from '../../lib/questions';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import type { SalaryRaiseBreakpoint } from '../../lib/salaryRaises';
@@ -46,6 +47,17 @@ export function ControlsPanel({
                       onUpdate={onUpdateSalaryRaise}
                     />
                   ) : null
+              : undefined
+          }
+          valueLabelForField={
+            group.title === 'Income'
+              ? (fieldId) => {
+                  if (fieldId !== 'netKeepRatePct') {
+                    return undefined;
+                  }
+                  const derivedMonthlyNet = (values.salaryY0K * 1000 * values.netKeepRatePct) / 100 / 12;
+                  return `${formatSliderValue(values.netKeepRatePct, '%')} (${formatCurrency(derivedMonthlyNet)}/mo)`;
+                }
               : undefined
           }
         />

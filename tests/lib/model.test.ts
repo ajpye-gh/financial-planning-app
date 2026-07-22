@@ -6,7 +6,6 @@ import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
 // A fixed fixture, independent of Defaults.json, so this test stays stable regardless of what the
 // committed defaults happen to contain.
 const BASE: BaseInputs = {
-  netIncomeMo: 6000,
   expensesMo: 4000,
   housingPaymentMo: 1800,
   housingPrincipalInterestMo: 1200,
@@ -66,12 +65,12 @@ describe('runModel', () => {
   it('matches hand-verified year-1 figures for an owner with goals (hand-derived from the model formulas)', () => {
     const result = run({ goals: [TRAVEL_GOAL, COLLEGE_GOAL] });
 
-    // income = 6000 + (75000-70000)*0.65/12 = 6270.83; livingCosts = 2200*1.03 = 2266;
-    // housingCost = 1200 + 600*1.03 = 1818; freeCash = 6270.83 - 2266 - 1818 - 600 = 1586.83
-    expect(result.chart.freeCash[0]).toBe(1587);
-    // cash tops up to reserve (20000 -> 30000, using 10000 of the 19042 annual free cash), the rest
-    // (9042) invests: brokerage = 50000*1.06 + 9042 = 62042; unallocated = 62042 + 30000
-    expect(result.chart.unallocatedSavings[0]).toBe(92042);
+    // income = 75000*0.65/12 = 4062.5; livingCosts = 2200*1.03 = 2266;
+    // housingCost = 1200 + 600*1.03 = 1818; freeCash = 4062.5 - 2266 - 1818 - 600 = -621.5
+    expect(result.chart.freeCash[0]).toBe(-621);
+    // free cash is negative, so nothing tops up the reserve: brokerage = 50000*1.06 + (-621.5*12) =
+    // 45542; unallocated = 45542 + 20000 (cash untouched)
+    expect(result.chart.unallocatedSavings[0]).toBe(65542);
     // college balance: 0*1.06 + 300*12 = 3600
     expect(result.chart.goalBalances.college[0]).toBe(3600);
     // travel is consume-mode - no balance series at all
@@ -113,7 +112,9 @@ describe('runModel', () => {
   });
 
   it('reports success when cashflow stays positive throughout', () => {
-    const result = run({ goals: [] });
+    // A higher keep rate than BASE's default 65%, since 65% runs slightly negative in year 1 for
+    // this fixture's expenses - bumped just for this test to exercise the "always positive" path.
+    const result = run({ goals: [], base: { ...BASE, netKeepRatePct: 80 } });
 
     expect(result.verdict).toEqual({
       tone: 'success',
@@ -173,8 +174,8 @@ describe('runModel', () => {
       const result = run({ goals: [], salaryRaises: [] });
 
       // No breakpoints => growthAfterY10Pct (2%) applies from year 0: gross = 70000*1.02 = 71400
-      // income = 6000 + (71400-70000)*0.65/12 = 6075.83; freeCash = 6075.83 - 2266 - 1818 = 1991.83
-      expect(result.chart.freeCash[0]).toBe(1992);
+      // income = 71400*0.65/12 = 3867.5; freeCash = 3867.5 - 2266 - 1818 = -216.5
+      expect(result.chart.freeCash[0]).toBe(-216);
     });
 
     it('does not require breakpoints to be pre-sorted by year', () => {
@@ -192,19 +193,22 @@ describe('runModel', () => {
       });
 
       // Year 3 is the last (only) breakpoint: gross salary = 85k there, then compounds at 5%/yr.
-      // Year 4 gross = 85000 * 1.05 = 89250; income = 6000 + (89250-70000)*0.65/12 = 7042.71
+      // Year 4 gross = 85000 * 1.05 = 89250; income = 89250*0.65/12 = 4834.38
       // livingCosts = 2200*1.03^4 = 2476.12; housingCost = 1200 + 600*1.03^4 = 1875.31
-      // freeCash = 7042.71 - 2476.12 - 1875.31 = 2691.28
-      expect(oneBreakpoint.chart.freeCash[3]).toBe(2691);
+      // freeCash = 4834.38 - 2476.12 - 1875.31 = 482.95
+      expect(oneBreakpoint.chart.freeCash[3]).toBe(483);
     });
 
-    it('leaves years before/at the last breakpoint unaffected by raising salaryY0K alone', () => {
+    it('raising salaryY0K alone never decreases free cash in any year', () => {
+      // Raises are relative to Y0 (raiseK above it), and income is a flat share of gross salary, so
+      // bumping Y0 shifts the whole gross-salary curve - and therefore income - up in every year,
+      // never down. (This is the property the earlier Y0/raise-milestone bug fix was chasing.)
       const base = run({ goals: [] });
       const higherY0 = run({ goals: [], base: { ...BASE, salaryY0K: 150 } });
 
-      // Year 5 sits between the yr4 and yr6 breakpoints - both fixed relative to Y0 - so its raise,
-      // and therefore free cash, shouldn't move just because Y0 changed.
-      expect(higherY0.chart.freeCash[4]).toBe(base.chart.freeCash[4]);
+      for (let year = 1; year <= 18; year++) {
+        expect(higherY0.chart.freeCash[year - 1]).toBeGreaterThanOrEqual(base.chart.freeCash[year - 1]);
+      }
     });
   });
 

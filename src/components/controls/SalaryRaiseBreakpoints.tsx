@@ -3,7 +3,7 @@ import { TrashIcon } from '../icons';
 import type { SalaryRaiseBreakpoint } from '../../lib/salaryRaises';
 
 const HORIZON_YEARS = 18;
-const RAISE_RANGE = { min: 0, max: 300, step: 5 };
+const RAISE_RANGE = { min: 0, max: 150, step: 5 };
 
 interface SalaryRaiseBreakpointsProps {
   breakpoints: SalaryRaiseBreakpoint[];

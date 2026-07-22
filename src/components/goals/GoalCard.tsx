@@ -12,7 +12,7 @@ interface GoalCardProps {
   onRemove: (id: string) => void;
 }
 
-const TARGET_AMOUNT_RANGE = { min: 0, max: 500000, step: 5000 };
+const TARGET_AMOUNT_RANGE = { min: 0, max: 1000000, step: 10000 };
 
 export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<GoalCardProps>) {
   const [isEditingName, setIsEditingName] = useState(false);

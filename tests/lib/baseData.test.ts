@@ -20,16 +20,16 @@ describe('parseBaseRanges', () => {
   });
 
   it('rejects data missing a known field', () => {
-    const { netIncomeMo: _omitted, ...incomplete } = DEFAULT_BASE_RANGES;
-    expect(() => parseBaseRanges(incomplete)).toThrow(/netIncomeMo/);
+    const { salaryY0K: _omitted, ...incomplete } = DEFAULT_BASE_RANGES;
+    expect(() => parseBaseRanges(incomplete)).toThrow(/salaryY0K/);
   });
 
   it('rejects an out-of-range default', () => {
     const invalid = {
       ...DEFAULT_BASE_RANGES,
-      netIncomeMo: { ...DEFAULT_BASE_RANGES.netIncomeMo, default: DEFAULT_BASE_RANGES.netIncomeMo.max + 1 },
+      salaryY0K: { ...DEFAULT_BASE_RANGES.salaryY0K, default: DEFAULT_BASE_RANGES.salaryY0K.max + 1 },
     };
-    expect(() => parseBaseRanges(invalid)).toThrow(/netIncomeMo/);
+    expect(() => parseBaseRanges(invalid)).toThrow(/salaryY0K/);
   });
 
   it('rejects non-object input', () => {

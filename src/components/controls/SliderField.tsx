@@ -8,9 +8,12 @@ interface SliderFieldProps {
   range: SliderRange;
   value: number;
   onChange: (id: BaseFieldId, value: number) => void;
+  /** Overrides the default `formatSliderValue(value, meta.format)` display - e.g. to append a
+   *  derived figure alongside the raw value. */
+  valueLabel?: string;
 }
 
-export function SliderField({ meta, range, value, onChange }: Readonly<SliderFieldProps>) {
+export function SliderField({ meta, range, value, onChange, valueLabel }: Readonly<SliderFieldProps>) {
   return (
     <div className="slider-field">
       <label className="slider-field__label" htmlFor={meta.id}>
@@ -27,7 +30,7 @@ export function SliderField({ meta, range, value, onChange }: Readonly<SliderFie
           value={value}
           onChange={(event) => onChange(meta.id, Number(event.target.value))}
         />
-        <span className="slider-field__value">{formatSliderValue(value, meta.format)}</span>
+        <span className="slider-field__value">{valueLabel ?? formatSliderValue(value, meta.format)}</span>
       </div>
     </div>
   );

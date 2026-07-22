@@ -159,7 +159,9 @@ interface YearFigures {
 function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const inflationFactor = Math.pow(1 + ctx.inflation / 100, year);
   const grossSalary = salaryAtYear(year, ctx.salaryY0, ctx.raiseMilestones, ctx.growthAfterY10);
-  let income = ctx.base.netIncomeMo + ((grossSalary - ctx.salaryY0) * ctx.netKeepRate) / 12;
+  // Net income is derived from gross salary at a flat keep rate - no separate "today's net income"
+  // input to keep in sync with it (see baseFields.ts's netKeepRatePct tooltip).
+  let income = (grossSalary * ctx.netKeepRate) / 12;
   if (year < ctx.base.partnerIncomeStopsYear) {
     income += ctx.base.partnerNetIncomeMo;
   }

@@ -2,7 +2,6 @@ import { ownsHome, type Answers } from './questions';
 import type { SliderFormat } from './format';
 
 export type BaseFieldId =
-  | 'netIncomeMo'
   | 'expensesMo'
   | 'housingPaymentMo'
   | 'housingPrincipalInterestMo'
@@ -40,13 +39,6 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   {
     title: 'Income',
     fields: [
-      {
-        id: 'netIncomeMo',
-        label: 'Net income /mo',
-        format: '$',
-        tooltip:
-          "Your take-home per month today, after tax, benefits and retirement contributions - not including a partner's income, entered separately below.",
-      },
       { id: 'salaryY0K', label: 'Salary, yr 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
       {
         id: 'salaryGrowthAfterY10Pct',
@@ -58,14 +50,14 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         id: 'netKeepRatePct',
         label: 'Net keep rate',
         format: '%',
-        tooltip: 'Share of each additional gross dollar you keep after taxes and deductions. Marginal, not average.',
+        tooltip:
+          "Share of your gross salary you keep after tax, benefits and retirement contributions - applied to your whole salary, today and every future raise. Your derived net income /mo is shown alongside; adjust the slider until it matches your real take-home pay.",
       },
       {
         id: 'partnerNetIncomeMo',
         label: "Partner's income /mo",
         format: '$',
-        tooltip:
-          "Your spouse or partner's monthly take-home contribution, added on top of Net income /mo for the years they're working.",
+        tooltip: "Your spouse or partner's monthly take-home contribution, added on top for the years they're working.",
         visibleIf: (a) => a.hasPartnerIncome === true,
       },
       {

@@ -41,7 +41,7 @@ export interface GoalCatalogEntry {
   create: (id: string) => RecurringGoal;
 }
 
-const DEFAULT_RANGE = { min: 0, max: 2000, step: 25 };
+const DEFAULT_RANGE = { min: 0, max: 5000, step: 100 };
 const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
 
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
@@ -66,7 +66,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       mode: 'accumulate',
       monthlyAmount: 300,
       monthlyAmountRange: { min: 0, max: 3000, step: 50 },
-      targetAmount: 80000,
+      targetAmount: 200000,
       ...FULL_HORIZON,
     }),
   },
