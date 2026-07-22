@@ -94,10 +94,6 @@ function App() {
 
           <div className="page__section-title">Results</div>
           <VerdictBanner verdict={result.verdict} />
-          <MetricCards metrics={metrics} />
-          <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
-          <CashflowChart chart={result.chart} primary={primary} />
-
           <div className="inspect-year-control">
             <SliderField
               meta={INSPECT_YEAR_FIELD}
@@ -106,6 +102,9 @@ function App() {
               onChange={draft.setBaseInput}
             />
           </div>
+          <MetricCards metrics={metrics} />
+          <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
+          <CashflowChart chart={result.chart} primary={primary} />
           <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
 
           <button type="button" onClick={draft.startOver}>
