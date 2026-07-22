@@ -9,14 +9,12 @@ export type BaseFieldId =
   | 'mortgageBalanceK'
   | 'cashTodayK'
   | 'brokerageTodayK'
-  | 'reserveTargetK'
   | 'salaryY0K'
   | 'salaryGrowthAfterY10Pct'
   | 'netKeepRatePct'
   | 'partnerSalaryY0K'
   | 'partnerSalaryGrowthAfterY10Pct'
   | 'partnerNetKeepRatePct'
-  | 'kidsAdded'
   | 'costPerKidMo'
   | 'inflationPct'
   | 'investmentReturnPct'
@@ -103,16 +101,11 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         visibleIf: ownsHome,
       },
       {
-        id: 'kidsAdded',
-        label: 'Kids added',
-        format: 'n',
-        tooltip: "Children beyond your current household, arriving roughly every 2.5 years. Leave at 0 if this doesn't apply.",
-      },
-      {
         id: 'costPerKidMo',
-        label: 'Cost per kid /mo',
+        label: 'Cost per child /mo',
         format: '$',
-        tooltip: "Incremental monthly cost per additional child in today's dollars.",
+        tooltip:
+          "Incremental monthly cost per child, in today's dollars. Add each child below with the year they arrive (or stay at 0 if they're already part of your household).",
       },
     ],
   },
@@ -150,12 +143,6 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   {
     title: 'Assumptions',
     fields: [
-      {
-        id: 'reserveTargetK',
-        label: 'Reserve target',
-        format: 'k',
-        tooltip: 'Emergency fund goal. The model tops cash up to this before investing anything else.',
-      },
       {
         id: 'inflationPct',
         label: 'Inflation',

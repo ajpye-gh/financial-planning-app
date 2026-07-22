@@ -32,10 +32,8 @@ describe('visibleBaseFieldGroups', () => {
     ]);
   });
 
-  it('always shows kid-cost fields under Expenses - no questionnaire gating them anymore', () => {
-    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({}))).toEqual(
-      expect.arrayContaining(['kidsAdded', 'costPerKidMo']),
-    );
+  it('always shows the cost-per-kid field under Expenses - no questionnaire gating it anymore', () => {
+    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({}))).toEqual(expect.arrayContaining(['costPerKidMo']));
   });
 
   it('always includes all five groups, since each has at least one always-visible field', () => {

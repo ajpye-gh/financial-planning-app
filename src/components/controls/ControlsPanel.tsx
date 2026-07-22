@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { ChildBreakpoints, type ChildBreakpointsProps } from './ChildBreakpoints';
 import { ControlGroup } from './ControlGroup';
 import { HousingToggle } from './HousingToggle';
 import { SalaryRaiseBreakpoints, type SalaryRaiseBreakpointsProps } from './SalaryRaiseBreakpoints';
@@ -21,6 +23,7 @@ interface ControlsPanelProps {
   onChange: (id: BaseFieldId, value: number) => void;
   primaryIncomeControls: SalaryRaiseBreakpointsProps;
   partnerIncomeControls: SalaryRaiseBreakpointsProps;
+  childrenControls: ChildBreakpointsProps;
 }
 
 export function ControlsPanel({
@@ -31,6 +34,7 @@ export function ControlsPanel({
   onChange,
   primaryIncomeControls,
   partnerIncomeControls,
+  childrenControls,
 }: Readonly<ControlsPanelProps>) {
   const incomeGroups: IncomeGroupConfig[] = [
     { title: 'Income', salaryFieldId: 'salaryY0K', keepRateFieldId: 'netKeepRatePct', controls: primaryIncomeControls },
@@ -44,9 +48,17 @@ export function ControlsPanel({
 
   return (
     <div className="controls-panel">
-      <HousingToggle ownsHome={ownsHome(answers)} onChange={(owns) => onAnswer('housing', owns ? 'own' : 'rent')} />
       {visibleBaseFieldGroups(answers).map((group) => {
         const incomeGroup = incomeGroups.find((candidate) => candidate.title === group.title);
+        const isExpenses = group.title === 'Expenses';
+
+        let renderAfterField: ((fieldId: BaseFieldId) => ReactNode) | undefined;
+        if (incomeGroup) {
+          renderAfterField = (fieldId) => (fieldId === incomeGroup.salaryFieldId ? <SalaryRaiseBreakpoints {...incomeGroup.controls} /> : null);
+        } else if (isExpenses) {
+          renderAfterField = (fieldId) => (fieldId === 'costPerKidMo' ? <ChildBreakpoints {...childrenControls} /> : null);
+        }
+
         return (
           <ControlGroup
             key={group.title}
@@ -54,11 +66,15 @@ export function ControlsPanel({
             ranges={ranges}
             values={values}
             onChange={onChange}
-            renderAfterField={
-              incomeGroup
-                ? (fieldId) => (fieldId === incomeGroup.salaryFieldId ? <SalaryRaiseBreakpoints {...incomeGroup.controls} /> : null)
+            renderBeforeField={
+              isExpenses
+                ? (fieldId) =>
+                    fieldId === 'housingPaymentMo' ? (
+                      <HousingToggle ownsHome={ownsHome(answers)} onChange={(owns) => onAnswer('housing', owns ? 'own' : 'rent')} />
+                    ) : null
                 : undefined
             }
+            renderAfterField={renderAfterField}
             valueLabelForField={
               incomeGroup
                 ? (fieldId) => {

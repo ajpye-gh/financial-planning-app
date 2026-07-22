@@ -1,4 +1,5 @@
 import type { BaseInputs } from './baseData';
+import type { Child } from './children';
 import type { RecurringGoal } from './goals';
 import type { SalaryRaiseBreakpoint } from './salaryRaises';
 
@@ -19,6 +20,7 @@ export interface ModelInputs {
   base: BaseInputs;
   ownsHome: boolean;
   goals: RecurringGoal[];
+  children: Child[];
   primaryIncome: IncomeStreamInputs;
   partnerIncome: IncomeStreamInputs;
 }
@@ -124,15 +126,11 @@ interface UnallocatedPool {
   cash: number;
 }
 
-/** Tops cash up to the reserve target before investing anything else, mirroring financial-planning's mechanic. */
-function advanceUnallocatedPool(pool: UnallocatedPool, freeCash: number, reserveTarget: number, investmentReturnPct: number): void {
-  if (pool.cash < reserveTarget && freeCash > 0) {
-    const topUp = Math.min(freeCash * 12, reserveTarget - pool.cash);
-    pool.cash += topUp;
-    pool.brokerage = pool.brokerage * (1 + investmentReturnPct / 100) + (freeCash * 12 - topUp);
-  } else {
-    pool.brokerage = pool.brokerage * (1 + investmentReturnPct / 100) + freeCash * 12;
-  }
+/** All free cash invests into brokerage; a dedicated reserve/emergency-fund target is just an
+ *  `accumulate`-mode goal now (see goals.ts's "Emergency fund top-up" catalog entry), not a base
+ *  mechanic. Cash today only moves if brokerage runs dry, as a last-resort draw-down. */
+function advanceUnallocatedPool(pool: UnallocatedPool, freeCash: number, investmentReturnPct: number): void {
+  pool.brokerage = pool.brokerage * (1 + investmentReturnPct / 100) + freeCash * 12;
   if (pool.brokerage < 0) {
     pool.cash += pool.brokerage;
     pool.brokerage = 0;
@@ -169,7 +167,7 @@ function initGoalSeries(goals: RecurringGoal[]): Record<string, number[]> {
 function recordGoalSeries(goals: RecurringGoal[], balances: Record<string, number>, series: Record<string, number[]>): void {
   for (const goal of goals) {
     if (goal.mode === 'accumulate') {
-      series[goal.id].push(Math.round(balances[goal.id]));
+      series[goal.id].push(Math.round(balances[goal.id] ?? 0));
     }
   }
 }
@@ -177,6 +175,7 @@ function recordGoalSeries(goals: RecurringGoal[], balances: Record<string, numbe
 interface YearContext {
   base: BaseInputs;
   goals: RecurringGoal[];
+  children: Child[];
   primary: IncomeStreamContext;
   partner: IncomeStreamContext;
   inflation: number;
@@ -205,7 +204,8 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const income = primary.income + partner.income;
 
   const livingCosts = ctx.nonHousingLiving * inflationFactor;
-  const kidsCost = Math.min(ctx.base.kidsAdded, Math.floor(year / 2.5)) * ctx.base.costPerKidMo * inflationFactor;
+  const childCount = ctx.children.filter((child) => child.year <= year).length;
+  const kidsCost = childCount * ctx.base.costPerKidMo * inflationFactor;
   const housingCost = ctx.fixedHousing + ctx.inflatingHousingBase * inflationFactor;
 
   const goalContributions: Record<string, number> = {};
@@ -256,11 +256,10 @@ function buildVerdict(finalUnallocated: number, everNegative: boolean, firstNega
 }
 
 export function runModel(inputs: ModelInputs): ModelResult {
-  const { base, ownsHome, goals, primaryIncome, partnerIncome } = inputs;
+  const { base, ownsHome, goals, children, primaryIncome, partnerIncome } = inputs;
 
   const investmentReturn = base.investmentReturnPct;
   const inflation = base.inflationPct;
-  const reserveTarget = base.reserveTargetK * 1000;
 
   const nonHousingLiving = base.expensesMo - base.housingPaymentMo;
   // Owning: P&I is fixed forever, the rest (escrow) inflates. Renting: the whole payment inflates.
@@ -282,6 +281,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
   const yearContext: YearContext = {
     base,
     goals,
+    children,
     primary: buildStreamContext(primaryIncome),
     partner: buildStreamContext(partnerIncome),
     inflation,
@@ -289,6 +289,15 @@ export function runModel(inputs: ModelInputs): ModelResult {
     fixedHousing,
     inflatingHousingBase,
   };
+
+  // Year 0: today, before any growth or inflation - anchors the chart at your actual current
+  // numbers (income, expenses, and any children already at year 0) instead of jumping straight to
+  // a year already one year out.
+  const baselineFigures = computeYearFigures(0, yearContext);
+  yearLabels.push('Y0');
+  unallocatedSeries.push(Math.round(pool.brokerage + pool.cash));
+  freeCashSeries.push(Math.round(baselineFigures.freeCash));
+  recordGoalSeries(goals, goalBalances, goalSeries);
 
   for (let year = 1; year <= HORIZON_YEARS; year++) {
     const figures = computeYearFigures(year, yearContext);
@@ -316,7 +325,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
     }
 
     advanceGoalBalances(year, goals, goalBalances, investmentReturn);
-    advanceUnallocatedPool(pool, freeCash, reserveTarget, investmentReturn);
+    advanceUnallocatedPool(pool, freeCash, investmentReturn);
 
     yearLabels.push(`Y${year}`);
     unallocatedSeries.push(Math.round(pool.brokerage + pool.cash));
@@ -333,7 +342,8 @@ export function runModel(inputs: ModelInputs): ModelResult {
 
   return {
     freeCashAtInspect: snapshot.freeCash,
-    unallocatedAtInspect: unallocatedSeries[base.inspectYear - 1],
+    // Series index === year number now that index 0 is the Y0 baseline, so no -1 offset here.
+    unallocatedAtInspect: unallocatedSeries[base.inspectYear],
     unallocatedAtEnd: finalUnallocated,
     snapshot,
     chart: { yearLabels, unallocatedSavings: unallocatedSeries, freeCash: freeCashSeries, goalBalances: goalSeries },

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ChildBreakpointsProps } from './components/controls/ChildBreakpoints';
 import { ControlsPanel } from './components/controls/ControlsPanel';
 import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRaiseBreakpoints';
 import { SliderField } from './components/controls/SliderField';
@@ -38,6 +39,12 @@ function App() {
     onSetJobLoss: draft.setPartnerJobLossYear,
     onClearJobLoss: draft.clearPartnerJobLossYear,
   };
+  const childrenControls: ChildBreakpointsProps = {
+    kids: draft.children,
+    onAdd: draft.addChild,
+    onRemove: draft.removeChild,
+    onUpdate: draft.updateChild,
+  };
 
   const result = useMemo(() => {
     const primaryIncome: IncomeStreamInputs = {
@@ -58,6 +65,7 @@ function App() {
       base: draft.baseInputs,
       ownsHome: ownsHome(draft.answers),
       goals: draft.goals,
+      children: draft.children,
       primaryIncome,
       partnerIncome,
     });
@@ -65,6 +73,7 @@ function App() {
     draft.baseInputs,
     draft.answers,
     draft.goals,
+    draft.children,
     draft.salaryRaises,
     draft.jobLossYear,
     draft.partnerSalaryRaises,
@@ -83,7 +92,8 @@ function App() {
     if (series && series.length > 0) {
       // Balance at the goal's own endYear, not the model horizon - the balance keeps compounding
       // past endYear (see model.ts), but that's not what "did I hit my target" should check against.
-      const endYearIndex = Math.min(Math.max(goal.endYear, 1), series.length) - 1;
+      // Series index === year number (index 0 is the Y0 baseline), so no -1 offset here.
+      const endYearIndex = Math.min(Math.max(goal.endYear, 0), series.length - 1);
       runningTotals[goal.id] = series[endYearIndex];
     }
   }
@@ -121,6 +131,7 @@ function App() {
             onChange={draft.setBaseInput}
             primaryIncomeControls={primaryIncomeControls}
             partnerIncomeControls={partnerIncomeControls}
+            childrenControls={childrenControls}
           />
         </aside>
 

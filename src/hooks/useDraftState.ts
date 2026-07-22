@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Answers } from '../lib/questions';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
+import { generateChildId, isValidChild, nextChildYear, type Child } from '../lib/children';
 import { isValidGoal, type Goal } from '../lib/goals';
 import {
   DEFAULT_SALARY_RAISES,
@@ -24,6 +25,7 @@ interface Draft {
   jobLossYear: number | undefined;
   partnerSalaryRaises: SalaryRaiseBreakpoint[];
   partnerJobLossYear: number | undefined;
+  children: Child[];
 }
 
 function freshDraft(): Draft {
@@ -35,6 +37,7 @@ function freshDraft(): Draft {
     jobLossYear: undefined,
     partnerSalaryRaises: [],
     partnerJobLossYear: undefined,
+    children: [],
   };
 }
 
@@ -66,6 +69,7 @@ function loadDraft(): Draft {
     const partnerJobLossYear = isValidJobLossYear(record.partnerJobLossYear)
       ? record.partnerJobLossYear
       : fresh.partnerJobLossYear;
+    const children = Array.isArray(record.children) ? record.children.filter(isValidChild) : fresh.children;
 
     const answersValue: unknown = record.answers;
     const answers = typeof answersValue === 'object' && answersValue !== null ? (answersValue as Answers) : fresh.answers;
@@ -76,7 +80,7 @@ function loadDraft(): Draft {
       ...(typeof baseInputsValue === 'object' && baseInputsValue !== null ? baseInputsValue : {}),
     };
 
-    return { answers, baseInputs, goals, salaryRaises, jobLossYear, partnerSalaryRaises, partnerJobLossYear };
+    return { answers, baseInputs, goals, salaryRaises, jobLossYear, partnerSalaryRaises, partnerJobLossYear, children };
   } catch {
     // Corrupt/inaccessible localStorage - autosave is best-effort, fall back to a fresh draft.
     return fresh;
@@ -106,6 +110,10 @@ export interface UseDraftStateResult {
   partnerJobLossYear: number | undefined;
   setPartnerJobLossYear: (year: number) => void;
   clearPartnerJobLossYear: () => void;
+  children: Child[];
+  addChild: () => void;
+  removeChild: (id: string) => void;
+  updateChild: (id: string, year: number) => void;
   startOver: () => void;
 }
 
@@ -198,6 +206,24 @@ export function useDraftState(): UseDraftStateResult {
     setDraft((prev) => ({ ...prev, partnerJobLossYear: undefined }));
   }, []);
 
+  const addChild = useCallback(() => {
+    setDraft((prev) => ({
+      ...prev,
+      children: [...prev.children, { id: generateChildId(), year: nextChildYear(prev.children) }],
+    }));
+  }, []);
+
+  const removeChild = useCallback((id: string) => {
+    setDraft((prev) => ({ ...prev, children: prev.children.filter((child) => child.id !== id) }));
+  }, []);
+
+  const updateChild = useCallback((id: string, year: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      children: prev.children.map((child) => (child.id === id ? { ...child, year } : child)),
+    }));
+  }, []);
+
   const startOver = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -230,6 +256,10 @@ export function useDraftState(): UseDraftStateResult {
     partnerJobLossYear: draft.partnerJobLossYear,
     setPartnerJobLossYear,
     clearPartnerJobLossYear,
+    children: draft.children,
+    addChild,
+    removeChild,
+    updateChild,
     startOver,
   };
 }

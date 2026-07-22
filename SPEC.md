@@ -21,7 +21,7 @@ This app, `financial-planning-app`, is a **generic version** for any user's situ
 ## 3. User flow overview
 
 1. **Questionnaire** (first run only, ~3 questions): own vs. rent, spouse/partner income, kids. Answers gate which *base* fields are shown — this is the only thing the questionnaire controls. See §4.2.
-2. **Base sections** render based on those answers: Household position (income, expenses, housing, reserves — plus home value/mortgage if the user owns), Salary path, Household composition (spouse/kids fields, only if applicable), Assumptions (inflation, investment return).
+2. **Base sections** render based on those answers: Household position (income, expenses, housing — plus home value/mortgage if the user owns), Salary path, Household composition (spouse/kids fields, only if applicable), Assumptions (inflation, investment return).
 3. **Goals list** — starts empty. The user adds goals from a small typed catalog (§4.3): a recurring accumulation/consumption goal, a big one-time purchase, or a debt payoff. Each goal gets its own slider(s) and, for accumulation/debt goals, its own accumulating/declining balance.
 4. **Results**: verdict banner, metric cards, a chart with a **goal toggle** (§6.4) to inspect any one goal's curve, and a year-by-year breakdown table — same visual language as `financial-planning`, generalized to a dynamic goal list instead of fixed rows.
 5. **Load/Save**: same file-based plan I/O as `financial-planning`, extended to the new schema, plus localStorage autosave so progress survives a closed tab.
@@ -39,10 +39,10 @@ These are the fields that apply to essentially every household, independent of a
 | Net income /mo, Expenses /mo | as today |
 | Housing payment, of which P&I | "housing payment" covers rent *or* mortgage payment — framing adjusts based on `ownsHome` |
 | Home value, Mortgage balance | shown only if `ownsHome` (needed so a later "move to a bigger home" goal can compute sale equity) |
-| Cash today, Brokerage today, Reserve target | as today — this is the shared "unallocated savings" pool every goal draws from/tops up |
+| Cash today, Brokerage today | as today — this is the shared "unallocated savings" pool every goal draws from/tops up. No dedicated reserve/emergency-fund target here anymore — that's just an `accumulate`-mode goal now (see the "Emergency fund top-up" catalog entry in §4.3) |
 | Salary milestones (yr 0/1/4/6/10), growth after yr 10, net keep rate | as today |
 | Wife/partner net /mo, income-stops year | shown only if `hasPartnerIncome` |
-| Kids added, cost per kid | shown only if `hasKids` |
+| Number of children, cost per child | always shown; children are added individually with an arrival year (0 = already part of the household today), organized the same way as salary raise breakpoints — not a single count slider |
 | Inflation, investment return | as today, split into their own "Assumptions" section instead of buried in "Household" |
 | Inspect year | global control for the breakdown table, as today |
 
@@ -174,7 +174,7 @@ Validation reuses the exact pattern from `financial-planning`'s `parsePlanData` 
 Per year (1..N, N configurable, defaulting to 18 as today):
 
 1. Compute income (salary interpolation + partner income, as today).
-2. Compute base living costs (non-housing expenses, kids cost, inflated) — as today.
+2. Compute base living costs (non-housing expenses, kids cost, inflated). Kids cost = `costPerKidMo` × the count of children whose arrival year has been reached (0 = today), inflated — not a single "kids added" slider phased in on a fixed cadence.
 3. Compute housing cost:
    - If no `BigPurchaseGoal` with `replacesBaseHousing: true` has reached its `purchaseYear` yet, use the base housing payment (P&I fixed, T&I inflating), as today's "current home" branch.
    - Once such a goal's `purchaseYear` arrives, switch to its financed payment (computed once at purchase, then inflated), exactly like today's move-up-home mechanic — just driven by the goal's fields instead of dedicated sliders.
@@ -182,7 +182,9 @@ Per year (1..N, N configurable, defaulting to 18 as today):
 5. For every `RecurringGoal`: subtract `monthlyAmount` from free cash. If `mode: 'accumulate'`, also grow that goal's own balance: `balance_y = balance_{y-1} * (1 + investmentReturn/100) + monthlyAmount * 12` (identical to today's `edu529` bucket). If `mode: 'consume'`, no balance is tracked, matching today's travel field.
 6. For every `DebtPayoffGoal`: subtract `minimumMonthlyPayment + extraMonthlyPayment` from free cash, and shrink its balance: `balance_y = max(balance_{y-1} * (1 + annualRatePct/1200)**12 - (minimum+extra)*12, 0)`. Once a balance hits 0, its payment stops counting against free cash from the next year on (a paid-off loan frees up cash) — a new, realistic dynamic `financial-planning` didn't have.
 7. **Free cash** = income − living costs − housing cost − Σ(all `BigPurchaseGoal` post-purchase recurring costs) − Σ(all `RecurringGoal` monthly amounts) − Σ(all `DebtPayoffGoal` payments). This is the "truly free" number from the user's request — every goal type subtracts from it on equal footing.
-8. **Unallocated savings** (today's "Lake fund (liquid)", renamed): the shared brokerage/cash pool. Grows from whatever free cash is left after all goal contributions, same reserve-top-up-then-invest mechanic as today. At each `BigPurchaseGoal`'s `purchaseYear`, this pool is drawn down by the purchase's total cost (price + `oneTimeExtras`, plus `financing.downPayment` if financed, minus any `existingAsset` net sale proceeds if selling) — a shortfall here is what drives the "not funded" verdict, exactly as today's lake-house shortfall check.
+8. **Unallocated savings** (today's "Lake fund (liquid)", renamed): the shared brokerage/cash pool. Grows from whatever free cash is left after all goal contributions — invested straight into brokerage (no base reserve-target top-up mechanic; want a cash reserve, add an "Emergency fund top-up" goal instead). Cash today only moves as a last-resort draw-down if brokerage goes negative. At each `BigPurchaseGoal`'s `purchaseYear`, this pool is drawn down by the purchase's total cost (price + `oneTimeExtras`, plus `financing.downPayment` if financed, minus any `existingAsset` net sale proceeds if selling) — a shortfall here is what drives the "not funded" verdict, exactly as today's lake-house shortfall check.
+
+The chart's timeline starts at a **Y0 baseline** (today's actual numbers — no inflation or growth applied yet) before the Y1..Y18 projection, so the line visibly anchors at your current position rather than jumping straight to a year already one year out.
 
 This is a direct generalization of `financial-planning`'s `src/lib/model.ts` (`housingCostsForYear`/`lakeCarryForYear` become goal-driven; `edu529`'s accumulation becomes the general `RecurringGoal` case; `DebtPayoffGoal` is new).
 

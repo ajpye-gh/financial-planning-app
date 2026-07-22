@@ -8,6 +8,9 @@ interface ControlGroupProps {
   ranges: BaseRanges;
   values: BaseInputs;
   onChange: (id: BaseFieldId, value: number) => void;
+  /** Lets a caller inject extra, non-slider content (e.g. a toggle) right before a specific field
+   *  within this group. */
+  renderBeforeField?: (fieldId: BaseFieldId) => ReactNode;
   /** Lets a caller inject extra, non-slider content (e.g. a dynamic list editor) right after a
    *  specific field within this group. */
   renderAfterField?: (fieldId: BaseFieldId) => ReactNode;
@@ -20,6 +23,7 @@ export function ControlGroup({
   ranges,
   values,
   onChange,
+  renderBeforeField,
   renderAfterField,
   valueLabelForField,
 }: Readonly<ControlGroupProps>) {
@@ -41,6 +45,7 @@ export function ControlGroup({
       {!collapsed &&
         group.fields.map((field) => (
           <Fragment key={field.id}>
+            {renderBeforeField?.(field.id)}
             <SliderField
               meta={field}
               range={ranges[field.id]}
