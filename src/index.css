@@ -924,6 +924,19 @@ input[type='range']::-moz-range-thumb {
   gap: 6px;
   font-size: 12px;
   color: var(--text-secondary);
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.cashflow-chart__legend-item:hover:not(:disabled) {
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.cashflow-chart__legend-item--hidden {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 
 .cashflow-chart__swatch {
@@ -942,6 +955,10 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__swatch--cash {
   background: var(--warning);
+}
+
+.cashflow-chart__swatch--target {
+  background: var(--text-secondary);
 }
 
 /* Breakdown table */

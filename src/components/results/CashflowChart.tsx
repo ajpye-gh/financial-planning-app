@@ -8,6 +8,8 @@ interface CashflowChartProps {
   primary: PrimarySeries;
 }
 
+type SeriesKey = 'unallocated' | 'primary' | 'cash' | 'target';
+
 const WIDTH = 720;
 const HEIGHT = 240;
 const PADDING = { top: 20, right: 58, bottom: 28, left: 58 };
@@ -29,6 +31,10 @@ function axisTicks(min: number, max: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => min + ((max - min) * i) / (count - 1));
 }
 
+function legendItemClassName(visible: boolean): string {
+  return visible ? 'cashflow-chart__legend-item' : 'cashflow-chart__legend-item cashflow-chart__legend-item--hidden';
+}
+
 export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) {
   const { yearLabels, freeCash, unallocatedSavings } = chart;
   const primaryValues = primary.values;
@@ -37,6 +43,18 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<SeriesKey>>(new Set());
+  const toggleSeries = (key: SeriesKey) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const targetAmount = primary.targetAmount;
   const primaryMax = Math.max(...primaryValues, 0, targetAmount ?? 0);
@@ -58,11 +76,17 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
     PADDING.top + innerHeight - ((value - unallocatedMin) / unallocatedRange) * innerHeight;
   const scaleCashY = (value: number) => PADDING.top + innerHeight - ((value - cashMin) / cashRange) * innerHeight;
 
+  const showUnallocated = !hiddenSeries.has('unallocated');
+  const showPrimary = hasPrimary && !hiddenSeries.has('primary');
+  const showCash = !hiddenSeries.has('cash');
+  const showTarget = targetAmount !== undefined && !hiddenSeries.has('target');
+
   const primaryLine = buildPath(primaryValues, scaleX, scalePrimaryY);
   const unallocatedLine = buildPath(unallocatedSavings, scaleX, scaleUnallocatedY);
   const cashLine = buildPath(freeCash, scaleX, scaleCashY);
-  // Only worth calling out where $0 actually is if free cash dips below it somewhere.
-  const cashEverNegative = freeCash.some((value) => value < 0);
+  // Only worth calling out where $0 actually is if free cash dips below it somewhere - and only
+  // while the free cash line itself is shown, since it's an annotation on that series.
+  const cashEverNegative = showCash && freeCash.some((value) => value < 0);
   const zeroCashY = scaleCashY(0);
 
   const xTickIndexes = [0, Math.round((count - 1) / 3), Math.round(((count - 1) * 2) / 3), count - 1];
@@ -89,11 +113,13 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
     hoverIndex === null
       ? []
       : [
-          ...(hasPrimary
+          ...(showPrimary
             ? [{ text: `${primary.label}: ${formatCurrencyCompact(primaryValues[hoverIndex])}`, className: 'primary' }]
             : []),
-          { text: `Unallocated: ${formatCurrencyCompact(unallocatedSavings[hoverIndex])}`, className: 'unallocated' },
-          { text: `Free cash: ${formatCurrency(freeCash[hoverIndex])}/mo`, className: 'cash' },
+          ...(showUnallocated
+            ? [{ text: `Unallocated: ${formatCurrencyCompact(unallocatedSavings[hoverIndex])}`, className: 'unallocated' }]
+            : []),
+          ...(showCash ? [{ text: `Free cash: ${formatCurrency(freeCash[hoverIndex])}/mo`, className: 'cash' }] : []),
         ];
   const tooltipHeight = TOOLTIP_TOP_PADDING + tooltipRows.length * TOOLTIP_ROW_HEIGHT + TOOLTIP_BOTTOM_PADDING;
 
@@ -138,9 +164,9 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
           />
         )}
 
-        {hasPrimary && <path d={primaryLine} className="cashflow-chart__line cashflow-chart__line--primary" />}
-        <path d={unallocatedLine} className="cashflow-chart__line cashflow-chart__line--unallocated" />
-        <path d={cashLine} className="cashflow-chart__line cashflow-chart__line--cash" />
+        {showPrimary && <path d={primaryLine} className="cashflow-chart__line cashflow-chart__line--primary" />}
+        {showUnallocated && <path d={unallocatedLine} className="cashflow-chart__line cashflow-chart__line--unallocated" />}
+        {showCash && <path d={cashLine} className="cashflow-chart__line cashflow-chart__line--cash" />}
         {cashEverNegative && (
           <line
             x1={PADDING.left}
@@ -150,7 +176,7 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
             className="cashflow-chart__line--zero-cash"
           />
         )}
-        {targetAmount !== undefined && (
+        {targetAmount !== undefined && !hiddenSeries.has('target') && (
           <line
             x1={PADDING.left}
             x2={WIDTH - PADDING.right}
@@ -166,20 +192,21 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
           </text>
         ))}
 
-        {unallocatedTicks.map((tick) => (
-          <text
-            key={`unallocated-tick-${tick}`}
-            x={PADDING.left - 8}
-            y={scaleUnallocatedY(tick) - AXIS_LABEL_STACK_OFFSET}
-            className="cashflow-chart__axis-label cashflow-chart__axis-label--unallocated"
-            textAnchor="end"
-            dominantBaseline="middle"
-          >
-            {formatCurrencyCompact(tick)}
-          </text>
-        ))}
+        {showUnallocated &&
+          unallocatedTicks.map((tick) => (
+            <text
+              key={`unallocated-tick-${tick}`}
+              x={PADDING.left - 8}
+              y={scaleUnallocatedY(tick) - AXIS_LABEL_STACK_OFFSET}
+              className="cashflow-chart__axis-label cashflow-chart__axis-label--unallocated"
+              textAnchor="end"
+              dominantBaseline="middle"
+            >
+              {formatCurrencyCompact(tick)}
+            </text>
+          ))}
 
-        {hasPrimary &&
+        {showPrimary &&
           primaryTicks.map((tick) => (
             <text
               key={`primary-tick-${tick}`}
@@ -193,18 +220,19 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
             </text>
           ))}
 
-        {cashTicks.map((tick) => (
-          <text
-            key={`cash-tick-${tick}`}
-            x={WIDTH - PADDING.right + 8}
-            y={scaleCashY(tick)}
-            className="cashflow-chart__axis-label cashflow-chart__axis-label--cash"
-            textAnchor="start"
-            dominantBaseline="middle"
-          >
-            {formatCurrency(tick)}
-          </text>
-        ))}
+        {showCash &&
+          cashTicks.map((tick) => (
+            <text
+              key={`cash-tick-${tick}`}
+              x={WIDTH - PADDING.right + 8}
+              y={scaleCashY(tick)}
+              className="cashflow-chart__axis-label cashflow-chart__axis-label--cash"
+              textAnchor="start"
+              dominantBaseline="middle"
+            >
+              {formatCurrency(tick)}
+            </text>
+          ))}
 
         {hoverIndex !== null && hoverX !== null && count > 0 && (
           <g className="cashflow-chart__hover">
@@ -215,7 +243,7 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
               y2={HEIGHT - PADDING.bottom}
               className="cashflow-chart__crosshair"
             />
-            {hasPrimary && (
+            {showPrimary && (
               <circle
                 cx={hoverX}
                 cy={scalePrimaryY(primaryValues[hoverIndex])}
@@ -223,18 +251,22 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
                 className="cashflow-chart__point cashflow-chart__point--primary"
               />
             )}
-            <circle
-              cx={hoverX}
-              cy={scaleUnallocatedY(unallocatedSavings[hoverIndex])}
-              r={4}
-              className="cashflow-chart__point cashflow-chart__point--unallocated"
-            />
-            <circle
-              cx={hoverX}
-              cy={scaleCashY(freeCash[hoverIndex])}
-              r={4}
-              className="cashflow-chart__point cashflow-chart__point--cash"
-            />
+            {showUnallocated && (
+              <circle
+                cx={hoverX}
+                cy={scaleUnallocatedY(unallocatedSavings[hoverIndex])}
+                r={4}
+                className="cashflow-chart__point cashflow-chart__point--unallocated"
+              />
+            )}
+            {showCash && (
+              <circle
+                cx={hoverX}
+                cy={scaleCashY(freeCash[hoverIndex])}
+                r={4}
+                className="cashflow-chart__point cashflow-chart__point--cash"
+              />
+            )}
             <g transform={`translate(${tooltipX}, ${PADDING.top})`} className="cashflow-chart__tooltip">
               <rect width={TOOLTIP_WIDTH} height={tooltipHeight} rx={8} className="cashflow-chart__tooltip-box" />
               <text x={10} y={TOOLTIP_TOP_PADDING} className="cashflow-chart__tooltip-title">
@@ -255,17 +287,42 @@ export function CashflowChart({ chart, primary }: Readonly<CashflowChartProps>) 
         )}
       </svg>
       <div className="cashflow-chart__legend">
-        <span className="cashflow-chart__legend-item">
+        <button
+          type="button"
+          className={legendItemClassName(showUnallocated)}
+          aria-pressed={!showUnallocated}
+          onClick={() => toggleSeries('unallocated')}
+        >
           <span className="cashflow-chart__swatch cashflow-chart__swatch--unallocated" /> Unallocated savings
-        </span>
+        </button>
         {hasPrimary && (
-          <span className="cashflow-chart__legend-item">
+          <button
+            type="button"
+            className={legendItemClassName(showPrimary)}
+            aria-pressed={!showPrimary}
+            onClick={() => toggleSeries('primary')}
+          >
             <span className="cashflow-chart__swatch cashflow-chart__swatch--primary" /> {primary.label}
-          </span>
+          </button>
         )}
-        <span className="cashflow-chart__legend-item">
+        <button
+          type="button"
+          className={legendItemClassName(showCash)}
+          aria-pressed={!showCash}
+          onClick={() => toggleSeries('cash')}
+        >
           <span className="cashflow-chart__swatch cashflow-chart__swatch--cash" /> Monthly free cash
-        </span>
+        </button>
+        {targetAmount !== undefined && (
+          <button
+            type="button"
+            className={legendItemClassName(showTarget)}
+            aria-pressed={!showTarget}
+            onClick={() => toggleSeries('target')}
+          >
+            <span className="cashflow-chart__swatch cashflow-chart__swatch--target" /> {primary.label} target
+          </button>
+        )}
       </div>
     </div>
   );
