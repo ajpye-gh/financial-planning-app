@@ -5,6 +5,7 @@ import type { BaseFieldId } from '../lib/baseFields';
 import { isValidGoal, type Goal } from '../lib/goals';
 import {
   DEFAULT_SALARY_RAISES,
+  applyRaiseUpdate,
   generateBreakpointId,
   isValidBreakpoint,
   nextBreakpoint,
@@ -129,10 +130,7 @@ export function useDraftState(): UseDraftStateResult {
   }, []);
 
   const updateSalaryRaise = useCallback((id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => {
-    setDraft((prev) => ({
-      ...prev,
-      salaryRaises: prev.salaryRaises.map((breakpoint) => (breakpoint.id === id ? { ...breakpoint, ...patch } : breakpoint)),
-    }));
+    setDraft((prev) => ({ ...prev, salaryRaises: applyRaiseUpdate(prev.salaryRaises, id, patch) }));
   }, []);
 
   const startOver = useCallback(() => {

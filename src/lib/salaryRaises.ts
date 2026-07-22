@@ -37,6 +37,29 @@ export function nextBreakpoint(existing: SalaryRaiseBreakpoint[]): Omit<SalaryRa
   return { year: Math.min(last.year + 1, HORIZON_YEARS), raiseK: last.raiseK };
 }
 
+/** Applies `patch` to the breakpoint `id`, then enforces a raise curve that's non-decreasing in year
+ *  order: a breakpoint can never sit below the one before it, and pushing one above later breakpoints
+ *  drags them up to match ("move in unison") rather than letting the raise dip partway through the
+ *  timeline (which would silently model a pay cut - see model.ts's income formula). */
+export function applyRaiseUpdate(
+  breakpoints: SalaryRaiseBreakpoint[],
+  id: string,
+  patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>,
+): SalaryRaiseBreakpoint[] {
+  const patched = breakpoints.map((breakpoint) => (breakpoint.id === id ? { ...breakpoint, ...patch } : breakpoint));
+  const ascendingByYear = [...patched].sort((a, b) => a.year - b.year);
+
+  let floor = 0;
+  const raiseById = new Map<string, number>();
+  for (const breakpoint of ascendingByYear) {
+    const raiseK = Math.max(breakpoint.raiseK, floor);
+    raiseById.set(breakpoint.id, raiseK);
+    floor = raiseK;
+  }
+
+  return patched.map((breakpoint) => ({ ...breakpoint, raiseK: raiseById.get(breakpoint.id) ?? breakpoint.raiseK }));
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
