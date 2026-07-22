@@ -18,7 +18,7 @@ import { formatCurrency, formatCurrencyCompact } from './lib/format';
 
 function App() {
   const draft = useDraftState();
-  const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId>('unallocated');
+  const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
 
   const questionnaireDone = isQuestionnaireComplete(draft.answers);
 
@@ -38,7 +38,7 @@ function App() {
   const toggleOptions = chartToggleOptions(draft.goals);
   const effectiveSeriesId = toggleOptions.some((option) => option.id === selectedSeriesId)
     ? selectedSeriesId
-    : 'unallocated';
+    : (toggleOptions[0]?.id ?? null);
   const primary = primarySeriesFor(effectiveSeriesId, result.chart, draft.goals);
 
   const runningTotals: Record<string, number> = {};

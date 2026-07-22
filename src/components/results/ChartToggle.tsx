@@ -2,7 +2,7 @@ import type { ChartSeriesId, ChartSeriesOption } from '../../lib/chartSeries';
 
 interface ChartToggleProps {
   options: ChartSeriesOption[];
-  selected: ChartSeriesId;
+  selected: ChartSeriesId | null;
   onSelect: (id: ChartSeriesId) => void;
 }
 

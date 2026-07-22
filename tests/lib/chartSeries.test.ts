@@ -33,25 +33,20 @@ const CONSUME_GOAL: RecurringGoal = {
 };
 
 describe('chartToggleOptions', () => {
-  it('always includes "Unallocated savings"', () => {
-    expect(chartToggleOptions([])).toEqual([{ id: 'unallocated', label: 'Unallocated savings' }]);
+  it('is empty when there are no accumulate-mode goals', () => {
+    expect(chartToggleOptions([])).toEqual([]);
+    expect(chartToggleOptions([CONSUME_GOAL])).toEqual([]);
   });
 
   it('adds an option per accumulate-mode goal, but not consume-mode goals', () => {
     const options = chartToggleOptions([ACCUMULATE_GOAL, CONSUME_GOAL]);
-    expect(options).toEqual([
-      { id: 'unallocated', label: 'Unallocated savings' },
-      { id: 'goal:college', label: 'College' },
-    ]);
+    expect(options).toEqual([{ id: 'goal:college', label: 'College' }]);
   });
 });
 
 describe('primarySeriesFor', () => {
-  it('returns the unallocated savings series by id "unallocated"', () => {
-    expect(primarySeriesFor('unallocated', CHART, [])).toEqual({
-      label: 'Unallocated savings',
-      values: [100, 200],
-    });
+  it('returns an empty series when no goal is selected', () => {
+    expect(primarySeriesFor(null, CHART, [])).toEqual({ label: '', values: [] });
   });
 
   it("returns a goal's own balance series and target amount by id `goal:<id>`", () => {

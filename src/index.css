@@ -735,6 +735,10 @@ input[type='range']::-moz-range-thumb {
   stroke: var(--accent);
 }
 
+.cashflow-chart__line--unallocated {
+  stroke: var(--success);
+}
+
 .cashflow-chart__line--cash {
   stroke: var(--warning);
   stroke-dasharray: 5 4;
@@ -758,6 +762,10 @@ input[type='range']::-moz-range-thumb {
   fill: var(--accent);
 }
 
+.cashflow-chart__axis-label--unallocated {
+  fill: var(--success);
+}
+
 .cashflow-chart__axis-label--cash {
   fill: var(--warning);
 }
@@ -779,6 +787,10 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__point--primary {
   fill: var(--accent);
+}
+
+.cashflow-chart__point--unallocated {
+  fill: var(--success);
 }
 
 .cashflow-chart__point--cash {
@@ -808,6 +820,10 @@ input[type='range']::-moz-range-thumb {
   fill: var(--accent);
 }
 
+.cashflow-chart__tooltip-row--unallocated {
+  fill: var(--success);
+}
+
 .cashflow-chart__tooltip-row--cash {
   fill: var(--warning);
 }
@@ -835,6 +851,10 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__swatch--primary {
   background: var(--accent);
+}
+
+.cashflow-chart__swatch--unallocated {
+  background: var(--success);
 }
 
 .cashflow-chart__swatch--cash {
