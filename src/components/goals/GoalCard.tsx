@@ -12,6 +12,8 @@ interface GoalCardProps {
   onRemove: (id: string) => void;
 }
 
+const TARGET_AMOUNT_RANGE = { min: 0, max: 500000, step: 5000 };
+
 export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<GoalCardProps>) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(goal.name);
@@ -98,6 +100,28 @@ export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<Go
           <span className="slider-field__value">{formatCurrency(goal.monthlyAmount)}/mo</span>
         </div>
       </div>
+
+      {goal.mode === 'accumulate' && (
+        <div className="slider-field">
+          <span className="slider-field__label">Target amount</span>
+          <div className="slider-field__control">
+            <input
+              type="range"
+              min={TARGET_AMOUNT_RANGE.min}
+              max={TARGET_AMOUNT_RANGE.max}
+              step={TARGET_AMOUNT_RANGE.step}
+              value={goal.targetAmount ?? 0}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                onUpdate(goal.id, { targetAmount: value > 0 ? value : undefined });
+              }}
+            />
+            <span className="slider-field__value">
+              {goal.targetAmount ? formatCurrency(goal.targetAmount) : 'No target'}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="goal-card__years">
         <label className="goal-card__year-field">

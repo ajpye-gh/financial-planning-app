@@ -86,3 +86,54 @@ describe('GoalCard balance', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 });
+
+describe('GoalCard target amount', () => {
+  it('shows "No target" and a zeroed slider when the goal has none set', () => {
+    render(<GoalCard goal={baseGoal} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+
+    expect(screen.getByText('No target')).toBeInTheDocument();
+    const targetSlider = screen.getByText('Target amount').parentElement?.querySelector('input[type="range"]');
+    expect((targetSlider as HTMLInputElement).value).toBe('0');
+  });
+
+  it('shows the formatted target amount when one is set', () => {
+    const goalWithTarget: Goal = { ...baseGoal, targetAmount: 80000 };
+    render(<GoalCard goal={goalWithTarget} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+
+    expect(screen.getByText('$80,000')).toBeInTheDocument();
+  });
+
+  it('sets a target amount when the slider is dragged above zero', () => {
+    const onUpdate = jest.fn();
+    render(<GoalCard goal={baseGoal} onUpdate={onUpdate} onRemove={jest.fn()} />);
+
+    const targetSlider = screen.getByText('Target amount').parentElement?.querySelector('input[type="range"]');
+    fireSliderChange(targetSlider as HTMLInputElement, '150000');
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { targetAmount: 150000 });
+  });
+
+  it('clears the target amount when the slider is dragged back to zero', () => {
+    const onUpdate = jest.fn();
+    const goalWithTarget: Goal = { ...baseGoal, targetAmount: 80000 };
+    render(<GoalCard goal={goalWithTarget} onUpdate={onUpdate} onRemove={jest.fn()} />);
+
+    const targetSlider = screen.getByText('Target amount').parentElement?.querySelector('input[type="range"]');
+    fireSliderChange(targetSlider as HTMLInputElement, '0');
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { targetAmount: undefined });
+  });
+
+  it('does not render for a consume-mode (spending) goal', () => {
+    const spendingGoal: Goal = { ...baseGoal, mode: 'consume' };
+    render(<GoalCard goal={spendingGoal} onUpdate={jest.fn()} onRemove={jest.fn()} />);
+
+    expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
+  });
+});
+
+function fireSliderChange(element: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+}
