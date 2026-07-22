@@ -76,7 +76,8 @@ describe('GoalCard balance', () => {
 
     await user.hover(screen.getByText('$54k'));
     const tooltip = await screen.findByRole('tooltip');
-    expect(tooltip).toHaveTextContent('Projected balance by year 18, against the $80k target');
+    // baseGoal's endYear is 5, not the 18-year model horizon.
+    expect(tooltip).toHaveTextContent('Projected balance at your end year (5), against the $80k target');
   });
 
   it('renders just the balance, with no tooltip, when the goal has no target', () => {

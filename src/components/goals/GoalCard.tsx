@@ -151,7 +151,7 @@ export function GoalCard({ goal, runningTotal, onUpdate, onRemove }: Readonly<Go
           Balance:{' '}
           {goal.targetAmount !== undefined ? (
             <Tooltip
-              tip={`Projected balance by year ${HORIZON_YEARS}, against the ${formatCurrencyCompact(goal.targetAmount)} target you set for this goal.`}
+              tip={`Projected balance at your end year (${goal.endYear}), against the ${formatCurrencyCompact(goal.targetAmount)} target you set for this goal.`}
             >
               <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span> /{' '}
               {formatCurrencyCompact(goal.targetAmount)}

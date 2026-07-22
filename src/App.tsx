@@ -51,7 +51,10 @@ function App() {
   for (const goal of draft.goals) {
     const series = result.chart.goalBalances[goal.id];
     if (series && series.length > 0) {
-      runningTotals[goal.id] = series[series.length - 1];
+      // Balance at the goal's own endYear, not the model horizon - the balance keeps compounding
+      // past endYear (see model.ts), but that's not what "did I hit my target" should check against.
+      const endYearIndex = Math.min(Math.max(goal.endYear, 1), series.length) - 1;
+      runningTotals[goal.id] = series[endYearIndex];
     }
   }
 
