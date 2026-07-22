@@ -508,13 +508,14 @@ input[type='range']::-moz-range-thumb {
   width: 22px;
   height: 22px;
   padding: 0;
-  border-radius: 50%;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
 }
 
 .goal-card__edit-name:hover:not(:disabled) {
   color: var(--accent);
-  border-color: var(--accent-border);
+  box-shadow: none;
 }
 
 .goal-card__remove {
@@ -522,7 +523,8 @@ input[type='range']::-moz-range-thumb {
   width: 22px;
   height: 22px;
   padding: 0;
-  border-radius: 50%;
+  border: none;
+  background: transparent;
   font-size: 15px;
   line-height: 1;
   color: var(--text-secondary);
@@ -530,7 +532,7 @@ input[type='range']::-moz-range-thumb {
 
 .goal-card__remove:hover:not(:disabled) {
   color: var(--danger);
-  border-color: var(--danger);
+  box-shadow: none;
 }
 
 .goal-card__mode-badge {
