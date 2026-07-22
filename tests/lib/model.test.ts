@@ -1,6 +1,7 @@
-import { runModel } from '@src/lib/model';
+import { runModel, type ModelInputs } from '@src/lib/model';
 import type { BaseInputs } from '@src/lib/baseData';
 import type { RecurringGoal } from '@src/lib/goals';
+import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
 
 // A fixed fixture, independent of Defaults.json, so this test stays stable regardless of what the
 // committed defaults happen to contain.
@@ -15,10 +16,6 @@ const BASE: BaseInputs = {
   cashTodayK: 20,
   reserveTargetK: 30,
   salaryY0K: 70,
-  salaryRaiseY1K: 5,
-  salaryRaiseY4K: 20,
-  salaryRaiseY6K: 30,
-  salaryRaiseY10K: 50,
   salaryGrowthAfterY10Pct: 2,
   netKeepRatePct: 65,
   partnerNetIncomeMo: 0,
@@ -29,6 +26,18 @@ const BASE: BaseInputs = {
   investmentReturnPct: 6,
   inspectYear: 5,
 };
+
+const SALARY_RAISES: SalaryRaiseBreakpoint[] = [
+  { id: 'r1', year: 1, raiseK: 5 },
+  { id: 'r4', year: 4, raiseK: 20 },
+  { id: 'r6', year: 6, raiseK: 30 },
+  { id: 'r10', year: 10, raiseK: 50 },
+];
+
+/** Runs the model with BASE/SALARY_RAISES fixtures, overridable per-test. */
+function run(overrides: Partial<ModelInputs>) {
+  return runModel({ base: BASE, ownsHome: true, goals: [], salaryRaises: SALARY_RAISES, ...overrides });
+}
 
 const TRAVEL_GOAL: RecurringGoal = {
   kind: 'recurring',
@@ -55,7 +64,7 @@ const COLLEGE_GOAL: RecurringGoal = {
 
 describe('runModel', () => {
   it('matches hand-verified year-1 figures for an owner with goals (hand-derived from the model formulas)', () => {
-    const result = runModel({ base: BASE, ownsHome: true, goals: [TRAVEL_GOAL, COLLEGE_GOAL] });
+    const result = run({ goals: [TRAVEL_GOAL, COLLEGE_GOAL] });
 
     // income = 6000 + (75000-70000)*0.65/12 = 6270.83; livingCosts = 2200*1.03 = 2266;
     // housingCost = 1200 + 600*1.03 = 1818; freeCash = 6270.83 - 2266 - 1818 - 600 = 1586.83
@@ -73,7 +82,7 @@ describe('runModel', () => {
   });
 
   it('reports unallocatedAtInspect for the chosen inspect year, distinct from unallocatedAtEnd (year 18)', () => {
-    const result = runModel({ base: BASE, ownsHome: true, goals: [] });
+    const result = run({ goals: [] });
 
     expect(result.unallocatedAtInspect).toBe(result.chart.unallocatedSavings[BASE.inspectYear - 1]);
     expect(result.unallocatedAtInspect).not.toBe(result.unallocatedAtEnd);
@@ -81,8 +90,8 @@ describe('runModel', () => {
   });
 
   it('treats the full housing payment as inflating when renting, vs. a fixed P&I portion when owning', () => {
-    const owner = runModel({ base: BASE, ownsHome: true, goals: [] });
-    const renter = runModel({ base: BASE, ownsHome: false, goals: [] });
+    const owner = run({ goals: [] });
+    const renter = run({ ownsHome: false, goals: [] });
 
     // Year 1: owner housing = 1200 + 600*1.03 = 1818; renter housing = 1800*1.03 = 1854. Same income
     // and expenses otherwise, so the renter's higher housing cost shows up directly as lower free cash.
@@ -90,21 +99,21 @@ describe('runModel', () => {
   });
 
   it('drops a paid-in-full goal contribution out of free cash immediately (consume mode has no balance to exhaust)', () => {
-    const withGoal = runModel({ base: BASE, ownsHome: true, goals: [TRAVEL_GOAL] });
-    const withoutGoal = runModel({ base: BASE, ownsHome: true, goals: [] });
+    const withGoal = run({ goals: [TRAVEL_GOAL] });
+    const withoutGoal = run({ goals: [] });
 
     expect(withoutGoal.freeCashAtInspect - withGoal.freeCashAtInspect).toBeCloseTo(TRAVEL_GOAL.monthlyAmount, 6);
   });
 
   it('reports a warning verdict once free cash goes negative but savings still cover it', () => {
     const heavyGoal: RecurringGoal = { ...COLLEGE_GOAL, monthlyAmount: 5000 };
-    const result = runModel({ base: BASE, ownsHome: true, goals: [heavyGoal] });
+    const result = run({ goals: [heavyGoal] });
 
     expect(result.verdict.tone).not.toBe('success');
   });
 
   it('reports success when cashflow stays positive throughout', () => {
-    const result = runModel({ base: BASE, ownsHome: true, goals: [] });
+    const result = run({ goals: [] });
 
     expect(result.verdict).toEqual({
       tone: 'success',
@@ -114,19 +123,19 @@ describe('runModel', () => {
   });
 
   it('throws if the inspect year falls outside the modeled 1-18 range', () => {
-    const result = () => runModel({ base: { ...BASE, inspectYear: 0 }, ownsHome: true, goals: [] });
+    const result = () => run({ base: { ...BASE, inspectYear: 0 }, goals: [] });
     expect(result).toThrow();
   });
 
   describe('goal active windows (startYear/endYear)', () => {
     it('contributes $0 before startYear and after endYear, full amount inside the window', () => {
       const windowed: RecurringGoal = { ...TRAVEL_GOAL, startYear: 5, endYear: 8 };
-      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+      const result = run({ goals: [windowed] });
 
       expect(result.chart.freeCash.length).toBe(18);
       // Free cash with the goal active (years 5-8, 0-indexed 4-7) should be exactly $300 lower than
       // the same year with no goal at all; outside that window it should be identical.
-      const withoutGoal = runModel({ base: BASE, ownsHome: true, goals: [] });
+      const withoutGoal = run({ goals: [] });
       for (let year = 1; year <= 18; year++) {
         const diff = withoutGoal.chart.freeCash[year - 1] - result.chart.freeCash[year - 1];
         if (year >= 5 && year <= 8) {
@@ -139,7 +148,7 @@ describe('runModel', () => {
 
     it('keeps an accumulate-mode balance compounding after endYear with no new contributions', () => {
       const windowed: RecurringGoal = { ...COLLEGE_GOAL, startYear: 1, endYear: 3 };
-      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+      const result = run({ goals: [windowed] });
       const balances = result.chart.goalBalances.college;
 
       // Balance still grows year-over-year after year 3 (investment return applied)...
@@ -151,11 +160,51 @@ describe('runModel', () => {
 
     it('holds an accumulate-mode balance at $0 before startYear', () => {
       const windowed: RecurringGoal = { ...COLLEGE_GOAL, startYear: 6, endYear: 18 };
-      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+      const result = run({ goals: [windowed] });
       const balances = result.chart.goalBalances.college;
 
       expect(balances.slice(0, 5)).toEqual([0, 0, 0, 0, 0]);
       expect(balances[5]).toBeGreaterThan(0);
+    });
+  });
+
+  describe('configurable salary raise breakpoints', () => {
+    it('compounds from Y0 immediately when there are no breakpoints at all', () => {
+      const result = run({ goals: [], salaryRaises: [] });
+
+      // No breakpoints => growthAfterY10Pct (2%) applies from year 0: gross = 70000*1.02 = 71400
+      // income = 6000 + (71400-70000)*0.65/12 = 6075.83; freeCash = 6075.83 - 2266 - 1818 = 1991.83
+      expect(result.chart.freeCash[0]).toBe(1992);
+    });
+
+    it('does not require breakpoints to be pre-sorted by year', () => {
+      const sorted = run({ goals: [], salaryRaises: SALARY_RAISES });
+      const shuffled = run({ goals: [], salaryRaises: [...SALARY_RAISES].reverse() });
+
+      expect(shuffled.chart.freeCash).toEqual(sorted.chart.freeCash);
+    });
+
+    it('applies "growth after last raise" starting from the final breakpoint, not a fixed year 10', () => {
+      const oneBreakpoint = run({
+        goals: [],
+        salaryRaises: [{ id: 'r1', year: 3, raiseK: 15 }],
+        base: { ...BASE, salaryGrowthAfterY10Pct: 5 },
+      });
+
+      // Year 3 is the last (only) breakpoint: gross salary = 85k there, then compounds at 5%/yr.
+      // Year 4 gross = 85000 * 1.05 = 89250; income = 6000 + (89250-70000)*0.65/12 = 7042.71
+      // livingCosts = 2200*1.03^4 = 2476.12; housingCost = 1200 + 600*1.03^4 = 1875.31
+      // freeCash = 7042.71 - 2476.12 - 1875.31 = 2691.28
+      expect(oneBreakpoint.chart.freeCash[3]).toBe(2691);
+    });
+
+    it('leaves years before/at the last breakpoint unaffected by raising salaryY0K alone', () => {
+      const base = run({ goals: [] });
+      const higherY0 = run({ goals: [], base: { ...BASE, salaryY0K: 150 } });
+
+      // Year 5 sits between the yr4 and yr6 breakpoints - both fixed relative to Y0 - so its raise,
+      // and therefore free cash, shouldn't move just because Y0 changed.
+      expect(higherY0.chart.freeCash[4]).toBe(base.chart.freeCash[4]);
     });
   });
 });

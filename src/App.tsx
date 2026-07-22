@@ -23,8 +23,14 @@ function App() {
   const questionnaireDone = isQuestionnaireComplete(draft.answers);
 
   const result = useMemo(
-    () => runModel({ base: draft.baseInputs, ownsHome: ownsHome(draft.answers), goals: draft.goals }),
-    [draft.baseInputs, draft.answers, draft.goals],
+    () =>
+      runModel({
+        base: draft.baseInputs,
+        ownsHome: ownsHome(draft.answers),
+        goals: draft.goals,
+        salaryRaises: draft.salaryRaises,
+      }),
+    [draft.baseInputs, draft.answers, draft.goals, draft.salaryRaises],
   );
 
   if (!questionnaireDone) {
@@ -79,6 +85,10 @@ function App() {
             ranges={DEFAULT_BASE_RANGES}
             values={draft.baseInputs}
             onChange={draft.setBaseInput}
+            salaryRaises={draft.salaryRaises}
+            onAddSalaryRaise={draft.addSalaryRaise}
+            onRemoveSalaryRaise={draft.removeSalaryRaise}
+            onUpdateSalaryRaise={draft.updateSalaryRaise}
           />
         </aside>
 

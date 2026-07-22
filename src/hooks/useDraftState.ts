@@ -3,6 +3,13 @@ import type { Answers } from '../lib/questions';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
 import { isValidGoal, type Goal } from '../lib/goals';
+import {
+  DEFAULT_SALARY_RAISES,
+  generateBreakpointId,
+  isValidBreakpoint,
+  nextBreakpoint,
+  type SalaryRaiseBreakpoint,
+} from '../lib/salaryRaises';
 
 const STORAGE_KEY = 'financial-planning-app:draft';
 const AUTOSAVE_DEBOUNCE_MS = 400;
@@ -11,10 +18,16 @@ interface Draft {
   answers: Answers;
   baseInputs: BaseInputs;
   goals: Goal[];
+  salaryRaises: SalaryRaiseBreakpoint[];
 }
 
 function freshDraft(): Draft {
-  return { answers: {}, baseInputs: baseDefaults(DEFAULT_BASE_RANGES), goals: [] };
+  return {
+    answers: {},
+    baseInputs: baseDefaults(DEFAULT_BASE_RANGES),
+    goals: [],
+    salaryRaises: DEFAULT_SALARY_RAISES.map((breakpoint) => ({ id: generateBreakpointId(), ...breakpoint })),
+  };
 }
 
 function loadDraft(): Draft {
@@ -31,6 +44,9 @@ function loadDraft(): Draft {
     const record = parsed as Record<string, unknown>;
 
     const goals = Array.isArray(record.goals) ? record.goals.filter(isValidGoal) : fresh.goals;
+    const salaryRaises = Array.isArray(record.salaryRaises)
+      ? record.salaryRaises.filter(isValidBreakpoint)
+      : fresh.salaryRaises;
 
     const answersValue: unknown = record.answers;
     const answers = typeof answersValue === 'object' && answersValue !== null ? (answersValue as Answers) : fresh.answers;
@@ -41,7 +57,7 @@ function loadDraft(): Draft {
       ...(typeof baseInputsValue === 'object' && baseInputsValue !== null ? baseInputsValue : {}),
     };
 
-    return { answers, baseInputs, goals };
+    return { answers, baseInputs, goals, salaryRaises };
   } catch {
     // Corrupt/inaccessible localStorage - autosave is best-effort, fall back to a fresh draft.
     return fresh;
@@ -57,6 +73,10 @@ export interface UseDraftStateResult {
   addGoal: (goal: Goal) => void;
   removeGoal: (id: string) => void;
   updateGoal: (id: string, patch: Partial<Goal>) => void;
+  salaryRaises: SalaryRaiseBreakpoint[];
+  addSalaryRaise: () => void;
+  removeSalaryRaise: (id: string) => void;
+  updateSalaryRaise: (id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => void;
   startOver: () => void;
 }
 
@@ -97,6 +117,24 @@ export function useDraftState(): UseDraftStateResult {
     }));
   }, []);
 
+  const addSalaryRaise = useCallback(() => {
+    setDraft((prev) => ({
+      ...prev,
+      salaryRaises: [...prev.salaryRaises, { id: generateBreakpointId(), ...nextBreakpoint(prev.salaryRaises) }],
+    }));
+  }, []);
+
+  const removeSalaryRaise = useCallback((id: string) => {
+    setDraft((prev) => ({ ...prev, salaryRaises: prev.salaryRaises.filter((breakpoint) => breakpoint.id !== id) }));
+  }, []);
+
+  const updateSalaryRaise = useCallback((id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => {
+    setDraft((prev) => ({
+      ...prev,
+      salaryRaises: prev.salaryRaises.map((breakpoint) => (breakpoint.id === id ? { ...breakpoint, ...patch } : breakpoint)),
+    }));
+  }, []);
+
   const startOver = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -115,6 +153,10 @@ export function useDraftState(): UseDraftStateResult {
     addGoal,
     removeGoal,
     updateGoal,
+    salaryRaises: draft.salaryRaises,
+    addSalaryRaise,
+    removeSalaryRaise,
+    updateSalaryRaise,
     startOver,
   };
 }

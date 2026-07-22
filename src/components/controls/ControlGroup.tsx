@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { SliderField } from './SliderField';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import type { BaseFieldGroup, BaseFieldId } from '../../lib/baseFields';
@@ -8,9 +8,12 @@ interface ControlGroupProps {
   ranges: BaseRanges;
   values: BaseInputs;
   onChange: (id: BaseFieldId, value: number) => void;
+  /** Lets a caller inject extra, non-slider content (e.g. a dynamic list editor) right after a
+   *  specific field within this group. */
+  renderAfterField?: (fieldId: BaseFieldId) => ReactNode;
 }
 
-export function ControlGroup({ group, ranges, values, onChange }: Readonly<ControlGroupProps>) {
+export function ControlGroup({ group, ranges, values, onChange, renderAfterField }: Readonly<ControlGroupProps>) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -28,7 +31,10 @@ export function ControlGroup({ group, ranges, values, onChange }: Readonly<Contr
       </button>
       {!collapsed &&
         group.fields.map((field) => (
-          <SliderField key={field.id} meta={field} range={ranges[field.id]} value={values[field.id]} onChange={onChange} />
+          <Fragment key={field.id}>
+            <SliderField meta={field} range={ranges[field.id]} value={values[field.id]} onChange={onChange} />
+            {renderAfterField?.(field.id)}
+          </Fragment>
         ))}
     </div>
   );

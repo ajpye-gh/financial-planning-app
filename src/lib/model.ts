@@ -1,10 +1,12 @@
 import type { BaseInputs } from './baseData';
 import type { RecurringGoal } from './goals';
+import type { SalaryRaiseBreakpoint } from './salaryRaises';
 
 export interface ModelInputs {
   base: BaseInputs;
   ownsHome: boolean;
   goals: RecurringGoal[];
+  salaryRaises: SalaryRaiseBreakpoint[];
 }
 
 export interface YearSnapshot {
@@ -63,10 +65,13 @@ function raiseAtYear(year: number, raiseMilestones: [number, number][]): number 
   return last[1];
 }
 
-function salaryAtYear(year: number, salaryY0: number, raiseMilestones: [number, number][], growthAfterY10Pct: number): number {
-  if (year >= 10) {
-    const salaryAtY10 = salaryY0 + raiseAtYear(10, raiseMilestones);
-    return salaryAtY10 * Math.pow(1 + growthAfterY10Pct / 100, year - 10);
+/** `raiseMilestones` must be sorted ascending by year. Growth compounds after the last breakpoint
+ *  (year 0, i.e. immediately, if there are none). */
+function salaryAtYear(year: number, salaryY0: number, raiseMilestones: [number, number][], growthAfterLastRaisePct: number): number {
+  const lastYear = raiseMilestones.length > 0 ? raiseMilestones[raiseMilestones.length - 1][0] : 0;
+  if (year >= lastYear) {
+    const salaryAtLastRaise = salaryY0 + raiseAtYear(lastYear, raiseMilestones);
+    return salaryAtLastRaise * Math.pow(1 + growthAfterLastRaisePct / 100, year - lastYear);
   }
   return salaryY0 + raiseAtYear(year, raiseMilestones);
 }
@@ -200,15 +205,12 @@ function buildVerdict(finalUnallocated: number, everNegative: boolean, firstNega
 }
 
 export function runModel(inputs: ModelInputs): ModelResult {
-  const { base, ownsHome, goals } = inputs;
+  const { base, ownsHome, goals, salaryRaises } = inputs;
 
   const salaryY0 = base.salaryY0K * 1000;
-  const raiseMilestones: [number, number][] = [
-    [1, base.salaryRaiseY1K * 1000],
-    [4, base.salaryRaiseY4K * 1000],
-    [6, base.salaryRaiseY6K * 1000],
-    [10, base.salaryRaiseY10K * 1000],
-  ];
+  const raiseMilestones: [number, number][] = [...salaryRaises]
+    .sort((a, b) => a.year - b.year)
+    .map((breakpoint) => [breakpoint.year, breakpoint.raiseK * 1000]);
   const growthAfterY10 = base.salaryGrowthAfterY10Pct;
   const netKeepRate = base.netKeepRatePct / 100;
   const inflation = base.inflationPct;

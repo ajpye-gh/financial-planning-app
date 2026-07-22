@@ -12,10 +12,6 @@ export type BaseFieldId =
   | 'brokerageTodayK'
   | 'reserveTargetK'
   | 'salaryY0K'
-  | 'salaryRaiseY1K'
-  | 'salaryRaiseY4K'
-  | 'salaryRaiseY6K'
-  | 'salaryRaiseY10K'
   | 'salaryGrowthAfterY10Pct'
   | 'netKeepRatePct'
   | 'partnerNetIncomeMo'
@@ -52,34 +48,10 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
       },
       { id: 'salaryY0K', label: 'Salary, yr 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
       {
-        id: 'salaryRaiseY1K',
-        label: 'Raise by yr 1',
-        format: 'k',
-        tooltip: "How much more gross salary you expect by year 1, above today's — not an absolute target, so raising \"today\" shifts this with it.",
-      },
-      {
-        id: 'salaryRaiseY4K',
-        label: 'Raise by yr 4',
-        format: 'k',
-        tooltip: "How much more gross salary you expect by year 4, above today's.",
-      },
-      {
-        id: 'salaryRaiseY6K',
-        label: 'Raise by yr 6',
-        format: 'k',
-        tooltip: "How much more gross salary you expect by year 6, above today's.",
-      },
-      {
-        id: 'salaryRaiseY10K',
-        label: 'Raise by yr 10',
-        format: 'k',
-        tooltip: "How much more gross salary you expect by year 10, above today's.",
-      },
-      {
         id: 'salaryGrowthAfterY10Pct',
-        label: 'Growth after yr 10',
+        label: 'Growth after last raise',
         format: '%',
-        tooltip: 'Annual growth past year 10, once milestone-based projections run out.',
+        tooltip: 'Annual growth applied after your final salary raise breakpoint.',
       },
       {
         id: 'netKeepRatePct',
