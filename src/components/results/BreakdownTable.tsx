@@ -29,6 +29,9 @@ export function BreakdownTable({ snapshot, goals }: Readonly<BreakdownTableProps
       <table className="breakdown-table">
         <tbody>
           <Row label="Your salary, gross" value={`${formatCurrency(snapshot.grossSalary)}/yr`} muted />
+          {snapshot.partnerGrossSalary > 0 && (
+            <Row label="Partner's salary, gross" value={`${formatCurrency(snapshot.partnerGrossSalary)}/yr`} muted />
+          )}
           <Row label="Net income" value={formatCurrency(snapshot.netIncome)} />
           <Row label="— in today's dollars" value={formatCurrency(snapshot.realIncome)} muted />
           <tr className="breakdown-table__divider">

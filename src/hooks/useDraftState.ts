@@ -14,12 +14,16 @@ import {
 
 const STORAGE_KEY = 'financial-planning-app:draft';
 const AUTOSAVE_DEBOUNCE_MS = 400;
+const HORIZON_YEARS = 18;
 
 interface Draft {
   answers: Answers;
   baseInputs: BaseInputs;
   goals: Goal[];
   salaryRaises: SalaryRaiseBreakpoint[];
+  jobLossYear: number | undefined;
+  partnerSalaryRaises: SalaryRaiseBreakpoint[];
+  partnerJobLossYear: number | undefined;
 }
 
 function freshDraft(): Draft {
@@ -28,7 +32,14 @@ function freshDraft(): Draft {
     baseInputs: baseDefaults(DEFAULT_BASE_RANGES),
     goals: [],
     salaryRaises: DEFAULT_SALARY_RAISES.map((breakpoint) => ({ id: generateBreakpointId(), ...breakpoint })),
+    jobLossYear: undefined,
+    partnerSalaryRaises: [],
+    partnerJobLossYear: undefined,
   };
+}
+
+function isValidJobLossYear(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= HORIZON_YEARS;
 }
 
 function loadDraft(): Draft {
@@ -48,6 +59,13 @@ function loadDraft(): Draft {
     const salaryRaises = Array.isArray(record.salaryRaises)
       ? record.salaryRaises.filter(isValidBreakpoint)
       : fresh.salaryRaises;
+    const partnerSalaryRaises = Array.isArray(record.partnerSalaryRaises)
+      ? record.partnerSalaryRaises.filter(isValidBreakpoint)
+      : fresh.partnerSalaryRaises;
+    const jobLossYear = isValidJobLossYear(record.jobLossYear) ? record.jobLossYear : fresh.jobLossYear;
+    const partnerJobLossYear = isValidJobLossYear(record.partnerJobLossYear)
+      ? record.partnerJobLossYear
+      : fresh.partnerJobLossYear;
 
     const answersValue: unknown = record.answers;
     const answers = typeof answersValue === 'object' && answersValue !== null ? (answersValue as Answers) : fresh.answers;
@@ -58,7 +76,7 @@ function loadDraft(): Draft {
       ...(typeof baseInputsValue === 'object' && baseInputsValue !== null ? baseInputsValue : {}),
     };
 
-    return { answers, baseInputs, goals, salaryRaises };
+    return { answers, baseInputs, goals, salaryRaises, jobLossYear, partnerSalaryRaises, partnerJobLossYear };
   } catch {
     // Corrupt/inaccessible localStorage - autosave is best-effort, fall back to a fresh draft.
     return fresh;
@@ -78,6 +96,16 @@ export interface UseDraftStateResult {
   addSalaryRaise: () => void;
   removeSalaryRaise: (id: string) => void;
   updateSalaryRaise: (id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => void;
+  jobLossYear: number | undefined;
+  setJobLossYear: (year: number) => void;
+  clearJobLossYear: () => void;
+  partnerSalaryRaises: SalaryRaiseBreakpoint[];
+  addPartnerSalaryRaise: () => void;
+  removePartnerSalaryRaise: (id: string) => void;
+  updatePartnerSalaryRaise: (id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => void;
+  partnerJobLossYear: number | undefined;
+  setPartnerJobLossYear: (year: number) => void;
+  clearPartnerJobLossYear: () => void;
   startOver: () => void;
 }
 
@@ -133,6 +161,43 @@ export function useDraftState(): UseDraftStateResult {
     setDraft((prev) => ({ ...prev, salaryRaises: applyRaiseUpdate(prev.salaryRaises, id, patch) }));
   }, []);
 
+  const setJobLossYear = useCallback((year: number) => {
+    setDraft((prev) => ({ ...prev, jobLossYear: year }));
+  }, []);
+
+  const clearJobLossYear = useCallback(() => {
+    setDraft((prev) => ({ ...prev, jobLossYear: undefined }));
+  }, []);
+
+  const addPartnerSalaryRaise = useCallback(() => {
+    setDraft((prev) => ({
+      ...prev,
+      partnerSalaryRaises: [
+        ...prev.partnerSalaryRaises,
+        { id: generateBreakpointId(), ...nextBreakpoint(prev.partnerSalaryRaises) },
+      ],
+    }));
+  }, []);
+
+  const removePartnerSalaryRaise = useCallback((id: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      partnerSalaryRaises: prev.partnerSalaryRaises.filter((breakpoint) => breakpoint.id !== id),
+    }));
+  }, []);
+
+  const updatePartnerSalaryRaise = useCallback((id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => {
+    setDraft((prev) => ({ ...prev, partnerSalaryRaises: applyRaiseUpdate(prev.partnerSalaryRaises, id, patch) }));
+  }, []);
+
+  const setPartnerJobLossYear = useCallback((year: number) => {
+    setDraft((prev) => ({ ...prev, partnerJobLossYear: year }));
+  }, []);
+
+  const clearPartnerJobLossYear = useCallback(() => {
+    setDraft((prev) => ({ ...prev, partnerJobLossYear: undefined }));
+  }, []);
+
   const startOver = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -155,6 +220,16 @@ export function useDraftState(): UseDraftStateResult {
     addSalaryRaise,
     removeSalaryRaise,
     updateSalaryRaise,
+    jobLossYear: draft.jobLossYear,
+    setJobLossYear,
+    clearJobLossYear,
+    partnerSalaryRaises: draft.partnerSalaryRaises,
+    addPartnerSalaryRaise,
+    removePartnerSalaryRaise,
+    updatePartnerSalaryRaise,
+    partnerJobLossYear: draft.partnerJobLossYear,
+    setPartnerJobLossYear,
+    clearPartnerJobLossYear,
     startOver,
   };
 }

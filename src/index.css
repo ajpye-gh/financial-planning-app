@@ -469,6 +469,12 @@ input[type='range']::-moz-range-thumb {
   box-shadow: none;
 }
 
+.salary-raises__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .salary-raises__add {
   font-size: 12px;
   padding: 0.4rem 0.75rem;

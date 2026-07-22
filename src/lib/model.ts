@@ -2,11 +2,25 @@ import type { BaseInputs } from './baseData';
 import type { RecurringGoal } from './goals';
 import type { SalaryRaiseBreakpoint } from './salaryRaises';
 
+/** A single wage earner's salary trajectory: today's gross salary, cumulative raises above it, a flat
+ *  keep rate converting gross to net, and an optional permanent job loss. Primary and partner both use
+ *  this exact shape, computed the exact same way (see `streamIncomeAndGross`). */
+export interface IncomeStreamInputs {
+  salaryY0K: number;
+  growthAfterLastRaisePct: number;
+  netKeepRatePct: number;
+  raises: SalaryRaiseBreakpoint[];
+  /** From this year on (inclusive), this stream's gross salary is $0 - permanent, and overrides any
+   *  raise breakpoints scheduled after it. */
+  jobLossYear?: number;
+}
+
 export interface ModelInputs {
   base: BaseInputs;
   ownsHome: boolean;
   goals: RecurringGoal[];
-  salaryRaises: SalaryRaiseBreakpoint[];
+  primaryIncome: IncomeStreamInputs;
+  partnerIncome: IncomeStreamInputs;
 }
 
 export interface YearSnapshot {
@@ -19,6 +33,7 @@ export interface YearSnapshot {
   freeCash: number;
   goalContributions: Record<string, number>;
   grossSalary: number;
+  partnerGrossSalary: number;
   realIncome: number;
 }
 
@@ -74,6 +89,34 @@ function salaryAtYear(year: number, salaryY0: number, raiseMilestones: [number, 
     return salaryAtLastRaise * Math.pow(1 + growthAfterLastRaisePct / 100, year - lastYear);
   }
   return salaryY0 + raiseAtYear(year, raiseMilestones);
+}
+
+interface IncomeStreamContext {
+  salaryY0: number;
+  raiseMilestones: [number, number][];
+  growthAfterLastRaise: number;
+  netKeepRate: number;
+  jobLossYear?: number;
+}
+
+function buildStreamContext(stream: IncomeStreamInputs): IncomeStreamContext {
+  return {
+    salaryY0: stream.salaryY0K * 1000,
+    raiseMilestones: [...stream.raises].sort((a, b) => a.year - b.year).map((breakpoint) => [breakpoint.year, breakpoint.raiseK * 1000]),
+    growthAfterLastRaise: stream.growthAfterLastRaisePct,
+    netKeepRate: stream.netKeepRatePct / 100,
+    jobLossYear: stream.jobLossYear,
+  };
+}
+
+/** A permanent job loss zeroes gross salary (and therefore income) from that year on, regardless of
+ *  any raise breakpoints scheduled after it. */
+function streamIncomeAndGross(year: number, stream: IncomeStreamContext): { gross: number; income: number } {
+  if (stream.jobLossYear !== undefined && year >= stream.jobLossYear) {
+    return { gross: 0, income: 0 };
+  }
+  const gross = salaryAtYear(year, stream.salaryY0, stream.raiseMilestones, stream.growthAfterLastRaise);
+  return { gross, income: (gross * stream.netKeepRate) / 12 };
 }
 
 interface UnallocatedPool {
@@ -134,10 +177,8 @@ function recordGoalSeries(goals: RecurringGoal[], balances: Record<string, numbe
 interface YearContext {
   base: BaseInputs;
   goals: RecurringGoal[];
-  salaryY0: number;
-  raiseMilestones: [number, number][];
-  growthAfterY10: number;
-  netKeepRate: number;
+  primary: IncomeStreamContext;
+  partner: IncomeStreamContext;
   inflation: number;
   nonHousingLiving: number;
   fixedHousing: number;
@@ -154,17 +195,14 @@ interface YearFigures {
   totalExpenses: number;
   freeCash: number;
   grossSalary: number;
+  partnerGrossSalary: number;
 }
 
 function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const inflationFactor = Math.pow(1 + ctx.inflation / 100, year);
-  const grossSalary = salaryAtYear(year, ctx.salaryY0, ctx.raiseMilestones, ctx.growthAfterY10);
-  // Net income is derived from gross salary at a flat keep rate - no separate "today's net income"
-  // input to keep in sync with it (see baseFields.ts's netKeepRatePct tooltip).
-  let income = (grossSalary * ctx.netKeepRate) / 12;
-  if (year < ctx.base.partnerIncomeStopsYear) {
-    income += ctx.base.partnerNetIncomeMo;
-  }
+  const primary = streamIncomeAndGross(year, ctx.primary);
+  const partner = streamIncomeAndGross(year, ctx.partner);
+  const income = primary.income + partner.income;
 
   const livingCosts = ctx.nonHousingLiving * inflationFactor;
   const kidsCost = Math.min(ctx.base.kidsAdded, Math.floor(year / 2.5)) * ctx.base.costPerKidMo * inflationFactor;
@@ -181,7 +219,18 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const totalExpenses = livingCosts + kidsCost + housingCost;
   const freeCash = income - totalExpenses - goalTotal;
 
-  return { inflationFactor, income, livingCosts, kidsCost, housingCost, goalContributions, totalExpenses, freeCash, grossSalary };
+  return {
+    inflationFactor,
+    income,
+    livingCosts,
+    kidsCost,
+    housingCost,
+    goalContributions,
+    totalExpenses,
+    freeCash,
+    grossSalary: primary.gross,
+    partnerGrossSalary: partner.gross,
+  };
 }
 
 function buildVerdict(finalUnallocated: number, everNegative: boolean, firstNegativeYear: number): Verdict {
@@ -207,16 +256,10 @@ function buildVerdict(finalUnallocated: number, everNegative: boolean, firstNega
 }
 
 export function runModel(inputs: ModelInputs): ModelResult {
-  const { base, ownsHome, goals, salaryRaises } = inputs;
+  const { base, ownsHome, goals, primaryIncome, partnerIncome } = inputs;
 
-  const salaryY0 = base.salaryY0K * 1000;
-  const raiseMilestones: [number, number][] = [...salaryRaises]
-    .sort((a, b) => a.year - b.year)
-    .map((breakpoint) => [breakpoint.year, breakpoint.raiseK * 1000]);
-  const growthAfterY10 = base.salaryGrowthAfterY10Pct;
-  const netKeepRate = base.netKeepRatePct / 100;
-  const inflation = base.inflationPct;
   const investmentReturn = base.investmentReturnPct;
+  const inflation = base.inflationPct;
   const reserveTarget = base.reserveTargetK * 1000;
 
   const nonHousingLiving = base.expensesMo - base.housingPaymentMo;
@@ -239,10 +282,8 @@ export function runModel(inputs: ModelInputs): ModelResult {
   const yearContext: YearContext = {
     base,
     goals,
-    salaryY0,
-    raiseMilestones,
-    growthAfterY10,
-    netKeepRate,
+    primary: buildStreamContext(primaryIncome),
+    partner: buildStreamContext(partnerIncome),
     inflation,
     nonHousingLiving,
     fixedHousing,
@@ -269,6 +310,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
         freeCash,
         goalContributions: figures.goalContributions,
         grossSalary: figures.grossSalary,
+        partnerGrossSalary: figures.partnerGrossSalary,
         realIncome: figures.income / figures.inflationFactor,
       };
     }

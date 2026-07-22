@@ -4,15 +4,28 @@ import type { SalaryRaiseBreakpoint } from '../../lib/salaryRaises';
 
 const HORIZON_YEARS = 18;
 const RAISE_RANGE = { min: 0, max: 150, step: 5 };
+const DEFAULT_JOB_LOSS_YEAR = 10;
 
-interface SalaryRaiseBreakpointsProps {
+export interface SalaryRaiseBreakpointsProps {
   breakpoints: SalaryRaiseBreakpoint[];
   onAdd: () => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => void;
+  /** Permanent - once set, this stream's salary is $0 from this year on, overriding later raises. */
+  jobLossYear?: number;
+  onSetJobLoss: (year: number) => void;
+  onClearJobLoss: () => void;
 }
 
-export function SalaryRaiseBreakpoints({ breakpoints, onAdd, onRemove, onUpdate }: Readonly<SalaryRaiseBreakpointsProps>) {
+export function SalaryRaiseBreakpoints({
+  breakpoints,
+  onAdd,
+  onRemove,
+  onUpdate,
+  jobLossYear,
+  onSetJobLoss,
+  onClearJobLoss,
+}: Readonly<SalaryRaiseBreakpointsProps>) {
   const clampYear = (value: number) => Math.min(Math.max(Math.round(value), 1), HORIZON_YEARS);
   const sorted = [...breakpoints].sort((a, b) => a.year - b.year);
 
@@ -59,9 +72,42 @@ export function SalaryRaiseBreakpoints({ breakpoints, onAdd, onRemove, onUpdate 
           </div>
         );
       })}
-      <button type="button" className="salary-raises__add" onClick={onAdd}>
-        + Add raise
-      </button>
+
+      {jobLossYear !== undefined && (
+        <div className="salary-raise-row">
+          <div className="salary-raise-row__top">
+            <label className="salary-raise-row__year">
+              Job loss, yr
+              <input
+                type="number"
+                min={1}
+                max={HORIZON_YEARS}
+                value={jobLossYear}
+                onChange={(event) => onSetJobLoss(clampYear(Number(event.target.value)))}
+              />
+            </label>
+            <button
+              type="button"
+              className="salary-raise-row__remove"
+              onClick={onClearJobLoss}
+              aria-label={`Remove job loss at year ${jobLossYear}`}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="salary-raises__actions">
+        <button type="button" className="salary-raises__add" onClick={onAdd}>
+          + Add raise
+        </button>
+        {jobLossYear === undefined && (
+          <button type="button" className="salary-raises__add" onClick={() => onSetJobLoss(DEFAULT_JOB_LOSS_YEAR)}>
+            + Job loss
+          </button>
+        )}
+      </div>
     </div>
   );
 }

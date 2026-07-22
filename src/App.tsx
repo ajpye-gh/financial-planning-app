@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ControlsPanel } from './components/controls/ControlsPanel';
+import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRaiseBreakpoints';
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
 import { ChartToggle } from './components/results/ChartToggle';
@@ -11,7 +12,7 @@ import { useDraftState } from './hooks/useDraftState';
 import { ownsHome } from './lib/questions';
 import { DEFAULT_BASE_RANGES } from './lib/baseData';
 import { INSPECT_YEAR_FIELD } from './lib/baseFields';
-import { runModel } from './lib/model';
+import { runModel, type IncomeStreamInputs } from './lib/model';
 import { chartToggleOptions, primarySeriesFor, type ChartSeriesId } from './lib/chartSeries';
 import { formatCurrency, formatCurrencyCompact } from './lib/format';
 
@@ -19,16 +20,56 @@ function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
 
-  const result = useMemo(
-    () =>
-      runModel({
-        base: draft.baseInputs,
-        ownsHome: ownsHome(draft.answers),
-        goals: draft.goals,
-        salaryRaises: draft.salaryRaises,
-      }),
-    [draft.baseInputs, draft.answers, draft.goals, draft.salaryRaises],
-  );
+  const primaryIncomeControls: SalaryRaiseBreakpointsProps = {
+    breakpoints: draft.salaryRaises,
+    onAdd: draft.addSalaryRaise,
+    onRemove: draft.removeSalaryRaise,
+    onUpdate: draft.updateSalaryRaise,
+    jobLossYear: draft.jobLossYear,
+    onSetJobLoss: draft.setJobLossYear,
+    onClearJobLoss: draft.clearJobLossYear,
+  };
+  const partnerIncomeControls: SalaryRaiseBreakpointsProps = {
+    breakpoints: draft.partnerSalaryRaises,
+    onAdd: draft.addPartnerSalaryRaise,
+    onRemove: draft.removePartnerSalaryRaise,
+    onUpdate: draft.updatePartnerSalaryRaise,
+    jobLossYear: draft.partnerJobLossYear,
+    onSetJobLoss: draft.setPartnerJobLossYear,
+    onClearJobLoss: draft.clearPartnerJobLossYear,
+  };
+
+  const result = useMemo(() => {
+    const primaryIncome: IncomeStreamInputs = {
+      salaryY0K: draft.baseInputs.salaryY0K,
+      growthAfterLastRaisePct: draft.baseInputs.salaryGrowthAfterY10Pct,
+      netKeepRatePct: draft.baseInputs.netKeepRatePct,
+      raises: draft.salaryRaises,
+      jobLossYear: draft.jobLossYear,
+    };
+    const partnerIncome: IncomeStreamInputs = {
+      salaryY0K: draft.baseInputs.partnerSalaryY0K,
+      growthAfterLastRaisePct: draft.baseInputs.partnerSalaryGrowthAfterY10Pct,
+      netKeepRatePct: draft.baseInputs.partnerNetKeepRatePct,
+      raises: draft.partnerSalaryRaises,
+      jobLossYear: draft.partnerJobLossYear,
+    };
+    return runModel({
+      base: draft.baseInputs,
+      ownsHome: ownsHome(draft.answers),
+      goals: draft.goals,
+      primaryIncome,
+      partnerIncome,
+    });
+  }, [
+    draft.baseInputs,
+    draft.answers,
+    draft.goals,
+    draft.salaryRaises,
+    draft.jobLossYear,
+    draft.partnerSalaryRaises,
+    draft.partnerJobLossYear,
+  ]);
 
   const toggleOptions = chartToggleOptions(draft.goals);
   const effectiveSeriesId = toggleOptions.some((option) => option.id === selectedSeriesId)
@@ -78,10 +119,8 @@ function App() {
             ranges={DEFAULT_BASE_RANGES}
             values={draft.baseInputs}
             onChange={draft.setBaseInput}
-            salaryRaises={draft.salaryRaises}
-            onAddSalaryRaise={draft.addSalaryRaise}
-            onRemoveSalaryRaise={draft.removeSalaryRaise}
-            onUpdateSalaryRaise={draft.updateSalaryRaise}
+            primaryIncomeControls={primaryIncomeControls}
+            partnerIncomeControls={partnerIncomeControls}
           />
         </aside>
 

@@ -13,8 +13,9 @@ export type BaseFieldId =
   | 'salaryY0K'
   | 'salaryGrowthAfterY10Pct'
   | 'netKeepRatePct'
-  | 'partnerNetIncomeMo'
-  | 'partnerIncomeStopsYear'
+  | 'partnerSalaryY0K'
+  | 'partnerSalaryGrowthAfterY10Pct'
+  | 'partnerNetKeepRatePct'
   | 'kidsAdded'
   | 'costPerKidMo'
   | 'inflationPct'
@@ -53,17 +54,29 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         tooltip:
           "Share of your gross salary you keep after tax and benefits - applied to your whole salary, today and every future raise. Retirement contributions aren't included here; add them as a Retirement savings goal instead. Your derived net income /mo is shown alongside; adjust the slider until it matches your real take-home pay.",
       },
+    ],
+  },
+  {
+    title: 'Partner income',
+    fields: [
       {
-        id: 'partnerNetIncomeMo',
-        label: "Partner's income /mo",
-        format: '$',
-        tooltip: "Your spouse or partner's monthly take-home contribution, added on top for the years they're working. Leave at $0 if this doesn't apply.",
+        id: 'partnerSalaryY0K',
+        label: 'Salary, yr 0 (today)',
+        format: 'k',
+        tooltip: "Your spouse or partner's current gross base salary. Leave at $0 if this doesn't apply.",
       },
       {
-        id: 'partnerIncomeStopsYear',
-        label: 'Partner income stops in yr',
-        format: 'yr',
-        tooltip: 'Year that income ends (e.g. to stay home with kids). Set beyond your horizon for "never."',
+        id: 'partnerSalaryGrowthAfterY10Pct',
+        label: 'Growth after last raise',
+        format: '%',
+        tooltip: "Annual growth applied after their final salary raise breakpoint.",
+      },
+      {
+        id: 'partnerNetKeepRatePct',
+        label: 'Net keep rate',
+        format: '%',
+        tooltip:
+          "Share of their gross salary they keep after tax and benefits - applied the same way as your own Net keep rate above.",
       },
     ],
   },

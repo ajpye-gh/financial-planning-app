@@ -1,4 +1,4 @@
-import { runModel, type ModelInputs } from '@src/lib/model';
+import { runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
 import type { BaseInputs } from '@src/lib/baseData';
 import type { RecurringGoal } from '@src/lib/goals';
 import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
@@ -17,8 +17,9 @@ const BASE: BaseInputs = {
   salaryY0K: 70,
   salaryGrowthAfterY10Pct: 2,
   netKeepRatePct: 65,
-  partnerNetIncomeMo: 0,
-  partnerIncomeStopsYear: 19,
+  partnerSalaryY0K: 0,
+  partnerSalaryGrowthAfterY10Pct: 2,
+  partnerNetKeepRatePct: 65,
   kidsAdded: 0,
   costPerKidMo: 500,
   inflationPct: 3,
@@ -33,9 +34,32 @@ const SALARY_RAISES: SalaryRaiseBreakpoint[] = [
   { id: 'r10', year: 10, raiseK: 50 },
 ];
 
-/** Runs the model with BASE/SALARY_RAISES fixtures, overridable per-test. */
+const PRIMARY_INCOME: IncomeStreamInputs = {
+  salaryY0K: 70,
+  growthAfterLastRaisePct: 2,
+  netKeepRatePct: 65,
+  raises: SALARY_RAISES,
+};
+
+// $0 salary is a genuine no-op through the income formula (gross stays 0 regardless of raises/growth),
+// matching how the app defaults an unused partner stream.
+const NO_PARTNER_INCOME: IncomeStreamInputs = {
+  salaryY0K: 0,
+  growthAfterLastRaisePct: 0,
+  netKeepRatePct: 0,
+  raises: [],
+};
+
+/** Runs the model with the fixtures above, overridable per-test. */
 function run(overrides: Partial<ModelInputs>) {
-  return runModel({ base: BASE, ownsHome: true, goals: [], salaryRaises: SALARY_RAISES, ...overrides });
+  return runModel({
+    base: BASE,
+    ownsHome: true,
+    goals: [],
+    primaryIncome: PRIMARY_INCOME,
+    partnerIncome: NO_PARTNER_INCOME,
+    ...overrides,
+  });
 }
 
 const TRAVEL_GOAL: RecurringGoal = {
@@ -112,9 +136,9 @@ describe('runModel', () => {
   });
 
   it('reports success when cashflow stays positive throughout', () => {
-    // A higher keep rate than BASE's default 65%, since 65% runs slightly negative in year 1 for
-    // this fixture's expenses - bumped just for this test to exercise the "always positive" path.
-    const result = run({ goals: [], base: { ...BASE, netKeepRatePct: 80 } });
+    // A higher keep rate than the fixture's default 65%, since 65% runs slightly negative in year 1
+    // for this fixture's expenses - bumped just for this test to exercise the "always positive" path.
+    const result = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, netKeepRatePct: 80 } });
 
     expect(result.verdict).toEqual({
       tone: 'success',
@@ -171,16 +195,16 @@ describe('runModel', () => {
 
   describe('configurable salary raise breakpoints', () => {
     it('compounds from Y0 immediately when there are no breakpoints at all', () => {
-      const result = run({ goals: [], salaryRaises: [] });
+      const result = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, raises: [] } });
 
-      // No breakpoints => growthAfterY10Pct (2%) applies from year 0: gross = 70000*1.02 = 71400
+      // No breakpoints => growthAfterLastRaisePct (2%) applies from year 0: gross = 70000*1.02 = 71400
       // income = 71400*0.65/12 = 3867.5; freeCash = 3867.5 - 2266 - 1818 = -216.5
       expect(result.chart.freeCash[0]).toBe(-216);
     });
 
     it('does not require breakpoints to be pre-sorted by year', () => {
-      const sorted = run({ goals: [], salaryRaises: SALARY_RAISES });
-      const shuffled = run({ goals: [], salaryRaises: [...SALARY_RAISES].reverse() });
+      const sorted = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, raises: SALARY_RAISES } });
+      const shuffled = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, raises: [...SALARY_RAISES].reverse() } });
 
       expect(shuffled.chart.freeCash).toEqual(sorted.chart.freeCash);
     });
@@ -188,8 +212,7 @@ describe('runModel', () => {
     it('applies "growth after last raise" starting from the final breakpoint, not a fixed year 10', () => {
       const oneBreakpoint = run({
         goals: [],
-        salaryRaises: [{ id: 'r1', year: 3, raiseK: 15 }],
-        base: { ...BASE, salaryGrowthAfterY10Pct: 5 },
+        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 3, raiseK: 15 }], growthAfterLastRaisePct: 5 },
       });
 
       // Year 3 is the last (only) breakpoint: gross salary = 85k there, then compounds at 5%/yr.
@@ -204,7 +227,7 @@ describe('runModel', () => {
       // bumping Y0 shifts the whole gross-salary curve - and therefore income - up in every year,
       // never down. (This is the property the earlier Y0/raise-milestone bug fix was chasing.)
       const base = run({ goals: [] });
-      const higherY0 = run({ goals: [], base: { ...BASE, salaryY0K: 150 } });
+      const higherY0 = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, salaryY0K: 150 } });
 
       for (let year = 1; year <= 18; year++) {
         expect(higherY0.chart.freeCash[year - 1]).toBeGreaterThanOrEqual(base.chart.freeCash[year - 1]);
@@ -212,30 +235,56 @@ describe('runModel', () => {
     });
   });
 
+  describe('job loss', () => {
+    it('zeroes gross salary and income from that year on, permanently', () => {
+      const result = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, jobLossYear: 3 } });
+
+      expect(result.snapshot.year).toBe(5);
+      expect(result.snapshot.grossSalary).toBe(0);
+      expect(result.snapshot.netIncome).toBe(0);
+    });
+
+    it("overrides any raise breakpoints scheduled after the job-loss year - they never take effect", () => {
+      const withoutLoss = run({ goals: [] });
+      const withLoss = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, jobLossYear: 6 } });
+
+      // Year 5 (before the yr6 job loss): identical to the no-job-loss run.
+      expect(withLoss.chart.freeCash[4]).toBe(withoutLoss.chart.freeCash[4]);
+      // Year 6 on: gross salary is $0 even though a raise breakpoint exists at yr6/yr10.
+      for (let year = 6; year <= 18; year++) {
+        expect(withLoss.chart.freeCash[year - 1]).toBeLessThan(withoutLoss.chart.freeCash[year - 1]);
+      }
+    });
+  });
+
   describe('partner income', () => {
-    const withPartner = (partnerNetIncomeMo: number, partnerIncomeStopsYear: number) =>
-      run({ goals: [], base: { ...BASE, partnerNetIncomeMo, partnerIncomeStopsYear } });
+    const withPartner = (salaryY0K: number, netKeepRatePct: number, jobLossYear: number): ModelInputs['partnerIncome'] => ({
+      salaryY0K,
+      growthAfterLastRaisePct: 0,
+      netKeepRatePct,
+      raises: [],
+      jobLossYear,
+    });
 
     it('raises free cash in the years the partner is working', () => {
-      const noPartner = run({ goals: [], base: { ...BASE, partnerNetIncomeMo: 0, partnerIncomeStopsYear: 10 } });
-      const withIncome = withPartner(2000, 10);
+      const noPartner = run({ goals: [], partnerIncome: withPartner(0, 60, 10) });
+      const withIncome = run({ goals: [], partnerIncome: withPartner(40, 60, 10) });
 
-      // Year 5 (< stopsYear 10): partner income should add straight through to free cash.
+      // Year 5 (< jobLossYear 10): partner income = 40000*0.60/12 = 2000/mo, added straight through.
       expect(withIncome.chart.freeCash[4] - noPartner.chart.freeCash[4]).toBeCloseTo(2000, 6);
     });
 
     it('has no effect at all in years after the partner stops working - never negative', () => {
-      const lowIncome = withPartner(2000, 10);
-      const highIncome = withPartner(8000, 10);
+      const lowIncome = run({ goals: [], partnerIncome: withPartner(20, 60, 10) });
+      const highIncome = run({ goals: [], partnerIncome: withPartner(80, 60, 10) });
 
-      // Year 11 (>= stopsYear 10): partner already stopped, so a bigger partner income shouldn't
-      // change anything this year - and definitely shouldn't make free cash worse.
+      // Year 11 (>= jobLossYear 10): partner's gross salary is $0 regardless of salaryY0K, so no diff.
       expect(highIncome.chart.freeCash[10]).toBe(lowIncome.chart.freeCash[10]);
     });
 
     it('increasing partner income never decreases free cash in any year', () => {
-      const lower = withPartner(1000, 8);
-      const higher = withPartner(6000, 8);
+      const lower = run({ goals: [], partnerIncome: withPartner(10, 60, 8) });
+      const higher = run({ goals: [], partnerIncome: withPartner(60, 60, 8) });
 
       for (let year = 1; year <= 18; year++) {
         expect(higher.chart.freeCash[year - 1]).toBeGreaterThanOrEqual(lower.chart.freeCash[year - 1]);

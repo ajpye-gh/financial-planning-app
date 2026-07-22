@@ -24,10 +24,12 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIdsIn('Expenses', groups)).toContain('housingPrincipalInterestMo');
   });
 
-  it('always shows partner fields under Income - no questionnaire gating them anymore', () => {
-    expect(fieldIdsIn('Income', visibleBaseFieldGroups({}))).toEqual(
-      expect.arrayContaining(['partnerNetIncomeMo', 'partnerIncomeStopsYear']),
-    );
+  it('mirrors Income as its own always-visible Partner income group - no questionnaire gating it anymore', () => {
+    expect(fieldIdsIn('Partner income', visibleBaseFieldGroups({}))).toEqual([
+      'partnerSalaryY0K',
+      'partnerSalaryGrowthAfterY10Pct',
+      'partnerNetKeepRatePct',
+    ]);
   });
 
   it('always shows kid-cost fields under Expenses - no questionnaire gating them anymore', () => {
@@ -36,9 +38,15 @@ describe('visibleBaseFieldGroups', () => {
     );
   });
 
-  it('always includes all four groups, since each has at least one always-visible field', () => {
+  it('always includes all five groups, since each has at least one always-visible field', () => {
     const groups = visibleBaseFieldGroups({});
-    expect(groups.map((group) => group.title)).toEqual(['Income', 'Expenses', 'Assets', 'Assumptions']);
+    expect(groups.map((group) => group.title)).toEqual([
+      'Income',
+      'Partner income',
+      'Expenses',
+      'Assets',
+      'Assumptions',
+    ]);
   });
 
   it('does not render inspectYear in any sidebar group - it is rendered separately, next to the results it controls', () => {
