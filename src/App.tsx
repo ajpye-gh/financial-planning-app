@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { QuestionnaireWizard } from './components/questionnaire/QuestionnaireWizard';
 import { ControlsPanel } from './components/controls/ControlsPanel';
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
@@ -9,7 +8,7 @@ import { MetricCards, type Metric } from './components/results/MetricCards';
 import { VerdictBanner } from './components/results/VerdictBanner';
 import { BreakdownTable } from './components/results/BreakdownTable';
 import { useDraftState } from './hooks/useDraftState';
-import { isQuestionnaireComplete, ownsHome } from './lib/questions';
+import { ownsHome } from './lib/questions';
 import { DEFAULT_BASE_RANGES } from './lib/baseData';
 import { INSPECT_YEAR_FIELD } from './lib/baseFields';
 import { runModel } from './lib/model';
@@ -19,8 +18,6 @@ import { formatCurrency, formatCurrencyCompact } from './lib/format';
 function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
-
-  const questionnaireDone = isQuestionnaireComplete(draft.answers);
 
   const result = useMemo(
     () =>
@@ -32,14 +29,6 @@ function App() {
       }),
     [draft.baseInputs, draft.answers, draft.goals, draft.salaryRaises],
   );
-
-  if (!questionnaireDone) {
-    return (
-      <main className="page">
-        <QuestionnaireWizard answers={draft.answers} onAnswer={draft.setAnswer} onComplete={() => undefined} />
-      </main>
-    );
-  }
 
   const toggleOptions = chartToggleOptions(draft.goals);
   const effectiveSeriesId = toggleOptions.some((option) => option.id === selectedSeriesId)
@@ -85,6 +74,7 @@ function App() {
         <aside className="app-shell__sidebar">
           <ControlsPanel
             answers={draft.answers}
+            onAnswer={draft.setAnswer}
             ranges={DEFAULT_BASE_RANGES}
             values={draft.baseInputs}
             onChange={draft.setBaseInput}

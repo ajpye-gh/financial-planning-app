@@ -24,7 +24,7 @@ interface Draft {
 
 function freshDraft(): Draft {
   return {
-    answers: {},
+    answers: { housing: 'own' },
     baseInputs: baseDefaults(DEFAULT_BASE_RANGES),
     goals: [],
     salaryRaises: DEFAULT_SALARY_RAISES.map((breakpoint) => ({ id: generateBreakpointId(), ...breakpoint })),

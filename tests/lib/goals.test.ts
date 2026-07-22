@@ -14,6 +14,12 @@ describe('GOAL_CATALOG', () => {
       expect(isValidGoal(goal)).toBe(true);
     }
   });
+
+  it('includes a Retirement savings entry, in accumulate mode', () => {
+    const entry = GOAL_CATALOG.find((candidate) => candidate.label === 'Retirement savings');
+    expect(entry).toBeDefined();
+    expect(entry?.create(generateGoalId()).mode).toBe('accumulate');
+  });
 });
 
 describe('isValidGoal', () => {

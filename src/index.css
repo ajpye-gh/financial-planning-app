@@ -474,39 +474,18 @@ input[type='range']::-moz-range-thumb {
   padding: 0.4rem 0.75rem;
 }
 
-/* Questionnaire */
+/* Housing toggle */
 
-.questionnaire {
-  max-width: 480px;
-  margin: 15vh auto 0;
-  text-align: center;
+.housing-toggle {
+  margin-bottom: 1.25rem;
 }
 
-.questionnaire__progress {
+.housing-toggle__label {
+  display: block;
   font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.questionnaire__prompt {
-  margin: 0 0 1.5rem;
-}
-
-.questionnaire__options {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 1.5rem;
-}
-
-.questionnaire__option {
-  padding: 0.65rem 1.5rem;
-}
-
-.questionnaire__nav {
-  display: flex;
-  justify-content: center;
+  margin-bottom: 8px;
 }
 
 /* Goals */

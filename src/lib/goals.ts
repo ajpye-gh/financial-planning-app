@@ -46,6 +46,18 @@ const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
 
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
   {
+    label: 'Retirement savings',
+    create: (id) => ({
+      kind: 'recurring',
+      id,
+      name: 'Retirement savings',
+      mode: 'accumulate',
+      monthlyAmount: 1000,
+      monthlyAmountRange: { ...DEFAULT_RANGE },
+      ...FULL_HORIZON,
+    }),
+  },
+  {
     label: 'Travel',
     create: (id) => ({
       kind: 'recurring',

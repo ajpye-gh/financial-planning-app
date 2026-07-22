@@ -24,18 +24,14 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIdsIn('Expenses', groups)).toContain('housingPrincipalInterestMo');
   });
 
-  it('hides partner fields under Income until hasPartnerIncome is answered yes', () => {
-    expect(fieldIdsIn('Income', visibleBaseFieldGroups({ hasPartnerIncome: false }))).not.toContain(
-      'partnerNetIncomeMo',
-    );
-    expect(fieldIdsIn('Income', visibleBaseFieldGroups({ hasPartnerIncome: true }))).toEqual(
+  it('always shows partner fields under Income - no questionnaire gating them anymore', () => {
+    expect(fieldIdsIn('Income', visibleBaseFieldGroups({}))).toEqual(
       expect.arrayContaining(['partnerNetIncomeMo', 'partnerIncomeStopsYear']),
     );
   });
 
-  it('hides kid-cost fields under Expenses until hasKids is answered yes', () => {
-    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({ hasKids: false }))).not.toContain('kidsAdded');
-    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({ hasKids: true }))).toEqual(
+  it('always shows kid-cost fields under Expenses - no questionnaire gating them anymore', () => {
+    expect(fieldIdsIn('Expenses', visibleBaseFieldGroups({}))).toEqual(
       expect.arrayContaining(['kidsAdded', 'costPerKidMo']),
     );
   });
