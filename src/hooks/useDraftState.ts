@@ -56,7 +56,7 @@ export interface UseDraftStateResult {
   goals: Goal[];
   addGoal: (goal: Goal) => void;
   removeGoal: (id: string) => void;
-  updateGoal: (id: string, monthlyAmount: number) => void;
+  updateGoal: (id: string, patch: Partial<Goal>) => void;
   startOver: () => void;
 }
 
@@ -90,10 +90,10 @@ export function useDraftState(): UseDraftStateResult {
     setDraft((prev) => ({ ...prev, goals: prev.goals.filter((goal) => goal.id !== id) }));
   }, []);
 
-  const updateGoal = useCallback((id: string, monthlyAmount: number) => {
+  const updateGoal = useCallback((id: string, patch: Partial<Goal>) => {
     setDraft((prev) => ({
       ...prev,
-      goals: prev.goals.map((goal) => (goal.id === id ? { ...goal, monthlyAmount } : goal)),
+      goals: prev.goals.map((goal) => (goal.id === id ? { ...goal, ...patch } : goal)),
     }));
   }, []);
 

@@ -6,22 +6,16 @@ interface GoalsPanelProps {
   runningTotals: Record<string, number>;
   onAdd: (goal: Goal) => void;
   onRemove: (id: string) => void;
-  onChangeAmount: (id: string, amount: number) => void;
+  onUpdate: (id: string, patch: Partial<Goal>) => void;
 }
 
-export function GoalsPanel({ goals, runningTotals, onAdd, onRemove, onChangeAmount }: Readonly<GoalsPanelProps>) {
+export function GoalsPanel({ goals, runningTotals, onAdd, onRemove, onUpdate }: Readonly<GoalsPanelProps>) {
   return (
     <div>
       {goals.length > 0 && (
         <div className="goals-panel">
           {goals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              runningTotal={runningTotals[goal.id]}
-              onChangeAmount={onChangeAmount}
-              onRemove={onRemove}
-            />
+            <GoalCard key={goal.id} goal={goal} runningTotal={runningTotals[goal.id]} onUpdate={onUpdate} onRemove={onRemove} />
           ))}
         </div>
       )}

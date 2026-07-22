@@ -12,10 +12,18 @@ export interface RecurringGoal {
   mode: 'accumulate' | 'consume';
   monthlyAmount: number;
   monthlyAmountRange: { min: number; max: number; step: number };
+  /** Inclusive 1-indexed year range this goal is active. Outside it, the goal contributes $0 -
+   *  but an `accumulate` balance keeps compounding at the investment return even after `endYear`. */
+  startYear: number;
+  endYear: number;
   targetAmount?: number;
 }
 
 export type Goal = RecurringGoal;
+
+// Matches model.ts's HORIZON_YEARS. Not imported from there to avoid a runtime import cycle
+// (model.ts imports RecurringGoal from this module, albeit only as a type).
+const DEFAULT_END_YEAR = 18;
 
 let fallbackIdCounter = 0;
 
@@ -34,6 +42,7 @@ export interface GoalCatalogEntry {
 }
 
 const DEFAULT_RANGE = { min: 0, max: 2000, step: 25 };
+const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
 
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
   {
@@ -45,6 +54,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       mode: 'consume',
       monthlyAmount: 300,
       monthlyAmountRange: { min: 0, max: 3000, step: 50 },
+      ...FULL_HORIZON,
     }),
   },
   {
@@ -57,6 +67,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       monthlyAmount: 300,
       monthlyAmountRange: { min: 0, max: 3000, step: 50 },
       targetAmount: 80000,
+      ...FULL_HORIZON,
     }),
   },
   {
@@ -68,6 +79,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       mode: 'accumulate',
       monthlyAmount: 200,
       monthlyAmountRange: { min: 0, max: 2000, step: 25 },
+      ...FULL_HORIZON,
     }),
   },
   {
@@ -79,6 +91,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       mode: 'accumulate',
       monthlyAmount: 200,
       monthlyAmountRange: { ...DEFAULT_RANGE },
+      ...FULL_HORIZON,
     }),
   },
   {
@@ -90,6 +103,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       mode: 'consume',
       monthlyAmount: 200,
       monthlyAmountRange: { ...DEFAULT_RANGE },
+      ...FULL_HORIZON,
     }),
   },
 ];
@@ -116,6 +130,9 @@ export function isValidGoal(value: unknown): value is Goal {
     return false;
   }
   if (!isFiniteNumber(goal.monthlyAmount)) {
+    return false;
+  }
+  if (!isFiniteNumber(goal.startYear) || !isFiniteNumber(goal.endYear) || goal.startYear > goal.endYear) {
     return false;
   }
   const rangeValue: unknown = goal.monthlyAmountRange;

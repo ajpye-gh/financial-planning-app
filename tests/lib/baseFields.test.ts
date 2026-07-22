@@ -1,4 +1,4 @@
-import { visibleBaseFieldGroups } from '@src/lib/baseFields';
+import { ALL_BASE_FIELD_IDS, INSPECT_YEAR_FIELD, visibleBaseFieldGroups } from '@src/lib/baseFields';
 
 function fieldIdsIn(title: string, groups: ReturnType<typeof visibleBaseFieldGroups>): string[] {
   return groups.find((group) => group.title === title)?.fields.map((field) => field.id) ?? [];
@@ -43,5 +43,12 @@ describe('visibleBaseFieldGroups', () => {
   it('always includes all four groups, since each has at least one always-visible field', () => {
     const groups = visibleBaseFieldGroups({});
     expect(groups.map((group) => group.title)).toEqual(['Income', 'Expenses', 'Assets', 'Assumptions']);
+  });
+
+  it('does not render inspectYear in any sidebar group - it is rendered separately, next to the results it controls', () => {
+    const fieldIds = visibleBaseFieldGroups({}).flatMap((group) => group.fields.map((field) => field.id));
+    expect(fieldIds).not.toContain('inspectYear');
+    expect(INSPECT_YEAR_FIELD.id).toBe('inspectYear');
+    expect(ALL_BASE_FIELD_IDS).toContain('inspectYear');
   });
 });

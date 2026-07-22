@@ -37,6 +37,8 @@ const TRAVEL_GOAL: RecurringGoal = {
   mode: 'consume',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
+  startYear: 1,
+  endYear: 18,
 };
 
 const COLLEGE_GOAL: RecurringGoal = {
@@ -47,6 +49,8 @@ const COLLEGE_GOAL: RecurringGoal = {
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   targetAmount: 80000,
+  startYear: 1,
+  endYear: 18,
 };
 
 describe('runModel', () => {
@@ -66,6 +70,14 @@ describe('runModel', () => {
 
     expect(result.snapshot.year).toBe(5);
     expect(result.snapshot.goalContributions).toEqual({ travel: 300, college: 300 });
+  });
+
+  it('reports unallocatedAtInspect for the chosen inspect year, distinct from unallocatedAtEnd (year 18)', () => {
+    const result = runModel({ base: BASE, ownsHome: true, goals: [] });
+
+    expect(result.unallocatedAtInspect).toBe(result.chart.unallocatedSavings[BASE.inspectYear - 1]);
+    expect(result.unallocatedAtInspect).not.toBe(result.unallocatedAtEnd);
+    expect(result.unallocatedAtEnd).toBe(result.chart.unallocatedSavings[17]);
   });
 
   it('treats the full housing payment as inflating when renting, vs. a fixed P&I portion when owning', () => {
@@ -104,5 +116,46 @@ describe('runModel', () => {
   it('throws if the inspect year falls outside the modeled 1-18 range', () => {
     const result = () => runModel({ base: { ...BASE, inspectYear: 0 }, ownsHome: true, goals: [] });
     expect(result).toThrow();
+  });
+
+  describe('goal active windows (startYear/endYear)', () => {
+    it('contributes $0 before startYear and after endYear, full amount inside the window', () => {
+      const windowed: RecurringGoal = { ...TRAVEL_GOAL, startYear: 5, endYear: 8 };
+      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+
+      expect(result.chart.freeCash.length).toBe(18);
+      // Free cash with the goal active (years 5-8, 0-indexed 4-7) should be exactly $300 lower than
+      // the same year with no goal at all; outside that window it should be identical.
+      const withoutGoal = runModel({ base: BASE, ownsHome: true, goals: [] });
+      for (let year = 1; year <= 18; year++) {
+        const diff = withoutGoal.chart.freeCash[year - 1] - result.chart.freeCash[year - 1];
+        if (year >= 5 && year <= 8) {
+          expect(diff).toBe(300);
+        } else {
+          expect(diff).toBe(0);
+        }
+      }
+    });
+
+    it('keeps an accumulate-mode balance compounding after endYear with no new contributions', () => {
+      const windowed: RecurringGoal = { ...COLLEGE_GOAL, startYear: 1, endYear: 3 };
+      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+      const balances = result.chart.goalBalances.college;
+
+      // Balance still grows year-over-year after year 3 (investment return applied)...
+      expect(balances[5]).toBeGreaterThan(balances[3]);
+      // ...but by ~the return rate (allowing a few dollars of rounding drift, since each year's
+      // balance is independently rounded before the next year's growth is applied to it).
+      expect(Math.abs(balances[5] - balances[4] * 1.06)).toBeLessThan(2);
+    });
+
+    it('holds an accumulate-mode balance at $0 before startYear', () => {
+      const windowed: RecurringGoal = { ...COLLEGE_GOAL, startYear: 6, endYear: 18 };
+      const result = runModel({ base: BASE, ownsHome: true, goals: [windowed] });
+      const balances = result.chart.goalBalances.college;
+
+      expect(balances.slice(0, 5)).toEqual([0, 0, 0, 0, 0]);
+      expect(balances[5]).toBeGreaterThan(0);
+    });
   });
 });

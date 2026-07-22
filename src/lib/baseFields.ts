@@ -173,19 +173,22 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         format: '%',
         tooltip: 'Nominal annual return on invested assets and every accumulating goal.',
       },
-      {
-        id: 'inspectYear',
-        label: 'Inspect year',
-        format: 'yr',
-        tooltip: 'Which year the detail table below shows.',
-      },
     ],
   },
 ];
 
-export const ALL_BASE_FIELD_IDS: BaseFieldId[] = BASE_FIELD_GROUPS.flatMap((group) =>
-  group.fields.map((field) => field.id),
-);
+/** Rendered next to the results it controls (the breakdown table) rather than in the sidebar. */
+export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
+  id: 'inspectYear',
+  label: 'Inspect year',
+  format: 'yr',
+  tooltip: 'Which year the detail table below shows.',
+};
+
+export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
+  ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
+  INSPECT_YEAR_FIELD.id,
+];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */
 export function visibleBaseFieldGroups(answers: Answers): BaseFieldGroup[] {

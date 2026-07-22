@@ -34,6 +34,8 @@ describe('isValidGoal', () => {
     ['inverted range', { ...valid, monthlyAmountRange: { min: 100, max: 0, step: 10 } }],
     ['zero step', { ...valid, monthlyAmountRange: { min: 0, max: 100, step: 0 } }],
     ['non-finite target', { ...valid, targetAmount: 'lots' }],
+    ['startYear after endYear', { ...valid, startYear: 10, endYear: 5 }],
+    ['non-finite startYear', { ...valid, startYear: 'five' }],
   ])('rejects %s', (_label, candidate) => {
     expect(isValidGoal(candidate)).toBe(false);
   });

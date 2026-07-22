@@ -38,6 +38,7 @@ export interface Verdict {
 
 export interface ModelResult {
   freeCashAtInspect: number;
+  unallocatedAtInspect: number;
   unallocatedAtEnd: number;
   snapshot: YearSnapshot;
   chart: ChartSeries;
@@ -81,11 +82,19 @@ function advanceUnallocatedPool(pool: UnallocatedPool, freeCash: number, reserve
   }
 }
 
-function advanceGoalBalances(goals: RecurringGoal[], balances: Record<string, number>, investmentReturnPct: number): void {
+function isGoalActive(goal: RecurringGoal, year: number): boolean {
+  return year >= goal.startYear && year <= goal.endYear;
+}
+
+/** Mutates `balances` in place. A goal's balance keeps compounding at the investment return even
+ *  outside its active window - only the new contribution stops, matching how a real account behaves
+ *  once you stop (or haven't yet started) funding it. */
+function advanceGoalBalances(year: number, goals: RecurringGoal[], balances: Record<string, number>, investmentReturnPct: number): void {
   for (const goal of goals) {
     if (goal.mode === 'accumulate') {
       const previous = balances[goal.id] ?? 0;
-      balances[goal.id] = previous * (1 + investmentReturnPct / 100) + goal.monthlyAmount * 12;
+      const contribution = isGoalActive(goal, year) ? goal.monthlyAmount * 12 : 0;
+      balances[goal.id] = previous * (1 + investmentReturnPct / 100) + contribution;
     }
   }
 }
@@ -147,8 +156,9 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const goalContributions: Record<string, number> = {};
   let goalTotal = 0;
   for (const goal of ctx.goals) {
-    goalContributions[goal.id] = goal.monthlyAmount;
-    goalTotal += goal.monthlyAmount;
+    const amount = isGoalActive(goal, year) ? goal.monthlyAmount : 0;
+    goalContributions[goal.id] = amount;
+    goalTotal += amount;
   }
 
   const totalExpenses = livingCosts + kidsCost + housingCost;
@@ -248,7 +258,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
       };
     }
 
-    advanceGoalBalances(goals, goalBalances, investmentReturn);
+    advanceGoalBalances(year, goals, goalBalances, investmentReturn);
     advanceUnallocatedPool(pool, freeCash, reserveTarget, investmentReturn);
 
     yearLabels.push(`Y${year}`);
@@ -266,6 +276,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
 
   return {
     freeCashAtInspect: snapshot.freeCash,
+    unallocatedAtInspect: unallocatedSeries[base.inspectYear - 1],
     unallocatedAtEnd: finalUnallocated,
     snapshot,
     chart: { yearLabels, unallocatedSavings: unallocatedSeries, freeCash: freeCashSeries, goalBalances: goalSeries },

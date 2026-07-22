@@ -17,6 +17,8 @@ const ACCUMULATE_GOAL: RecurringGoal = {
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
   targetAmount: 80000,
+  startYear: 1,
+  endYear: 18,
 };
 
 const CONSUME_GOAL: RecurringGoal = {
@@ -26,6 +28,8 @@ const CONSUME_GOAL: RecurringGoal = {
   mode: 'consume',
   monthlyAmount: 300,
   monthlyAmountRange: { min: 0, max: 3000, step: 50 },
+  startYear: 1,
+  endYear: 18,
 };
 
 describe('chartToggleOptions', () => {

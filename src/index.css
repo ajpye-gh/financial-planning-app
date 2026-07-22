@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -345,10 +351,30 @@ input[type='range']::-moz-range-thumb {
 }
 
 .control-group__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.control-group__title:hover:not(:disabled) {
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+.control-group__chevron {
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 
 .slider-field {
@@ -421,40 +447,69 @@ input[type='range']::-moz-range-thumb {
 
 .goals-panel {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 1.5rem;
 }
 
 .goal-card {
+  /* Fixed 3-column layout (via flex-basis, not CSS grid) that relaxes to fewer columns as it narrows. */
+  flex: 0 0 calc((100% - 24px) / 3);
+  max-width: calc((100% - 24px) / 3);
   background: var(--surface-1);
   border: 0.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  padding: 0.875rem 1rem;
+
+  @media (max-width: 900px) {
+    flex-basis: calc((100% - 12px) / 2);
+    max-width: calc((100% - 12px) / 2);
+  }
+
+  @media (max-width: 560px) {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
 }
 
 .goal-card__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.goal-card__name {
-  font-size: 14px;
+.goal-card__name-input {
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  padding: 1px 0;
+  min-width: 0;
+  flex: 1;
 }
 
-.goal-card__mode {
-  font-weight: 400;
-  color: var(--text-secondary);
+.goal-card__name-input:hover {
+  border-bottom-color: var(--border);
+}
+
+.goal-card__name-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
 }
 
 .goal-card__remove {
-  padding: 0.3rem 0.6rem;
-  font-size: 12px;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
   color: var(--text-secondary);
 }
 
@@ -463,10 +518,52 @@ input[type='range']::-moz-range-thumb {
   border-color: var(--danger);
 }
 
-.goal-card__total {
-  font-size: 13px;
+.goal-card__mode-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.goal-card__mode-badge--accumulate {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.goal-card__mode-badge--consume {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.goal-card__years {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.goal-card__year-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
   color: var(--text-secondary);
-  margin-top: 8px;
+}
+
+.goal-card__year-field input {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  font-size: 12px;
+}
+
+.goal-card__total {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 10px;
 }
 
 .goal-card__total-value {
@@ -572,6 +669,13 @@ input[type='range']::-moz-range-thumb {
   border-color: var(--accent-border);
   color: var(--text-primary);
   font-weight: 500;
+}
+
+/* Inspect year */
+
+.inspect-year-control {
+  max-width: 280px;
+  margin-bottom: 1rem;
 }
 
 /* Chart */

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { QuestionnaireWizard } from './components/questionnaire/QuestionnaireWizard';
 import { ControlsPanel } from './components/controls/ControlsPanel';
+import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
@@ -10,6 +11,7 @@ import { BreakdownTable } from './components/results/BreakdownTable';
 import { useDraftState } from './hooks/useDraftState';
 import { isQuestionnaireComplete, ownsHome } from './lib/questions';
 import { DEFAULT_BASE_RANGES } from './lib/baseData';
+import { INSPECT_YEAR_FIELD } from './lib/baseFields';
 import { runModel } from './lib/model';
 import { chartToggleOptions, primarySeriesFor, type ChartSeriesId } from './lib/chartSeries';
 import { formatCurrency, formatCurrencyCompact } from './lib/format';
@@ -55,10 +57,10 @@ function App() {
       tone: result.freeCashAtInspect < 0 ? 'danger' : 'success',
     },
     {
-      id: 'unallocated-end',
-      label: 'Unallocated savings, yr 18',
-      value: formatCurrencyCompact(result.unallocatedAtEnd),
-      tone: result.unallocatedAtEnd < 0 ? 'danger' : undefined,
+      id: 'unallocated-inspect',
+      label: 'Unallocated savings, inspect yr',
+      value: formatCurrencyCompact(result.unallocatedAtInspect),
+      tone: result.unallocatedAtInspect < 0 ? 'danger' : undefined,
     },
   ];
 
@@ -87,7 +89,7 @@ function App() {
             runningTotals={runningTotals}
             onAdd={draft.addGoal}
             onRemove={draft.removeGoal}
-            onChangeAmount={draft.updateGoal}
+            onUpdate={draft.updateGoal}
           />
 
           <div className="page__section-title">Results</div>
@@ -95,6 +97,15 @@ function App() {
           <MetricCards metrics={metrics} />
           <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
           <CashflowChart chart={result.chart} primary={primary} />
+
+          <div className="inspect-year-control">
+            <SliderField
+              meta={INSPECT_YEAR_FIELD}
+              range={DEFAULT_BASE_RANGES.inspectYear}
+              value={draft.baseInputs.inspectYear}
+              onChange={draft.setBaseInput}
+            />
+          </div>
           <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
 
           <button type="button" onClick={draft.startOver}>
