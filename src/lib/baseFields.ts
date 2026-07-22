@@ -12,10 +12,10 @@ export type BaseFieldId =
   | 'brokerageTodayK'
   | 'reserveTargetK'
   | 'salaryY0K'
-  | 'salaryY1K'
-  | 'salaryY4K'
-  | 'salaryY6K'
-  | 'salaryY10K'
+  | 'salaryRaiseY1K'
+  | 'salaryRaiseY4K'
+  | 'salaryRaiseY6K'
+  | 'salaryRaiseY10K'
   | 'salaryGrowthAfterY10Pct'
   | 'netKeepRatePct'
   | 'partnerNetIncomeMo'
@@ -51,10 +51,30 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         tooltip: 'Household take-home per month today, after tax, benefits and retirement contributions.',
       },
       { id: 'salaryY0K', label: 'Salary, yr 0 (today)', format: 'k', tooltip: 'Your current gross base salary.' },
-      { id: 'salaryY1K', label: 'Salary, yr 1', format: 'k', tooltip: 'Expected gross salary one year out.' },
-      { id: 'salaryY4K', label: 'Salary, yr 4', format: 'k', tooltip: 'Expected gross salary at year 4.' },
-      { id: 'salaryY6K', label: 'Salary, yr 6', format: 'k', tooltip: 'Expected gross salary at year 6.' },
-      { id: 'salaryY10K', label: 'Salary, yr 10', format: 'k', tooltip: 'Expected gross salary at year 10.' },
+      {
+        id: 'salaryRaiseY1K',
+        label: 'Raise by yr 1',
+        format: 'k',
+        tooltip: "How much more gross salary you expect by year 1, above today's — not an absolute target, so raising \"today\" shifts this with it.",
+      },
+      {
+        id: 'salaryRaiseY4K',
+        label: 'Raise by yr 4',
+        format: 'k',
+        tooltip: "How much more gross salary you expect by year 4, above today's.",
+      },
+      {
+        id: 'salaryRaiseY6K',
+        label: 'Raise by yr 6',
+        format: 'k',
+        tooltip: "How much more gross salary you expect by year 6, above today's.",
+      },
+      {
+        id: 'salaryRaiseY10K',
+        label: 'Raise by yr 10',
+        format: 'k',
+        tooltip: "How much more gross salary you expect by year 10, above today's.",
+      },
       {
         id: 'salaryGrowthAfterY10Pct',
         label: 'Growth after yr 10',

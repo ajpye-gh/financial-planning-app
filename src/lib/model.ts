@@ -47,11 +47,12 @@ export interface ModelResult {
 
 export const HORIZON_YEARS = 18;
 
-function salaryAtYear(year: number, milestones: [number, number][], growthAfterY10Pct: number): number {
+/** `raiseMilestones` are cumulative raises above `salaryY0` (e.g. year 4 => $20k more than today),
+ *  not absolute targets - so this curve shifts entirely with `salaryY0` instead of being squeezed or
+ *  inverted by it. */
+function raiseAtYear(year: number, raiseMilestones: [number, number][]): number {
+  const milestones: [number, number][] = [[0, 0], ...raiseMilestones];
   const last = milestones[milestones.length - 1];
-  if (year >= 10) {
-    return last[1] * Math.pow(1 + growthAfterY10Pct / 100, year - 10);
-  }
   for (let i = 1; i < milestones.length; i++) {
     const [ay, av] = milestones[i - 1];
     const [by, bv] = milestones[i];
@@ -60,6 +61,14 @@ function salaryAtYear(year: number, milestones: [number, number][], growthAfterY
     }
   }
   return last[1];
+}
+
+function salaryAtYear(year: number, salaryY0: number, raiseMilestones: [number, number][], growthAfterY10Pct: number): number {
+  if (year >= 10) {
+    const salaryAtY10 = salaryY0 + raiseAtYear(10, raiseMilestones);
+    return salaryAtY10 * Math.pow(1 + growthAfterY10Pct / 100, year - 10);
+  }
+  return salaryY0 + raiseAtYear(year, raiseMilestones);
 }
 
 interface UnallocatedPool {
@@ -120,7 +129,8 @@ function recordGoalSeries(goals: RecurringGoal[], balances: Record<string, numbe
 interface YearContext {
   base: BaseInputs;
   goals: RecurringGoal[];
-  salaryMilestones: [number, number][];
+  salaryY0: number;
+  raiseMilestones: [number, number][];
   growthAfterY10: number;
   netKeepRate: number;
   inflation: number;
@@ -143,8 +153,8 @@ interface YearFigures {
 
 function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const inflationFactor = Math.pow(1 + ctx.inflation / 100, year);
-  const grossSalary = salaryAtYear(year, ctx.salaryMilestones, ctx.growthAfterY10);
-  let income = ctx.base.netIncomeMo + ((grossSalary - ctx.salaryMilestones[0][1]) * ctx.netKeepRate) / 12;
+  const grossSalary = salaryAtYear(year, ctx.salaryY0, ctx.raiseMilestones, ctx.growthAfterY10);
+  let income = ctx.base.netIncomeMo + ((grossSalary - ctx.salaryY0) * ctx.netKeepRate) / 12;
   if (year >= ctx.base.partnerIncomeStopsYear) {
     income -= ctx.base.partnerNetIncomeMo;
   }
@@ -192,12 +202,12 @@ function buildVerdict(finalUnallocated: number, everNegative: boolean, firstNega
 export function runModel(inputs: ModelInputs): ModelResult {
   const { base, ownsHome, goals } = inputs;
 
-  const salaryMilestones: [number, number][] = [
-    [0, base.salaryY0K * 1000],
-    [1, base.salaryY1K * 1000],
-    [4, base.salaryY4K * 1000],
-    [6, base.salaryY6K * 1000],
-    [10, base.salaryY10K * 1000],
+  const salaryY0 = base.salaryY0K * 1000;
+  const raiseMilestones: [number, number][] = [
+    [1, base.salaryRaiseY1K * 1000],
+    [4, base.salaryRaiseY4K * 1000],
+    [6, base.salaryRaiseY6K * 1000],
+    [10, base.salaryRaiseY10K * 1000],
   ];
   const growthAfterY10 = base.salaryGrowthAfterY10Pct;
   const netKeepRate = base.netKeepRatePct / 100;
@@ -225,7 +235,8 @@ export function runModel(inputs: ModelInputs): ModelResult {
   const yearContext: YearContext = {
     base,
     goals,
-    salaryMilestones,
+    salaryY0,
+    raiseMilestones,
     growthAfterY10,
     netKeepRate,
     inflation,
