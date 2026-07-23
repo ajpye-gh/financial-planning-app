@@ -1,4 +1,5 @@
-import { buildRetirementVerdict, estimateRetirementIncome, POST_RETIREMENT_YEARS, projectRetirementBalance } from '@src/lib/retirement';
+import { buildRetirementVerdict, estimateHouseholdRetirementIncome, POST_RETIREMENT_YEARS, projectRetirementBalance } from '@src/lib/retirement';
+import { estimateRetirementTax } from '@src/lib/tax';
 
 describe('projectRetirementBalance', () => {
   describe('accumulation phase (Y0 through the target year)', () => {
@@ -82,51 +83,77 @@ describe('projectRetirementBalance', () => {
   });
 });
 
-describe('estimateRetirementIncome', () => {
-  it('applies the withdrawal rate to the balance and converts to a monthly figure', () => {
-    // $1,000,000 * 4% = $40,000/yr = $3,333.33/mo, in the target year's (nominal) dollars.
-    const result = estimateRetirementIncome(1000000, 4, 0, 30);
-    expect(result.monthlyIncomeNominal).toBeCloseTo(3333.33, 2);
+describe('estimateHouseholdRetirementIncome', () => {
+  it('combines tax-free Roth withdrawal, gross Traditional withdrawal, and gross Social Security, minus tax', () => {
+    // Roth: 500,000*4%=20,000/yr tax-free. Traditional: 300,000*4%=12,000/yr taxable.
+    // SS: $2,000/mo * 12 = 24,000/yr, no inflation (year 0).
+    const result = estimateHouseholdRetirementIncome(500000, 4, 300000, 4, 2000, 'single', 3, 0);
+    expect(result.rothAnnual).toBeCloseTo(20000, 6);
+    expect(result.traditionalAnnualGross).toBeCloseTo(12000, 6);
+    expect(result.ssAnnualGross).toBeCloseTo(24000, 6);
+
+    const expectedTax = estimateRetirementTax(12000, 24000, 'single', 1);
+    expect(result.tax.tax).toBeCloseTo(expectedTax.tax, 6);
+
+    const expectedNetAnnual = 20000 + 12000 + 24000 - expectedTax.tax;
+    expect(result.netMonthlyNominal).toBeCloseTo(expectedNetAnnual / 12, 6);
   });
 
-  it("deflates the nominal income back to today's dollars using inflation over the target year", () => {
-    const result = estimateRetirementIncome(1000000, 4, 3, 30);
-    expect(result.monthlyIncomeReal).toBeCloseTo(result.monthlyIncomeNominal / Math.pow(1.03, 30), 6);
-    expect(result.monthlyIncomeReal).toBeLessThan(result.monthlyIncomeNominal);
+  it("inflates the Social Security input forward to the target year, same as other today's-dollar inputs", () => {
+    const atYear0 = estimateHouseholdRetirementIncome(0, 4, 0, 4, 2000, 'single', 3, 0);
+    const atYear10 = estimateHouseholdRetirementIncome(0, 4, 0, 4, 2000, 'single', 3, 10);
+    expect(atYear10.ssAnnualGross).toBeCloseTo(atYear0.ssAnnualGross * Math.pow(1.03, 10), 6);
   });
 
-  it('real and nominal income are equal at year 0 (no time for inflation to erode it)', () => {
-    const result = estimateRetirementIncome(1000000, 4, 3, 0);
-    expect(result.monthlyIncomeReal).toBeCloseTo(result.monthlyIncomeNominal, 6);
+  it('a Roth-only household (no Traditional, no Social Security) owes no tax', () => {
+    const result = estimateHouseholdRetirementIncome(1000000, 4, 0, 4, 0, 'single', 3, 20);
+    expect(result.tax.tax).toBe(0);
+    expect(result.netMonthlyNominal).toBeCloseTo(result.rothAnnual / 12, 6);
   });
 
-  it('a higher withdrawal rate produces more income from the same balance', () => {
-    const lower = estimateRetirementIncome(1000000, 3, 0, 20);
-    const higher = estimateRetirementIncome(1000000, 5, 0, 20);
-    expect(higher.monthlyIncomeNominal).toBeGreaterThan(lower.monthlyIncomeNominal);
-  });
-
-  it('is $0 for a $0 balance', () => {
-    const result = estimateRetirementIncome(0, 4, 3, 30);
-    expect(result.monthlyIncomeNominal).toBe(0);
-    expect(result.monthlyIncomeReal).toBe(0);
+  it("deflates net income back to today's dollars using the target year's inflation factor", () => {
+    const result = estimateHouseholdRetirementIncome(500000, 4, 300000, 4, 2000, 'single', 3, 20);
+    const inflationFactor = Math.pow(1.03, 20);
+    expect(result.netMonthlyReal).toBeCloseTo(result.netMonthlyNominal / inflationFactor, 6);
   });
 });
 
 describe('buildRetirementVerdict', () => {
-  it('reports success when the balance lasts the full projection window', () => {
-    const projection = projectRetirementBalance(2000000, 0, 6, 20, 3, 3);
-    const verdict = buildRetirementVerdict(projection);
+  const lastingProjection = () => projectRetirementBalance(2000000, 0, 6, 20, 3, 3);
+  const depletingProjection = () => projectRetirementBalance(10000, 0, 0, 5, 50, 0);
+
+  it('reports success when both pots last the full projection window', () => {
+    const verdict = buildRetirementVerdict(lastingProjection(), lastingProjection());
     expect(verdict.tone).toBe('success');
     expect(verdict.detail).toContain(`${POST_RETIREMENT_YEARS}`);
   });
 
-  it('reports danger with the depletion year and years-into-retirement when it runs out', () => {
-    const projection = projectRetirementBalance(10000, 0, 0, 5, 50, 0);
-    const verdict = buildRetirementVerdict(projection);
+  it('reports danger with both depletion years when both pots run out', () => {
+    const roth = depletingProjection();
+    const traditional = depletingProjection();
+    const verdict = buildRetirementVerdict(roth, traditional);
     expect(verdict.tone).toBe('danger');
-    expect(projection.depletionYear).not.toBeNull();
-    expect(verdict.headline).toContain(String(projection.depletionYear));
-    expect(verdict.detail).toContain(String((projection.depletionYear as number) - 5));
+    expect(roth.depletionYear).not.toBeNull();
+    expect(verdict.headline).toContain(String(Math.max(roth.depletionYear as number, traditional.depletionYear as number)));
+  });
+
+  it('reports a warning naming Roth when only Roth depletes, noting Traditional continues', () => {
+    const roth = depletingProjection();
+    const traditional = lastingProjection();
+    const verdict = buildRetirementVerdict(roth, traditional);
+    expect(verdict.tone).toBe('warning');
+    expect(verdict.headline).toContain('Roth');
+    expect(verdict.headline).toContain(String(roth.depletionYear));
+    expect(verdict.detail).toContain('Traditional savings continue');
+  });
+
+  it('reports a warning naming Traditional when only Traditional depletes, noting Roth continues', () => {
+    const roth = lastingProjection();
+    const traditional = depletingProjection();
+    const verdict = buildRetirementVerdict(roth, traditional);
+    expect(verdict.tone).toBe('warning');
+    expect(verdict.headline).toContain('Traditional');
+    expect(verdict.headline).toContain(String(traditional.depletionYear));
+    expect(verdict.detail).toContain('Roth savings continue');
   });
 });

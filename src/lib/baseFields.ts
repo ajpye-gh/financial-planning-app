@@ -20,10 +20,14 @@ export type BaseFieldId =
   | 'inflationPct'
   | 'investmentReturnPct'
   | 'inspectYear'
-  | 'retirementSavingsTodayK'
-  | 'retirementContributionMo'
-  | 'retirementTargetYear'
-  | 'retirementWithdrawalRatePct';
+  | 'retirementRothSavingsTodayK'
+  | 'retirementRothContributionMo'
+  | 'retirementRothWithdrawalRatePct'
+  | 'retirementTraditionalSavingsTodayK'
+  | 'retirementTraditionalContributionMo'
+  | 'retirementTraditionalWithdrawalRatePct'
+  | 'retirementSocialSecurityMo'
+  | 'retirementTargetYear';
 
 export interface BaseFieldMeta {
   id: BaseFieldId;
@@ -184,19 +188,58 @@ export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
 /** Rendered on the Retirement page's own sidebar/chart, not the primary page's ControlsPanel -
  *  same reasoning as INSPECT_YEAR_FIELD above, just a different page. Investment return and other
  *  assumptions used in the retirement projection are read straight from BASE_FIELD_GROUPS's
- *  Assumptions group instead of being duplicated here. */
-export const RETIREMENT_SAVINGS_FIELD: BaseFieldMeta = {
-  id: 'retirementSavingsTodayK',
-  label: 'Current retirement savings',
+ *  Assumptions group instead of being duplicated here. Split into Roth/Traditional pairs since the
+ *  two are taxed differently (see tax.ts) and tracked as independent balances (see retirement.ts). */
+export const RETIREMENT_ROTH_SAVINGS_FIELD: BaseFieldMeta = {
+  id: 'retirementRothSavingsTodayK',
+  label: 'Current Roth savings',
   format: 'k',
-  tooltip: 'Your current retirement account balance(s) today.',
+  tooltip: 'Your current Roth 401(k)/IRA balance(s) today. Withdrawals in retirement are tax-free.',
 };
 
-export const RETIREMENT_CONTRIBUTION_FIELD: BaseFieldMeta = {
-  id: 'retirementContributionMo',
+export const RETIREMENT_ROTH_CONTRIBUTION_FIELD: BaseFieldMeta = {
+  id: 'retirementRothContributionMo',
   label: 'Monthly contribution',
   format: '$',
-  tooltip: 'How much you contribute to retirement accounts each month.',
+  tooltip: 'How much you contribute to Roth accounts each month.',
+};
+
+export const RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
+  id: 'retirementRothWithdrawalRatePct',
+  label: 'Withdrawal rate',
+  format: '%',
+  tooltip:
+    'Share of your projected Roth balance you draw down each year in retirement (the "4% rule" is the common default). A rule-of-thumb estimate, not a full drawdown simulation.',
+};
+
+export const RETIREMENT_TRADITIONAL_SAVINGS_FIELD: BaseFieldMeta = {
+  id: 'retirementTraditionalSavingsTodayK',
+  label: 'Current Traditional savings',
+  format: 'k',
+  tooltip: 'Your current Traditional 401(k)/IRA balance(s) today. Withdrawals in retirement are taxed as ordinary income.',
+};
+
+export const RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD: BaseFieldMeta = {
+  id: 'retirementTraditionalContributionMo',
+  label: 'Monthly contribution',
+  format: '$',
+  tooltip: 'How much you contribute to Traditional accounts each month.',
+};
+
+export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
+  id: 'retirementTraditionalWithdrawalRatePct',
+  label: 'Withdrawal rate',
+  format: '%',
+  tooltip:
+    'Share of your projected Traditional balance you draw down each year in retirement. Taxed as ordinary income - see the estimated income tooltip for the breakdown.',
+};
+
+export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
+  id: 'retirementSocialSecurityMo',
+  label: 'Social Security benefit',
+  format: '$',
+  tooltip:
+    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - see the estimated income tooltip.",
 };
 
 export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
@@ -206,21 +249,17 @@ export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
   tooltip: "Year you plan to retire by, counted from today (Y0) - set to 0 if you're already retired, to see the drawdown starting now.",
 };
 
-export const RETIREMENT_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
-  id: 'retirementWithdrawalRatePct',
-  label: 'Withdrawal rate',
-  format: '%',
-  tooltip:
-    'Share of your projected balance you draw down each year in retirement (the "4% rule" is the common default) - used to translate your projected balance into an estimated income. A rule-of-thumb estimate, not a full drawdown simulation.',
-};
-
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
-  RETIREMENT_SAVINGS_FIELD.id,
-  RETIREMENT_CONTRIBUTION_FIELD.id,
+  RETIREMENT_ROTH_SAVINGS_FIELD.id,
+  RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
+  RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_TRADITIONAL_SAVINGS_FIELD.id,
+  RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
+  RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_SOCIAL_SECURITY_FIELD.id,
   RETIREMENT_TARGET_YEAR_FIELD.id,
-  RETIREMENT_WITHDRAWAL_RATE_FIELD.id,
 ];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */

@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
+
 interface Metric {
   id: string;
-  label: string;
+  label: ReactNode;
   value: string;
   tone?: 'danger' | 'success';
 }

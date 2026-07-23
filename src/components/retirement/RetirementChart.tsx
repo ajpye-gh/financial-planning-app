@@ -3,7 +3,8 @@ import { formatCurrencyCompact } from '../../lib/format';
 import type { RetirementProjection } from '../../lib/retirement';
 
 interface RetirementChartProps {
-  projection: RetirementProjection;
+  rothProjection: RetirementProjection;
+  traditionalProjection: RetirementProjection;
 }
 
 const WIDTH = 720;
@@ -11,8 +12,10 @@ const HEIGHT = 240;
 const PADDING = { top: 20, right: 24, bottom: 28, left: 58 };
 const AXIS_TICK_COUNT = 4;
 const AXIS_LABEL_STACK_OFFSET = 7;
-const TOOLTIP_WIDTH = 120;
-const TOOLTIP_HEIGHT = 44;
+const TOOLTIP_WIDTH = 140;
+const TOOLTIP_ROW_HEIGHT = 18;
+const TOOLTIP_TOP_PADDING = 18;
+const TOOLTIP_BOTTOM_PADDING = 10;
 
 function buildPath(values: number[], scaleX: (index: number) => number, scaleY: (value: number) => number): string {
   return values.map((value, index) => `${index === 0 ? 'M' : 'L'} ${scaleX(index)} ${scaleY(value)}`).join(' ');
@@ -25,25 +28,29 @@ function axisTicks(min: number, max: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => min + ((max - min) * i) / (count - 1));
 }
 
-/** A minimal single-series line chart for the retirement balance projection, reusing the
- *  `.cashflow-chart*` classes from CashflowChart.tsx (gridlines, line, ticks, tooltip) instead of
- *  new CSS - CashflowChart itself isn't reusable as a component here since its scaling logic is
- *  hard-wired to three named series (primary/unallocated/cash), not a generic one-series chart. */
-export function RetirementChart({ projection }: Readonly<RetirementChartProps>) {
-  const { yearLabels, balances, retirementYearIndex } = projection;
-  const count = balances.length;
+/** A two-line chart for the Roth vs Traditional retirement balance projections, reusing the
+ *  `.cashflow-chart*` classes from CashflowChart.tsx (gridlines, lines, ticks, tooltip, legend)
+ *  instead of new CSS. Unlike CashflowChart's deliberately-separate scales for genuinely different
+ *  units (dollars vs. monthly cashflow), Roth and Traditional are the same kind of quantity, so both
+ *  lines share one y-scale here. */
+export function RetirementChart({ rothProjection, traditionalProjection }: Readonly<RetirementChartProps>) {
+  const { yearLabels, retirementYearIndex } = rothProjection;
+  const rothBalances = rothProjection.balances;
+  const traditionalBalances = traditionalProjection.balances;
+  const count = yearLabels.length;
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const max = Math.max(...balances, 0);
-  const min = Math.min(...balances, 0);
+  const max = Math.max(...rothBalances, ...traditionalBalances, 0);
+  const min = Math.min(...rothBalances, ...traditionalBalances, 0);
   const range = max - min || 1;
 
   const scaleX = (index: number) => PADDING.left + (count === 1 ? innerWidth / 2 : (index / (count - 1)) * innerWidth);
   const scaleY = (value: number) => PADDING.top + innerHeight - ((value - min) / range) * innerHeight;
 
-  const line = buildPath(balances, scaleX, scaleY);
+  const rothLine = buildPath(rothBalances, scaleX, scaleY);
+  const traditionalLine = buildPath(traditionalBalances, scaleX, scaleY);
   const ticks = axisTicks(min, max, AXIS_TICK_COUNT);
   const xTickIndexes = [0, Math.round((count - 1) / 3), Math.round(((count - 1) * 2) / 3), count - 1];
 
@@ -67,13 +74,23 @@ export function RetirementChart({ projection }: Readonly<RetirementChartProps>) 
     tooltipX = tooltipFlipped ? hoverX - 12 - TOOLTIP_WIDTH : hoverX + 12;
   }
 
+  const tooltipRows =
+    hoverIndex === null
+      ? []
+      : [
+          { text: `Roth: ${formatCurrencyCompact(rothBalances[hoverIndex])}`, className: 'primary' },
+          { text: `Traditional: ${formatCurrencyCompact(traditionalBalances[hoverIndex])}`, className: 'unallocated' },
+          { text: `Total: ${formatCurrencyCompact(rothBalances[hoverIndex] + traditionalBalances[hoverIndex])}`, className: 'cash' },
+        ];
+  const tooltipHeight = TOOLTIP_TOP_PADDING + tooltipRows.length * TOOLTIP_ROW_HEIGHT + TOOLTIP_BOTTOM_PADDING;
+
   return (
     <div className="cashflow-chart">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="cashflow-chart__svg"
         role="img"
-        aria-label={`Projected retirement balance across ${count} years, including drawdown after retirement`}
+        aria-label={`Projected Roth and Traditional retirement balances across ${count} years, including drawdown after retirement`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
@@ -88,7 +105,8 @@ export function RetirementChart({ projection }: Readonly<RetirementChartProps>) 
           />
         ))}
 
-        <path d={line} className="cashflow-chart__line cashflow-chart__line--primary" />
+        <path d={rothLine} className="cashflow-chart__line cashflow-chart__line--primary" />
+        <path d={traditionalLine} className="cashflow-chart__line cashflow-chart__line--unallocated" />
 
         {retirementYearIndex > 0 && retirementYearIndex < count - 1 && (
           <>
@@ -127,19 +145,40 @@ export function RetirementChart({ projection }: Readonly<RetirementChartProps>) 
         {hoverIndex !== null && hoverX !== null && count > 0 && (
           <g className="cashflow-chart__hover">
             <line x1={hoverX} x2={hoverX} y1={PADDING.top} y2={HEIGHT - PADDING.bottom} className="cashflow-chart__crosshair" />
-            <circle cx={hoverX} cy={scaleY(balances[hoverIndex])} r={4} className="cashflow-chart__point cashflow-chart__point--primary" />
+            <circle cx={hoverX} cy={scaleY(rothBalances[hoverIndex])} r={4} className="cashflow-chart__point cashflow-chart__point--primary" />
+            <circle
+              cx={hoverX}
+              cy={scaleY(traditionalBalances[hoverIndex])}
+              r={4}
+              className="cashflow-chart__point cashflow-chart__point--unallocated"
+            />
             <g transform={`translate(${tooltipX}, ${PADDING.top})`} className="cashflow-chart__tooltip">
-              <rect width={TOOLTIP_WIDTH} height={TOOLTIP_HEIGHT} rx={8} className="cashflow-chart__tooltip-box" />
-              <text x={10} y={18} className="cashflow-chart__tooltip-title">
+              <rect width={TOOLTIP_WIDTH} height={tooltipHeight} rx={8} className="cashflow-chart__tooltip-box" />
+              <text x={10} y={TOOLTIP_TOP_PADDING} className="cashflow-chart__tooltip-title">
                 {yearLabels[hoverIndex]}
               </text>
-              <text x={10} y={36} className="cashflow-chart__tooltip-row cashflow-chart__tooltip-row--primary">
-                {formatCurrencyCompact(balances[hoverIndex])}
-              </text>
+              {tooltipRows.map((row, index) => (
+                <text
+                  key={row.className}
+                  x={10}
+                  y={TOOLTIP_TOP_PADDING + (index + 1) * TOOLTIP_ROW_HEIGHT}
+                  className={`cashflow-chart__tooltip-row cashflow-chart__tooltip-row--${row.className}`}
+                >
+                  {row.text}
+                </text>
+              ))}
             </g>
           </g>
         )}
       </svg>
+      <div className="cashflow-chart__legend">
+        <span className="cashflow-chart__legend-item">
+          <span className="cashflow-chart__swatch cashflow-chart__swatch--primary" /> Roth
+        </span>
+        <span className="cashflow-chart__legend-item">
+          <span className="cashflow-chart__swatch cashflow-chart__swatch--unallocated" /> Traditional
+        </span>
+      </div>
     </div>
   );
 }

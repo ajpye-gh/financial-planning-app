@@ -197,7 +197,13 @@ function App() {
           </div>
         </div>
       ) : (
-        <RetirementPage baseInputs={draft.baseInputs} ranges={DEFAULT_BASE_RANGES} onChange={draft.setBaseInput} />
+        <RetirementPage
+          baseInputs={draft.baseInputs}
+          ranges={DEFAULT_BASE_RANGES}
+          onChange={draft.setBaseInput}
+          answers={draft.answers}
+          onAnswer={draft.setAnswer}
+        />
       )}
     </main>
   );
