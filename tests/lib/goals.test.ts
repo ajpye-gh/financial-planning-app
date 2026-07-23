@@ -32,6 +32,11 @@ describe('GOAL_CATALOG', () => {
     expect(entry).toBeUndefined();
   });
 
+  it('does not offer a Travel entry - that is just a Custom spending goal now', () => {
+    const entry = GOAL_CATALOG.find((candidate) => candidate.label === 'Travel');
+    expect(entry).toBeUndefined();
+  });
+
   it('offers two property entries - First home purchase and Move-up purchase (equity rollover)', () => {
     const firstHome = GOAL_CATALOG.find((candidate) => candidate.label === 'First home purchase');
     const moveUp = GOAL_CATALOG.find((candidate) => candidate.label === 'Move-up purchase (equity rollover)');
@@ -54,7 +59,6 @@ describe('GOAL_CATALOG', () => {
     expect(categoryFor('Emergency fund top-up')).toBe('emergency');
     expect(categoryFor('First home purchase')).toBe('property');
     expect(categoryFor('Move-up purchase (equity rollover)')).toBe('property');
-    expect(categoryFor('Travel')).toBe('other');
     expect(categoryFor('College savings')).toBe('other');
     expect(categoryFor('Custom savings goal')).toBe('other');
     expect(categoryFor('Custom spending goal')).toBe('other');

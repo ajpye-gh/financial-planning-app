@@ -156,20 +156,6 @@ const PROPERTY_HORIZON = { startYear: 1, endYear: 5 };
 // with an old retirement goal still loads and validates correctly.
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
   {
-    label: 'Travel',
-    create: (id) => ({
-      kind: 'recurring',
-      id,
-      name: 'Travel',
-      mode: 'consume',
-      category: 'other',
-      monthlyAmount: 300,
-      monthlyAmountRange: { min: 0, max: 3000, step: 50 },
-      ...FULL_HORIZON,
-      ...NO_ALLOCATION,
-    }),
-  },
-  {
     label: 'College savings',
     create: (id) => ({
       kind: 'recurring',

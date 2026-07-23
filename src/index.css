@@ -765,15 +765,81 @@ input[type='range']::-moz-range-thumb {
   font-variant-numeric: tabular-nums;
 }
 
-.goal-catalog {
+.add-goal-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 82px;
+  max-height: 100px;
+  overflow: hidden;
+  border-style: dashed;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
-.goal-catalog__item {
+.add-goal-card:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.add-goal-card__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.add-goal-card--picking {
+  align-items: stretch;
+  justify-content: flex-start;
+  max-height: none;
+  overflow: visible;
+  border-style: solid;
+  cursor: default;
+}
+
+.add-goal-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.add-goal-card__title {
   font-size: 13px;
-  padding: 0.5rem 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.add-goal-card__cancel {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-secondary);
+}
+
+.add-goal-card__cancel:hover:not(:disabled) {
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.add-goal-card__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-goal-card__option {
+  justify-content: flex-start;
+  font-size: 12px;
+  padding: 0.4rem 0.625rem;
+  background: var(--surface-1);
+  text-align: left;
 }
 
 /* Verdict */

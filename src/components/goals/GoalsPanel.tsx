@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { AddGoalCard } from './AddGoalCard';
 import { GoalCard } from './GoalCard';
-import { GOAL_CATALOG, generateGoalId, type Goal } from '../../lib/goals';
+import type { Goal } from '../../lib/goals';
 
 interface GoalsPanelProps {
   goals: Goal[];
@@ -33,36 +34,21 @@ export function GoalsPanel({
   };
 
   return (
-    <div>
-      {goals.length > 0 && (
-        <div className="goals-panel">
-          {goals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              runningTotal={runningTotals[goal.id]}
-              cashRemaining={cashRemaining}
-              brokerageRemaining={brokerageRemaining}
-              homeEquity={homeEquity}
-              defaultExpanded={goal.id === newestGoalId}
-              onUpdate={onUpdate}
-              onRemove={onRemove}
-            />
-          ))}
-        </div>
-      )}
-      <div className="goal-catalog">
-        {GOAL_CATALOG.map((entry) => (
-          <button
-            key={entry.label}
-            type="button"
-            className="goal-catalog__item"
-            onClick={() => handleAdd(entry.create(generateGoalId()))}
-          >
-            + {entry.label}
-          </button>
-        ))}
-      </div>
+    <div className="goals-panel">
+      {goals.map((goal) => (
+        <GoalCard
+          key={goal.id}
+          goal={goal}
+          runningTotal={runningTotals[goal.id]}
+          cashRemaining={cashRemaining}
+          brokerageRemaining={brokerageRemaining}
+          homeEquity={homeEquity}
+          defaultExpanded={goal.id === newestGoalId}
+          onUpdate={onUpdate}
+          onRemove={onRemove}
+        />
+      ))}
+      <AddGoalCard onAdd={handleAdd} />
     </div>
   );
 }
