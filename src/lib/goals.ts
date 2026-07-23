@@ -1,7 +1,8 @@
 /** A goal's fixed purpose, assigned once at creation from the catalog and never edited afterward
  *  (renaming the goal's display `name` doesn't change this) - it's what the asset-allocation rules
- *  in `canAllocateCash`/`canAllocateBrokerage` key off of, since `name` is free text. */
-export type GoalCategory = 'emergency' | 'retirement' | 'other';
+ *  in `canAllocateCash`/`canAllocateBrokerage`/`canAllocateEquity` key off of, since `name` is free
+ *  text. */
+export type GoalCategory = 'emergency' | 'retirement' | 'other' | 'property';
 
 /**
  * Monthly amount that either accumulates (grows at the investment return) or is pure consumption.
@@ -29,6 +30,11 @@ export interface RecurringGoal {
   /** One-time starting balance carried over from your current Brokerage today - never allowed for
    *  `category: 'retirement'` goals (see `canAllocateBrokerage`). */
   brokerageAllocated: number;
+  /** All-or-nothing: whether this goal's starting balance includes your full home equity
+   *  (home value minus mortgage balance). Only ever `true` for `category: 'property'` goals (see
+   *  `canAllocateEquity`), and only for one goal at a time - equity is a single real-world pool, so
+   *  setting it on one goal clears it from every other (see `enforceExclusiveEquity`). */
+  equityAllocated: boolean;
 }
 
 export type Goal = RecurringGoal;
@@ -45,6 +51,12 @@ export function canAllocateBrokerage(goal: Pick<RecurringGoal, 'mode' | 'categor
   return goal.mode === 'accumulate' && goal.category !== 'retirement';
 }
 
+/** Home equity can only seed a property goal - it's the one asset class actually tied to owning a
+ *  home, so it doesn't make sense to offer it anywhere else. */
+export function canAllocateEquity(goal: Pick<RecurringGoal, 'mode' | 'category'>): boolean {
+  return goal.mode === 'accumulate' && goal.category === 'property';
+}
+
 /** Zeroes out any allocation a goal's mode/category doesn't permit - e.g. brokerage assigned to a
  *  retirement goal, or either allocation on a consume-mode goal (no balance to seed). */
 export function sanitizeAllocations(goal: RecurringGoal): RecurringGoal {
@@ -52,7 +64,15 @@ export function sanitizeAllocations(goal: RecurringGoal): RecurringGoal {
     ...goal,
     cashAllocated: canAllocateCash(goal) ? goal.cashAllocated : 0,
     brokerageAllocated: canAllocateBrokerage(goal) ? goal.brokerageAllocated : 0,
+    equityAllocated: canAllocateEquity(goal) ? goal.equityAllocated : false,
   };
+}
+
+/** Home equity is a single real-world pool, not a shared budget like cash/brokerage - so unlike
+ *  `rebalanceAllocations`, this doesn't scale amounts down, it just enforces that at most one goal
+ *  has it allocated at a time. Called whenever a goal's `equityAllocated` is set to `true`. */
+export function enforceExclusiveEquity(goals: RecurringGoal[], allocatedGoalId: string): RecurringGoal[] {
+  return goals.map((goal) => (goal.id === allocatedGoalId ? goal : { ...goal, equityAllocated: false }));
 }
 
 function rebalanceField(goals: RecurringGoal[], field: 'cashAllocated' | 'brokerageAllocated', total: number): RecurringGoal[] {
@@ -93,7 +113,7 @@ export interface GoalCatalogEntry {
 
 const DEFAULT_RANGE = { min: 0, max: 5000, step: 100 };
 const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
-const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0 };
+const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false };
 
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
   {
@@ -135,6 +155,21 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       monthlyAmount: 300,
       monthlyAmountRange: { min: 0, max: 3000, step: 50 },
       targetAmount: 200000,
+      ...FULL_HORIZON,
+      ...NO_ALLOCATION,
+    }),
+  },
+  {
+    label: 'Property purchase',
+    create: (id) => ({
+      kind: 'recurring',
+      id,
+      name: 'Property purchase',
+      mode: 'accumulate',
+      category: 'property',
+      monthlyAmount: 500,
+      monthlyAmountRange: { ...DEFAULT_RANGE },
+      targetAmount: 100000,
       ...FULL_HORIZON,
       ...NO_ALLOCATION,
     }),
@@ -188,7 +223,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function isValidCategory(value: unknown): value is GoalCategory {
-  return value === 'emergency' || value === 'retirement' || value === 'other';
+  return value === 'emergency' || value === 'retirement' || value === 'other' || value === 'property';
 }
 
 function isValidAllocation(value: unknown): boolean {
@@ -233,6 +268,9 @@ export function isValidGoal(value: unknown): value is Goal {
     return false;
   }
   if (!isValidAllocation(goal.cashAllocated) || !isValidAllocation(goal.brokerageAllocated)) {
+    return false;
+  }
+  if (typeof goal.equityAllocated !== 'boolean') {
     return false;
   }
   if (!isFiniteNumber(goal.startYear) || !isFiniteNumber(goal.endYear) || goal.startYear > goal.endYear) {

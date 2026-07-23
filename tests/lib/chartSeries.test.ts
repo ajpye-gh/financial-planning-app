@@ -22,6 +22,7 @@ const ACCUMULATE_GOAL: RecurringGoal = {
   endYear: 18,
   cashAllocated: 0,
   brokerageAllocated: 0,
+  equityAllocated: false,
 };
 
 const CONSUME_GOAL: RecurringGoal = {
@@ -36,6 +37,7 @@ const CONSUME_GOAL: RecurringGoal = {
   endYear: 18,
   cashAllocated: 0,
   brokerageAllocated: 0,
+  equityAllocated: false,
 };
 
 describe('chartToggleOptions', () => {

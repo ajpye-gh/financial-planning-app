@@ -3,7 +3,7 @@ import { HORIZON_YEARS } from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
 import { Tooltip } from '../Tooltip';
-import { canAllocateBrokerage, canAllocateCash, type Goal } from '../../lib/goals';
+import { canAllocateBrokerage, canAllocateCash, canAllocateEquity, type Goal } from '../../lib/goals';
 
 interface GoalCardProps {
   goal: Goal;
@@ -13,6 +13,9 @@ interface GoalCardProps {
    *  dragged into over-allocating the shared pool. */
   cashRemaining: number;
   brokerageRemaining: number;
+  /** Current home equity (home value minus mortgage balance), 0 if renting - all-or-nothing, so
+   *  unlike cashRemaining/brokerageRemaining there's no "remaining" variant to compute. */
+  homeEquity: number;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
   onRemove: (id: string) => void;
 }
@@ -20,7 +23,7 @@ interface GoalCardProps {
 const TARGET_AMOUNT_RANGE = { min: 0, max: 1000000, step: 10000 };
 const ALLOCATION_STEP = 500;
 
-export function GoalCard({ goal, runningTotal, cashRemaining, brokerageRemaining, onUpdate, onRemove }: Readonly<GoalCardProps>) {
+export function GoalCard({ goal, runningTotal, cashRemaining, brokerageRemaining, homeEquity, onUpdate, onRemove }: Readonly<GoalCardProps>) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(goal.name);
 
@@ -161,6 +164,17 @@ export function GoalCard({ goal, runningTotal, cashRemaining, brokerageRemaining
             <span className="slider-field__value">{formatCurrency(goal.brokerageAllocated)}</span>
           </div>
         </div>
+      )}
+
+      {canAllocateEquity(goal) && homeEquity > 0 && (
+        <label className="goal-card__equity-toggle">
+          <input
+            type="checkbox"
+            checked={goal.equityAllocated}
+            onChange={(event) => onUpdate(goal.id, { equityAllocated: event.target.checked })}
+          />
+          Use home equity ({formatCurrency(homeEquity)})
+        </label>
       )}
 
       <div className="goal-card__years">

@@ -648,6 +648,15 @@ input[type='range']::-moz-range-thumb {
   color: var(--warning);
 }
 
+.goal-card__equity-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 10px;
+}
+
 .goal-card__years {
   display: flex;
   gap: 8px;

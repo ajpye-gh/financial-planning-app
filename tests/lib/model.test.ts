@@ -76,6 +76,7 @@ const TRAVEL_GOAL: RecurringGoal = {
   endYear: 18,
   cashAllocated: 0,
   brokerageAllocated: 0,
+  equityAllocated: false,
 };
 
 const COLLEGE_GOAL: RecurringGoal = {
@@ -91,6 +92,23 @@ const COLLEGE_GOAL: RecurringGoal = {
   endYear: 18,
   cashAllocated: 0,
   brokerageAllocated: 0,
+  equityAllocated: false,
+};
+
+const PROPERTY_GOAL: RecurringGoal = {
+  kind: 'recurring',
+  id: 'property',
+  name: 'Property purchase',
+  mode: 'accumulate',
+  category: 'property',
+  monthlyAmount: 500,
+  monthlyAmountRange: { min: 0, max: 5000, step: 100 },
+  targetAmount: 100000,
+  startYear: 1,
+  endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
+  equityAllocated: false,
 };
 
 describe('runModel', () => {
@@ -240,6 +258,34 @@ describe('runModel', () => {
 
       expect(result.chart.goalBalances.college[0]).toBe(0);
       expect(result.chart.unallocatedSavings[0]).toBe(70000);
+    });
+  });
+
+  describe('goal asset allocation (equityAllocated)', () => {
+    it("seeds a property goal's Y0 balance with home equity (home value minus mortgage balance) when allocated", () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true };
+      const result = run({ goals: [funded], base: { ...BASE, homeValueK: 350, mortgageBalanceK: 250 } });
+
+      expect(result.chart.goalBalances.property[0]).toBe(100000);
+    });
+
+    it('leaves the goal unfunded by equity when not allocated', () => {
+      const result = run({ goals: [PROPERTY_GOAL] });
+      expect(result.chart.goalBalances.property[0]).toBe(0);
+    });
+
+    it('stacks equity on top of cash/brokerage allocated to the same goal', () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, cashAllocated: 5000, brokerageAllocated: 10000 };
+      const result = run({ goals: [funded], base: { ...BASE, homeValueK: 350, mortgageBalanceK: 250, cashTodayK: 20, brokerageTodayK: 50 } });
+
+      expect(result.chart.goalBalances.property[0]).toBe(100000 + 5000 + 10000);
+    });
+
+    it("doesn't seed equity for a renter, even if allocated", () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true };
+      const result = run({ goals: [funded], ownsHome: false });
+
+      expect(result.chart.goalBalances.property[0]).toBe(0);
     });
   });
 

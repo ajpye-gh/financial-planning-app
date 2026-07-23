@@ -15,11 +15,20 @@ const baseGoal: Goal = {
   endYear: 5,
   cashAllocated: 0,
   brokerageAllocated: 0,
+  equityAllocated: false,
 };
 
 function renderCard(overrides: Partial<Parameters<typeof GoalCard>[0]> = {}) {
   return render(
-    <GoalCard goal={baseGoal} cashRemaining={1000} brokerageRemaining={1000} onUpdate={jest.fn()} onRemove={jest.fn()} {...overrides} />,
+    <GoalCard
+      goal={baseGoal}
+      cashRemaining={1000}
+      brokerageRemaining={1000}
+      homeEquity={0}
+      onUpdate={jest.fn()}
+      onRemove={jest.fn()}
+      {...overrides}
+    />,
   );
 }
 
@@ -190,6 +199,33 @@ describe('GoalCard asset allocation', () => {
     fireSliderChange(slider, '4000');
 
     expect(onUpdate).toHaveBeenCalledWith('goal-1', { cashAllocated: 4000 });
+  });
+});
+
+describe('GoalCard equity allocation', () => {
+  it('shows the equity checkbox only for a property goal with nonzero home equity', () => {
+    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 50000 });
+    expect(screen.getByText('Use home equity ($50,000)')).toBeInTheDocument();
+  });
+
+  it('hides the equity checkbox for a non-property goal', () => {
+    renderCard({ goal: { ...baseGoal, category: 'other' }, homeEquity: 50000 });
+    expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
+  });
+
+  it('hides the equity checkbox when there is no home equity', () => {
+    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 0 });
+    expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
+  });
+
+  it('calls onUpdate with equityAllocated when the checkbox is toggled', async () => {
+    const user = userEvent.setup();
+    const onUpdate = jest.fn();
+    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 50000, onUpdate });
+
+    await user.click(screen.getByRole('checkbox'));
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { equityAllocated: true });
   });
 });
 

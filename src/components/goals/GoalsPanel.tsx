@@ -6,6 +6,7 @@ interface GoalsPanelProps {
   runningTotals: Record<string, number>;
   cashRemaining: number;
   brokerageRemaining: number;
+  homeEquity: number;
   onAdd: (goal: Goal) => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
@@ -16,6 +17,7 @@ export function GoalsPanel({
   runningTotals,
   cashRemaining,
   brokerageRemaining,
+  homeEquity,
   onAdd,
   onRemove,
   onUpdate,
@@ -31,6 +33,7 @@ export function GoalsPanel({
               runningTotal={runningTotals[goal.id]}
               cashRemaining={cashRemaining}
               brokerageRemaining={brokerageRemaining}
+              homeEquity={homeEquity}
               onUpdate={onUpdate}
               onRemove={onRemove}
             />

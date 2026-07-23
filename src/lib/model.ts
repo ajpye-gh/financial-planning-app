@@ -141,6 +141,12 @@ function isGoalActive(goal: RecurringGoal, year: number): boolean {
   return year >= goal.startYear && year <= goal.endYear;
 }
 
+/** A goal's Y0 starting balance: its one-time cash/brokerage allocation, plus home equity if it's
+ *  the one goal that claimed it (see goals.ts's equityAllocated/canAllocateEquity). */
+function goalStartingBalance(goal: RecurringGoal, homeEquity: number): number {
+  return goal.cashAllocated + goal.brokerageAllocated + (goal.equityAllocated ? homeEquity : 0);
+}
+
 /** Mutates `balances` in place. A goal's balance keeps compounding at the investment return even
  *  outside its active window - only the new contribution stops, matching how a real account behaves
  *  once you stop (or haven't yet started) funding it. */
@@ -275,10 +281,12 @@ export function runModel(inputs: ModelInputs): ModelResult {
     brokerage: base.brokerageTodayK * 1000 - brokerageAllocatedTotal,
     cash: base.cashTodayK * 1000 - cashAllocatedTotal,
   };
+  const homeEquity = ownsHome ? Math.max(0, base.homeValueK - base.mortgageBalanceK) * 1000 : 0;
+
   const goalBalances: Record<string, number> = {};
   for (const goal of goals) {
     if (goal.mode === 'accumulate') {
-      goalBalances[goal.id] = goal.cashAllocated + goal.brokerageAllocated;
+      goalBalances[goal.id] = goalStartingBalance(goal, homeEquity);
     }
   }
   const goalSeries = initGoalSeries(goals);

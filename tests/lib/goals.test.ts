@@ -2,6 +2,8 @@ import {
   GOAL_CATALOG,
   canAllocateBrokerage,
   canAllocateCash,
+  canAllocateEquity,
+  enforceExclusiveEquity,
   generateGoalId,
   isValidGoal,
   rebalanceAllocations,
@@ -46,7 +48,15 @@ describe('GOAL_CATALOG', () => {
       const goal = entry.create(generateGoalId());
       expect(goal.cashAllocated).toBe(0);
       expect(goal.brokerageAllocated).toBe(0);
+      expect(goal.equityAllocated).toBe(false);
     }
+  });
+
+  it('includes a Property purchase entry, in accumulate mode with category "property"', () => {
+    const entry = GOAL_CATALOG.find((candidate) => candidate.label === 'Property purchase');
+    const goal = entry?.create(generateGoalId());
+    expect(goal?.mode).toBe('accumulate');
+    expect(goal?.category).toBe('property');
   });
 });
 
@@ -74,6 +84,7 @@ describe('isValidGoal', () => {
     ['negative cashAllocated', { ...valid, cashAllocated: -1 }],
     ['non-finite cashAllocated', { ...valid, cashAllocated: 'lots' }],
     ['negative brokerageAllocated', { ...valid, brokerageAllocated: -1 }],
+    ['non-boolean equityAllocated', { ...valid, equityAllocated: 'yes' }],
   ])('rejects %s', (_label, candidate) => {
     expect(isValidGoal(candidate)).toBe(false);
   });
@@ -97,6 +108,14 @@ describe('canAllocateBrokerage', () => {
   });
 });
 
+describe('canAllocateEquity', () => {
+  it('only allows accumulate-mode goals in the property category', () => {
+    expect(canAllocateEquity({ mode: 'accumulate', category: 'property' })).toBe(true);
+    expect(canAllocateEquity({ mode: 'accumulate', category: 'other' })).toBe(false);
+    expect(canAllocateEquity({ mode: 'consume', category: 'property' })).toBe(false);
+  });
+});
+
 describe('sanitizeAllocations', () => {
   const base: RecurringGoal = {
     kind: 'recurring',
@@ -110,6 +129,7 @@ describe('sanitizeAllocations', () => {
     endYear: 18,
     cashAllocated: 0,
     brokerageAllocated: 0,
+    equityAllocated: false,
   };
 
   it('zeroes brokerageAllocated on a retirement goal', () => {
@@ -122,7 +142,12 @@ describe('sanitizeAllocations', () => {
     expect(goal.cashAllocated).toBe(0);
   });
 
-  it('zeroes both allocations on a consume-mode goal', () => {
+  it('zeroes equityAllocated on any non-property goal', () => {
+    const goal = sanitizeAllocations({ ...base, category: 'other', equityAllocated: true });
+    expect(goal.equityAllocated).toBe(false);
+  });
+
+  it('zeroes both cash/brokerage allocations on a consume-mode goal', () => {
     const goal = sanitizeAllocations({ ...base, mode: 'consume', category: 'emergency', cashAllocated: 500, brokerageAllocated: 500 });
     expect(goal.cashAllocated).toBe(0);
     expect(goal.brokerageAllocated).toBe(0);
@@ -132,6 +157,42 @@ describe('sanitizeAllocations', () => {
     const goal = sanitizeAllocations({ ...base, category: 'emergency', cashAllocated: 5000, brokerageAllocated: 3000 });
     expect(goal.cashAllocated).toBe(5000);
     expect(goal.brokerageAllocated).toBe(3000);
+  });
+
+  it('leaves equityAllocated untouched on a property goal', () => {
+    const goal = sanitizeAllocations({ ...base, category: 'property', equityAllocated: true });
+    expect(goal.equityAllocated).toBe(true);
+  });
+});
+
+describe('enforceExclusiveEquity', () => {
+  const base: RecurringGoal = {
+    kind: 'recurring',
+    id: 'g1',
+    name: 'Test goal',
+    mode: 'accumulate',
+    category: 'property',
+    monthlyAmount: 100,
+    monthlyAmountRange: { min: 0, max: 1000, step: 10 },
+    startYear: 1,
+    endYear: 18,
+    cashAllocated: 0,
+    brokerageAllocated: 0,
+    equityAllocated: true,
+  };
+
+  it('clears equityAllocated on every other goal, leaving the target goal untouched', () => {
+    const goals: RecurringGoal[] = [
+      { ...base, id: 'g1', equityAllocated: true },
+      { ...base, id: 'g2', equityAllocated: true },
+      { ...base, id: 'g3', equityAllocated: false },
+    ];
+    const result = enforceExclusiveEquity(goals, 'g2');
+    expect(result.map((g) => [g.id, g.equityAllocated])).toEqual([
+      ['g1', false],
+      ['g2', true],
+      ['g3', false],
+    ]);
   });
 });
 
@@ -148,6 +209,7 @@ describe('rebalanceAllocations', () => {
     endYear: 18,
     cashAllocated: 0,
     brokerageAllocated: 0,
+    equityAllocated: false,
   };
 
   it('leaves allocations untouched when the total still covers them', () => {
