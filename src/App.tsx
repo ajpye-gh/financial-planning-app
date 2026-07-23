@@ -121,13 +121,14 @@ function App() {
 
   return (
     <main className="page">
-      <h1>Financial Planning</h1>
+      <div className="page__header">
+        <h1>Financial Planning</h1>
+        <PlanControls onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
+      </div>
       <p className="page__subtitle">
         A cashflow model for your situation — add the goals you're saving or spending toward, and see how they
         trade off against your free cash.
       </p>
-
-      <PlanControls onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
 
       <div className="app-shell">
         <aside className="app-shell__sidebar">

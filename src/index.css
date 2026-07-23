@@ -208,6 +208,14 @@ legend {
 
 /* Page */
 
+.page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .page__subtitle {
   color: var(--text-secondary);
   font-size: 15px;
@@ -236,7 +244,6 @@ legend {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-bottom: 1.5rem;
 }
 
 .plan-controls__load {
