@@ -413,7 +413,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 .control-group__chevron {
-  font-size: 10px;
+  font-size: 18px;
   color: var(--text-secondary);
 }
 
@@ -581,6 +581,14 @@ input[type='range']::-moz-range-thumb {
   margin-bottom: 6px;
 }
 
+.goal-card__title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
 .goal-card__name-input {
   border: none;
   border-bottom: 1px solid transparent;
@@ -636,7 +644,7 @@ input[type='range']::-moz-range-thumb {
   padding: 0;
   border: none;
   background: transparent;
-  font-size: 11px;
+  font-size: 18px;
   color: var(--text-secondary);
 }
 
@@ -646,9 +654,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 .goal-card__delete {
-  display: block;
   margin-left: auto;
-  margin-top: 12px;
   padding: 0;
   border: none;
   background: transparent;
@@ -737,10 +743,15 @@ input[type='range']::-moz-range-thumb {
   font-size: 12px;
 }
 
+.goal-card__footer {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
 .goal-card__total {
   font-size: 12px;
   color: var(--text-secondary);
-  margin-top: 10px;
 }
 
 .goal-card__total-value {

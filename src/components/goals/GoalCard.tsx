@@ -73,34 +73,36 @@ export function GoalCard({
   return (
     <div className="goal-card">
       <div className="goal-card__header">
-        {isEditingName ? (
-          <input
-            type="text"
-            className="goal-card__name-input"
-            value={draftName}
-            autoFocus
-            onChange={(event) => setDraftName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                commitName();
-              }
-            }}
-            aria-label="Goal name"
-          />
-        ) : (
-          <span className="goal-card__name">{goal.name}</span>
-        )}
-        {isExpanded && (
-          <button
-            type="button"
-            className="goal-card__edit-name"
-            onClick={isEditingName ? commitName : startEditingName}
-            aria-label={isEditingName ? `Save ${goal.name}` : `Rename ${goal.name}`}
-            title={isEditingName ? 'Save' : 'Rename'}
-          >
-            {isEditingName ? <SaveIcon /> : <EditIcon />}
-          </button>
-        )}
+        <div className="goal-card__title">
+          {isEditingName ? (
+            <input
+              type="text"
+              className="goal-card__name-input"
+              value={draftName}
+              autoFocus
+              onChange={(event) => setDraftName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  commitName();
+                }
+              }}
+              aria-label="Goal name"
+            />
+          ) : (
+            <span className="goal-card__name">{goal.name}</span>
+          )}
+          {isExpanded && (
+            <button
+              type="button"
+              className="goal-card__edit-name"
+              onClick={isEditingName ? commitName : startEditingName}
+              aria-label={isEditingName ? `Save ${goal.name}` : `Rename ${goal.name}`}
+              title={isEditingName ? 'Save' : 'Rename'}
+            >
+              {isEditingName ? <SaveIcon /> : <EditIcon />}
+            </button>
+          )}
+        </div>
         <button
           type="button"
           className="goal-card__expand"
@@ -306,25 +308,27 @@ export function GoalCard({
             </label>
           </div>
 
-          {goal.mode === 'accumulate' && runningTotal !== undefined && (
-            <div className="goal-card__total">
-              Balance:{' '}
-              {goal.targetAmount !== undefined ? (
-                <Tooltip
-                  tip={`Projected balance at your end year (${goal.endYear}), against the ${formatCurrencyCompact(goal.targetAmount)} target you set for this goal.`}
-                >
-                  <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span> /{' '}
-                  {formatCurrencyCompact(goal.targetAmount)}
-                </Tooltip>
-              ) : (
-                <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span>
-              )}
-            </div>
-          )}
+          <div className="goal-card__footer">
+            {goal.mode === 'accumulate' && runningTotal !== undefined && (
+              <div className="goal-card__total">
+                Balance:{' '}
+                {goal.targetAmount !== undefined ? (
+                  <Tooltip
+                    tip={`Projected balance at your end year (${goal.endYear}), against the ${formatCurrencyCompact(goal.targetAmount)} target you set for this goal.`}
+                  >
+                    <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span> /{' '}
+                    {formatCurrencyCompact(goal.targetAmount)}
+                  </Tooltip>
+                ) : (
+                  <span className="goal-card__total-value">{formatCurrencyCompact(runningTotal)}</span>
+                )}
+              </div>
+            )}
 
-          <button type="button" className="goal-card__delete" onClick={() => onRemove(goal.id)}>
-            Delete
-          </button>
+            <button type="button" className="goal-card__delete" onClick={() => onRemove(goal.id)}>
+              Delete
+            </button>
+          </div>
         </>
       )}
     </div>
