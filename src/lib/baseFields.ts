@@ -22,7 +22,8 @@ export type BaseFieldId =
   | 'inspectYear'
   | 'retirementSavingsTodayK'
   | 'retirementContributionMo'
-  | 'retirementTargetYear';
+  | 'retirementTargetYear'
+  | 'retirementWithdrawalRatePct';
 
 export interface BaseFieldMeta {
   id: BaseFieldId;
@@ -205,12 +206,21 @@ export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
   tooltip: 'Year you plan to retire by, counted from today (Y0).',
 };
 
+export const RETIREMENT_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
+  id: 'retirementWithdrawalRatePct',
+  label: 'Withdrawal rate',
+  format: '%',
+  tooltip:
+    'Share of your projected balance you draw down each year in retirement (the "4% rule" is the common default) - used to translate your projected balance into an estimated income. A rule-of-thumb estimate, not a full drawdown simulation.',
+};
+
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
   RETIREMENT_SAVINGS_FIELD.id,
   RETIREMENT_CONTRIBUTION_FIELD.id,
   RETIREMENT_TARGET_YEAR_FIELD.id,
+  RETIREMENT_WITHDRAWAL_RATE_FIELD.id,
 ];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */

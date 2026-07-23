@@ -140,7 +140,7 @@ function App() {
           className={activeTab === 'primary' ? 'page-tabs__item page-tabs__item--active' : 'page-tabs__item'}
           onClick={() => setActiveTab('primary')}
         >
-          Primary
+          Home
         </button>
         <button
           type="button"

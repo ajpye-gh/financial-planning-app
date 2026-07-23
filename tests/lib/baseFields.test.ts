@@ -4,6 +4,7 @@ import {
   RETIREMENT_CONTRIBUTION_FIELD,
   RETIREMENT_SAVINGS_FIELD,
   RETIREMENT_TARGET_YEAR_FIELD,
+  RETIREMENT_WITHDRAWAL_RATE_FIELD,
   visibleBaseFieldGroups,
 } from '@src/lib/baseFields';
 
@@ -66,8 +67,14 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIds).not.toContain('retirementSavingsTodayK');
     expect(fieldIds).not.toContain('retirementContributionMo');
     expect(fieldIds).not.toContain('retirementTargetYear');
+    expect(fieldIds).not.toContain('retirementWithdrawalRatePct');
     expect(ALL_BASE_FIELD_IDS).toEqual(
-      expect.arrayContaining([RETIREMENT_SAVINGS_FIELD.id, RETIREMENT_CONTRIBUTION_FIELD.id, RETIREMENT_TARGET_YEAR_FIELD.id]),
+      expect.arrayContaining([
+        RETIREMENT_SAVINGS_FIELD.id,
+        RETIREMENT_CONTRIBUTION_FIELD.id,
+        RETIREMENT_TARGET_YEAR_FIELD.id,
+        RETIREMENT_WITHDRAWAL_RATE_FIELD.id,
+      ]),
     );
   });
 });

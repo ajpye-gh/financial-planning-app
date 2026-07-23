@@ -9,15 +9,16 @@ import {
   RETIREMENT_CONTRIBUTION_FIELD,
   RETIREMENT_SAVINGS_FIELD,
   RETIREMENT_TARGET_YEAR_FIELD,
+  RETIREMENT_WITHDRAWAL_RATE_FIELD,
   type BaseFieldId,
   type BaseFieldGroup,
 } from '../../lib/baseFields';
-import { formatCurrencyCompact } from '../../lib/format';
-import { projectRetirementBalance } from '../../lib/retirement';
+import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
+import { estimateRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
 
 const RETIREMENT_GROUP: BaseFieldGroup = {
   title: 'Retirement',
-  fields: [RETIREMENT_SAVINGS_FIELD, RETIREMENT_CONTRIBUTION_FIELD],
+  fields: [RETIREMENT_SAVINGS_FIELD, RETIREMENT_CONTRIBUTION_FIELD, RETIREMENT_WITHDRAWAL_RATE_FIELD],
 };
 
 // Same "Assumptions" group (inflation, investment return) the primary page's sidebar renders -
@@ -45,11 +46,32 @@ export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<Retire
     [baseInputs.retirementSavingsTodayK, baseInputs.retirementContributionMo, baseInputs.investmentReturnPct, baseInputs.retirementTargetYear],
   );
 
+  const income = useMemo(
+    () =>
+      estimateRetirementIncome(
+        projection.balances.at(-1) ?? 0,
+        baseInputs.retirementWithdrawalRatePct,
+        baseInputs.inflationPct,
+        baseInputs.retirementTargetYear,
+      ),
+    [projection, baseInputs.retirementWithdrawalRatePct, baseInputs.inflationPct, baseInputs.retirementTargetYear],
+  );
+
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
       label: `Projected balance, year ${baseInputs.retirementTargetYear}`,
       value: formatCurrencyCompact(projection.balances.at(-1) ?? 0),
+    },
+    {
+      id: 'retirement-income',
+      label: `Estimated income, year ${baseInputs.retirementTargetYear}`,
+      value: `${formatCurrency(income.monthlyIncomeNominal)}/mo`,
+    },
+    {
+      id: 'retirement-income-real',
+      label: "— in today's dollars",
+      value: `${formatCurrency(income.monthlyIncomeReal)}/mo`,
     },
   ];
 
