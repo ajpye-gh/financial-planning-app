@@ -90,15 +90,17 @@ export function GoalCard({
         ) : (
           <span className="goal-card__name">{goal.name}</span>
         )}
-        <button
-          type="button"
-          className="goal-card__edit-name"
-          onClick={isEditingName ? commitName : startEditingName}
-          aria-label={isEditingName ? `Save ${goal.name}` : `Rename ${goal.name}`}
-          title={isEditingName ? 'Save' : 'Rename'}
-        >
-          {isEditingName ? <SaveIcon /> : <EditIcon />}
-        </button>
+        {isExpanded && (
+          <button
+            type="button"
+            className="goal-card__edit-name"
+            onClick={isEditingName ? commitName : startEditingName}
+            aria-label={isEditingName ? `Save ${goal.name}` : `Rename ${goal.name}`}
+            title={isEditingName ? 'Save' : 'Rename'}
+          >
+            {isEditingName ? <SaveIcon /> : <EditIcon />}
+          </button>
+        )}
         <button
           type="button"
           className="goal-card__expand"
@@ -108,14 +110,6 @@ export function GoalCard({
           title={isExpanded ? 'Collapse' : 'Expand'}
         >
           {isExpanded ? '▾' : '▸'}
-        </button>
-        <button
-          type="button"
-          className="goal-card__remove"
-          onClick={() => onRemove(goal.id)}
-          aria-label={`Remove ${goal.name}`}
-        >
-          ×
         </button>
       </div>
 
@@ -327,6 +321,10 @@ export function GoalCard({
               )}
             </div>
           )}
+
+          <button type="button" className="goal-card__delete" onClick={() => onRemove(goal.id)}>
+            Delete
+          </button>
         </>
       )}
     </div>

@@ -270,6 +270,33 @@ describe('GoalCard collapse/expand', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse Travel fund' }));
     expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
   });
+
+  it('hides the rename (edit) icon while collapsed, shows it once expanded', async () => {
+    const user = userEvent.setup();
+    render(
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Rename Travel fund' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Travel fund' }));
+    expect(screen.getByRole('button', { name: 'Rename Travel fund' })).toBeInTheDocument();
+  });
+
+  it('only shows the Delete button while expanded, and it calls onRemove', async () => {
+    const user = userEvent.setup();
+    const onRemove = jest.fn();
+    render(
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={onRemove} />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Travel fund' }));
+    const deleteButton = screen.getByRole('button', { name: 'Delete' });
+    expect(deleteButton).toBeInTheDocument();
+
+    await user.click(deleteButton);
+    expect(onRemove).toHaveBeenCalledWith('goal-1');
+  });
 });
 
 describe('GoalCard property purchase fields', () => {

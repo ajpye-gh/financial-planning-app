@@ -645,20 +645,20 @@ input[type='range']::-moz-range-thumb {
   box-shadow: none;
 }
 
-.goal-card__remove {
-  flex: none;
-  width: 22px;
-  height: 22px;
+.goal-card__delete {
+  display: block;
+  margin-left: auto;
+  margin-top: 12px;
   padding: 0;
   border: none;
   background: transparent;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--text-secondary);
+  box-shadow: none;
+  font-size: 12px;
+  color: var(--danger);
 }
 
-.goal-card__remove:hover:not(:disabled) {
-  color: var(--danger);
+.goal-card__delete:hover:not(:disabled) {
+  text-decoration: underline;
   box-shadow: none;
 }
 
