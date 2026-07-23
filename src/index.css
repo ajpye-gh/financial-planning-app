@@ -573,6 +573,11 @@ input[type='range']::-moz-range-thumb {
   }
 }
 
+.goal-card--collapsed {
+  max-height: 100px;
+  overflow: hidden;
+}
+
 .goal-card__header {
   display: flex;
   align-items: center;

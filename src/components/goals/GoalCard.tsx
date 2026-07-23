@@ -30,6 +30,11 @@ const PURCHASE_PRICE_RANGE = { min: 0, max: 2000, step: 10 };
 const MORTGAGE_RATE_RANGE = { min: 0, max: 15, step: 0.25 };
 const POST_PURCHASE_COST_RANGE = { min: 0, max: 5000, step: 50 };
 
+/** Collapsed cards are height-capped (see .goal-card--collapsed) so the goals list stays scannable. */
+function cardClassName(isExpanded: boolean): string {
+  return isExpanded ? 'goal-card' : 'goal-card goal-card--collapsed';
+}
+
 export function GoalCard({
   goal,
   runningTotal,
@@ -71,7 +76,7 @@ export function GoalCard({
   };
 
   return (
-    <div className="goal-card">
+    <div className={cardClassName(isExpanded)}>
       <div className="goal-card__header">
         <div className="goal-card__title">
           {isEditingName ? (
