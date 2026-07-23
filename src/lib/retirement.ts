@@ -4,6 +4,10 @@ import type { Verdict } from './model';
 export interface RetirementProjection {
   yearLabels: string[];
   balances: number[];
+  /** Actual $ withdrawn each year - 0 through retirementYearIndex (accumulation, no withdrawals
+   *  yet), the scheduled amount during decumulation while funds last, capped at whatever's actually
+   *  left in the balance for the year it depletes, then 0 forever after (nothing left to withdraw). */
+  withdrawals: number[];
   /** Index into yearLabels/balances where retirement begins (== targetYear) - the accumulation
    *  phase runs through this index; every index after it is a decumulation year. */
   retirementYearIndex: number;
@@ -22,7 +26,8 @@ export const POST_RETIREMENT_YEARS = 25;
  *  `withdrawalRatePct` of the balance at retirement, and every year after that the withdrawal amount
  *  itself grows with inflation (to hold its purchasing power) regardless of how the portfolio
  *  performs, while the remaining balance keeps growing at the investment return net of that
- *  withdrawal. Balance floors at $0 - once depleted, it stays depleted. */
+ *  withdrawal. Balance floors at $0 - once depleted, it stays depleted; the actual (capped) amount
+ *  withdrawn each year is tracked separately (see `withdrawals`) since it can't exceed what's left. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
@@ -32,66 +37,77 @@ export function projectRetirementBalance(
   inflationPct: number,
 ): RetirementProjection {
   const balances = [Math.round(startingBalance)];
+  const withdrawals = [0];
   const yearLabels = ['Y0'];
   let balance = startingBalance;
 
   for (let year = 1; year <= targetYear; year++) {
     balance = balance * (1 + investmentReturnPct / 100) + monthlyContribution * 12;
     balances.push(Math.round(balance));
+    withdrawals.push(0);
     yearLabels.push(`Y${year}`);
   }
 
-  let annualWithdrawal = balance * (withdrawalRatePct / 100);
+  let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
   const lastYear = targetYear + POST_RETIREMENT_YEARS;
   for (let year = targetYear + 1; year <= lastYear; year++) {
-    balance = Math.max(0, balance * (1 + investmentReturnPct / 100) - annualWithdrawal);
-    if (balance === 0 && depletionYear === null) {
+    const grown = balance * (1 + investmentReturnPct / 100);
+    const actualWithdrawal = Math.min(scheduledWithdrawal, grown);
+    balance = grown - actualWithdrawal;
+    if (balance <= 0 && depletionYear === null) {
+      balance = 0;
       depletionYear = year;
     }
     balances.push(Math.round(balance));
+    withdrawals.push(Math.round(actualWithdrawal));
     yearLabels.push(`Y${year}`);
-    annualWithdrawal *= 1 + inflationPct / 100;
+    scheduledWithdrawal *= 1 + inflationPct / 100;
   }
 
-  return { yearLabels, balances, retirementYearIndex: targetYear, depletionYear };
+  return { yearLabels, balances, withdrawals, retirementYearIndex: targetYear, depletionYear };
 }
 
 export interface HouseholdRetirementIncome {
-  rothAnnual: number;
-  traditionalAnnualGross: number;
-  ssAnnualGross: number;
+  year: number;
+  rothWithdrawal: number;
+  traditionalWithdrawal: number;
+  ssGross: number;
   tax: TaxEstimate;
+  netAnnual: number;
   netMonthlyNominal: number;
   netMonthlyReal: number;
 }
 
-/** Combines both pots (plus Social Security) into one "total estimated income" figure - Roth
- *  withdrawals are tax-free, Traditional withdrawals and (a taxable share of) Social Security are
- *  not, so this is the one place that actually calls tax.ts. A point-in-time estimate at the target
- *  year, same scope as everything else on this page - not a year-by-year simulation. */
-export function estimateHouseholdRetirementIncome(
-  rothBalance: number,
-  rothWithdrawalRatePct: number,
-  traditionalBalance: number,
-  traditionalWithdrawalRatePct: number,
+/** Combines both pots (plus Social Security) into one "total estimated income" figure, year by
+ *  year across the whole projection - Roth withdrawals are tax-free, Traditional withdrawals and (a
+ *  taxable share of) Social Security are not, so this is the one place that actually calls tax.ts.
+ *  Uses each projection's actual (depletion-capped) withdrawals rather than re-deriving them, so
+ *  income correctly drops once a pot runs dry instead of assuming the scheduled amount forever.
+ *  Social Security is assumed to start the year you retire (index >= retirementYearIndex) and never
+ *  depletes, unlike the two accounts. */
+export function projectHouseholdRetirementIncome(
+  rothProjection: RetirementProjection,
+  traditionalProjection: RetirementProjection,
   ssMonthlyBenefitToday: number,
   filingStatus: FilingStatus,
   inflationPct: number,
-  targetYear: number,
-): HouseholdRetirementIncome {
-  const inflationFactor = Math.pow(1 + inflationPct / 100, targetYear);
-  const rothAnnual = rothBalance * (rothWithdrawalRatePct / 100);
-  const traditionalAnnualGross = traditionalBalance * (traditionalWithdrawalRatePct / 100);
-  const ssAnnualGross = ssMonthlyBenefitToday * 12 * inflationFactor;
+): HouseholdRetirementIncome[] {
+  const { retirementYearIndex } = rothProjection;
+  return rothProjection.yearLabels.map((_, year) => {
+    const inflationFactor = Math.pow(1 + inflationPct / 100, year);
+    const rothWithdrawal = rothProjection.withdrawals[year] ?? 0;
+    const traditionalWithdrawal = traditionalProjection.withdrawals[year] ?? 0;
+    const ssGross = year >= retirementYearIndex ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
 
-  const tax = estimateRetirementTax(traditionalAnnualGross, ssAnnualGross, filingStatus, inflationFactor);
+    const tax = estimateRetirementTax(traditionalWithdrawal, ssGross, filingStatus, inflationFactor);
 
-  const netAnnual = rothAnnual + traditionalAnnualGross + ssAnnualGross - tax.tax;
-  const netMonthlyNominal = netAnnual / 12;
-  const netMonthlyReal = netMonthlyNominal / inflationFactor;
+    const netAnnual = rothWithdrawal + traditionalWithdrawal + ssGross - tax.tax;
+    const netMonthlyNominal = netAnnual / 12;
+    const netMonthlyReal = netMonthlyNominal / inflationFactor;
 
-  return { rothAnnual, traditionalAnnualGross, ssAnnualGross, tax, netMonthlyNominal, netMonthlyReal };
+    return { year, rothWithdrawal, traditionalWithdrawal, ssGross, tax, netAnnual, netMonthlyNominal, netMonthlyReal };
+  });
 }
 
 /** Same shape/purpose as model.ts's buildVerdict, reusing the same VerdictBanner component - a

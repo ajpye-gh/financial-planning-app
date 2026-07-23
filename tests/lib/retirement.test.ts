@@ -1,4 +1,4 @@
-import { buildRetirementVerdict, estimateHouseholdRetirementIncome, POST_RETIREMENT_YEARS, projectRetirementBalance } from '@src/lib/retirement';
+import { buildRetirementVerdict, POST_RETIREMENT_YEARS, projectHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
 import { estimateRetirementTax } from '@src/lib/tax';
 
 describe('projectRetirementBalance', () => {
@@ -83,38 +83,67 @@ describe('projectRetirementBalance', () => {
   });
 });
 
-describe('estimateHouseholdRetirementIncome', () => {
+describe('projectHouseholdRetirementIncome', () => {
+  // targetYear=0 so decumulation starts immediately: index 1 is the first year of retirement.
+  const roth = () => projectRetirementBalance(500000, 0, 6, 0, 4, 3);
+  const traditional = () => projectRetirementBalance(300000, 0, 6, 0, 4, 3);
+
   it('combines tax-free Roth withdrawal, gross Traditional withdrawal, and gross Social Security, minus tax', () => {
-    // Roth: 500,000*4%=20,000/yr tax-free. Traditional: 300,000*4%=12,000/yr taxable.
-    // SS: $2,000/mo * 12 = 24,000/yr, no inflation (year 0).
-    const result = estimateHouseholdRetirementIncome(500000, 4, 300000, 4, 2000, 'single', 3, 0);
-    expect(result.rothAnnual).toBeCloseTo(20000, 6);
-    expect(result.traditionalAnnualGross).toBeCloseTo(12000, 6);
-    expect(result.ssAnnualGross).toBeCloseTo(24000, 6);
+    const series = projectHouseholdRetirementIncome(roth(), traditional(), 2000, 'single', 3);
+    // Year 1: Roth withdrawal 500,000*4%=20,000 (tax-free); Traditional 300,000*4%=12,000 (taxable);
+    // SS $2,000/mo*12=24,000 inflated by 3%^1.
+    const year1 = series[1];
+    expect(year1.rothWithdrawal).toBeCloseTo(20000, 0);
+    expect(year1.traditionalWithdrawal).toBeCloseTo(12000, 0);
+    expect(year1.ssGross).toBeCloseTo(24000 * 1.03, 0);
 
-    const expectedTax = estimateRetirementTax(12000, 24000, 'single', 1);
-    expect(result.tax.tax).toBeCloseTo(expectedTax.tax, 6);
-
-    const expectedNetAnnual = 20000 + 12000 + 24000 - expectedTax.tax;
-    expect(result.netMonthlyNominal).toBeCloseTo(expectedNetAnnual / 12, 6);
+    const expectedTax = estimateRetirementTax(year1.traditionalWithdrawal, year1.ssGross, 'single', Math.pow(1.03, 1));
+    expect(year1.tax.tax).toBeCloseTo(expectedTax.tax, 6);
+    expect(year1.netAnnual).toBeCloseTo(year1.rothWithdrawal + year1.traditionalWithdrawal + year1.ssGross - expectedTax.tax, 6);
   });
 
-  it("inflates the Social Security input forward to the target year, same as other today's-dollar inputs", () => {
-    const atYear0 = estimateHouseholdRetirementIncome(0, 4, 0, 4, 2000, 'single', 3, 0);
-    const atYear10 = estimateHouseholdRetirementIncome(0, 4, 0, 4, 2000, 'single', 3, 10);
-    expect(atYear10.ssAnnualGross).toBeCloseTo(atYear0.ssAnnualGross * Math.pow(1.03, 10), 6);
+  it('has no Social Security before the retirement year, and it inflates forward starting then', () => {
+    // targetYear=10 this time, so there's a real accumulation phase to check SS is $0 through.
+    const rothLater = projectRetirementBalance(500000, 0, 6, 10, 4, 3);
+    const traditionalLater = projectRetirementBalance(300000, 0, 6, 10, 4, 3);
+    const series = projectHouseholdRetirementIncome(rothLater, traditionalLater, 2000, 'single', 3);
+
+    for (let year = 0; year < 10; year++) {
+      expect(series[year].ssGross).toBe(0);
+    }
+    expect(series[10].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 10), 0);
+    expect(series[11].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 11), 0);
   });
 
-  it('a Roth-only household (no Traditional, no Social Security) owes no tax', () => {
-    const result = estimateHouseholdRetirementIncome(1000000, 4, 0, 4, 0, 'single', 3, 20);
-    expect(result.tax.tax).toBe(0);
-    expect(result.netMonthlyNominal).toBeCloseTo(result.rothAnnual / 12, 6);
+  it('reflects the actual (depletion-capped) withdrawal, not the scheduled amount, once a pot runs dry', () => {
+    // Small Traditional balance, large withdrawal rate, no growth - depletes almost immediately.
+    const smallTraditional = projectRetirementBalance(10000, 0, 0, 0, 50, 0);
+    const bigRoth = projectRetirementBalance(1000000, 0, 6, 0, 4, 3);
+    const series = projectHouseholdRetirementIncome(bigRoth, smallTraditional, 0, 'single', 3);
+
+    expect(smallTraditional.depletionYear).not.toBeNull();
+    const depletionIndex = smallTraditional.depletionYear as number;
+    // Once depleted, this pot contributes nothing further - matches its own frozen $0 balance.
+    for (let year = depletionIndex + 1; year < series.length; year++) {
+      expect(series[year].traditionalWithdrawal).toBe(0);
+    }
   });
 
-  it("deflates net income back to today's dollars using the target year's inflation factor", () => {
-    const result = estimateHouseholdRetirementIncome(500000, 4, 300000, 4, 2000, 'single', 3, 20);
-    const inflationFactor = Math.pow(1.03, 20);
-    expect(result.netMonthlyReal).toBeCloseTo(result.netMonthlyNominal / inflationFactor, 6);
+  it('a Roth-only household (no Traditional, no Social Security) owes no tax in any year', () => {
+    const noTraditional = projectRetirementBalance(0, 0, 6, 0, 4, 3);
+    const series = projectHouseholdRetirementIncome(roth(), noTraditional, 0, 'single', 3);
+
+    for (const entry of series) {
+      expect(entry.tax.tax).toBe(0);
+      expect(entry.netAnnual).toBeCloseTo(entry.rothWithdrawal, 6);
+    }
+  });
+
+  it("deflates net income back to today's dollars using that year's inflation factor", () => {
+    const series = projectHouseholdRetirementIncome(roth(), traditional(), 2000, 'single', 3);
+    const year5 = series[5];
+    const inflationFactor = Math.pow(1.03, 5);
+    expect(year5.netMonthlyReal).toBeCloseTo(year5.netMonthlyNominal / inflationFactor, 6);
   });
 });
 

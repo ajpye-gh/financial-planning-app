@@ -3,12 +3,13 @@ import { ControlGroup } from '../controls/ControlGroup';
 import { SliderField } from '../controls/SliderField';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { VerdictBanner } from '../results/VerdictBanner';
-import { Tooltip } from '../Tooltip';
 import { FilingStatusToggle } from './FilingStatusToggle';
+import { RetirementBreakdownTable } from './RetirementBreakdownTable';
 import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
   BASE_FIELD_GROUPS,
+  RETIREMENT_INSPECT_YEAR_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
   RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
@@ -22,7 +23,7 @@ import {
 } from '../../lib/baseFields';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { filingStatus as getFilingStatus, type Answers } from '../../lib/questions';
-import { buildRetirementVerdict, estimateHouseholdRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
+import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
 
 const ROTH_GROUP: BaseFieldGroup = {
   title: 'Roth',
@@ -95,54 +96,46 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     ],
   );
 
-  // Balances at retirement itself, not the end of the chart - the chart runs POST_RETIREMENT_YEARS
-  // past that point to show the drawdown.
-  const rothBalanceAtRetirement = rothProjection.balances[rothProjection.retirementYearIndex] ?? 0;
-  const traditionalBalanceAtRetirement = traditionalProjection.balances[traditionalProjection.retirementYearIndex] ?? 0;
-
   const status = getFilingStatus(answers);
 
-  const income = useMemo(
+  const incomeSeries = useMemo(
     () =>
-      estimateHouseholdRetirementIncome(
-        rothBalanceAtRetirement,
-        baseInputs.retirementRothWithdrawalRatePct,
-        traditionalBalanceAtRetirement,
-        baseInputs.retirementTraditionalWithdrawalRatePct,
+      projectHouseholdRetirementIncome(
+        rothProjection,
+        traditionalProjection,
         baseInputs.retirementSocialSecurityMo,
         status,
         baseInputs.inflationPct,
-        baseInputs.retirementTargetYear,
       ),
-    [
-      rothBalanceAtRetirement,
-      baseInputs.retirementRothWithdrawalRatePct,
-      traditionalBalanceAtRetirement,
-      baseInputs.retirementTraditionalWithdrawalRatePct,
-      baseInputs.retirementSocialSecurityMo,
-      status,
-      baseInputs.inflationPct,
-      baseInputs.retirementTargetYear,
-    ],
+    [rothProjection, traditionalProjection, baseInputs.retirementSocialSecurityMo, status, baseInputs.inflationPct],
   );
+  const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
 
-  const incomeTooltip = `Traditional withdrawal ${formatCurrency(income.traditionalAnnualGross)}/yr + Social Security ${formatCurrency(income.ssAnnualGross)}/yr (${formatCurrency(income.tax.taxableSS)} of it taxable) − ${formatCurrency(income.tax.standardDeduction)} standard deduction = ${formatCurrency(income.tax.taxableOrdinaryIncome)} taxable income, ${formatCurrency(income.tax.tax)}/yr federal tax (${income.tax.effectiveRatePct.toFixed(1)}% effective). Roth withdrawals are tax-free. Federal income tax only - no state tax, FICA, or RMDs.`;
+  // The inspect-year slider uses a static range (its practical span depends on the current Target
+  // year, which sliders here can't express), so clamp the lookup to whatever the projection - Y0
+  // through Target year + POST_RETIREMENT_YEARS - actually covers. Same clamping pattern App.tsx
+  // already uses for a goal's runningTotal at its own endYear.
+  const lastIndex = incomeSeries.length - 1;
+  const inspectIndex = Math.min(Math.max(baseInputs.retirementInspectYear, 0), lastIndex);
+  const inspectedIncome = incomeSeries[inspectIndex];
+  const rothBalanceAtInspectYear = rothProjection.balances[inspectIndex] ?? 0;
+  const traditionalBalanceAtInspectYear = traditionalProjection.balances[inspectIndex] ?? 0;
 
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
-      label: `Total balance, year ${baseInputs.retirementTargetYear}`,
-      value: formatCurrencyCompact(rothBalanceAtRetirement + traditionalBalanceAtRetirement),
+      label: 'Total balance, inspect yr',
+      value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear),
     },
     {
       id: 'retirement-income',
-      label: <Tooltip tip={incomeTooltip}>{`Estimated income, year ${baseInputs.retirementTargetYear}`}</Tooltip>,
-      value: `${formatCurrency(income.netMonthlyNominal)}/mo`,
+      label: 'Estimated income, inspect yr',
+      value: `${formatCurrency(inspectedIncome.netMonthlyNominal)}/mo`,
     },
     {
       id: 'retirement-income-real',
       label: "— in today's dollars",
-      value: `${formatCurrency(income.netMonthlyReal)}/mo`,
+      value: `${formatCurrency(inspectedIncome.netMonthlyReal)}/mo`,
     },
   ];
 
@@ -179,8 +172,22 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
           />
         </div>
         <VerdictBanner verdict={verdict} />
-        <RetirementChart rothProjection={rothProjection} traditionalProjection={traditionalProjection} />
+        <RetirementChart rothProjection={rothProjection} traditionalProjection={traditionalProjection} taxSeries={taxSeries} />
+        <div className="inspect-year-control">
+          <SliderField
+            meta={RETIREMENT_INSPECT_YEAR_FIELD}
+            range={ranges.retirementInspectYear}
+            value={baseInputs.retirementInspectYear}
+            onChange={onChange}
+          />
+        </div>
         <MetricCards metrics={metrics} />
+        <RetirementBreakdownTable
+          year={inspectIndex}
+          rothBalance={rothBalanceAtInspectYear}
+          traditionalBalance={traditionalBalanceAtInspectYear}
+          income={inspectedIncome}
+        />
       </div>
     </div>
   );

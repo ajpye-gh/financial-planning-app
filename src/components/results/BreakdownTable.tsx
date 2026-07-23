@@ -8,7 +8,8 @@ interface RowProps {
   muted?: boolean;
 }
 
-function Row({ label, value, muted }: Readonly<RowProps>) {
+/** Exported for reuse by RetirementBreakdownTable.tsx - same row styling, different data. */
+export function Row({ label, value, muted }: Readonly<RowProps>) {
   return (
     <tr className={muted ? 'breakdown-table__row breakdown-table__row--muted' : 'breakdown-table__row'}>
       <td>{label}</td>

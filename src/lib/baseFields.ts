@@ -27,7 +27,8 @@ export type BaseFieldId =
   | 'retirementTraditionalContributionMo'
   | 'retirementTraditionalWithdrawalRatePct'
   | 'retirementSocialSecurityMo'
-  | 'retirementTargetYear';
+  | 'retirementTargetYear'
+  | 'retirementInspectYear';
 
 export interface BaseFieldMeta {
   id: BaseFieldId;
@@ -231,7 +232,7 @@ export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   label: 'Withdrawal rate',
   format: '%',
   tooltip:
-    'Share of your projected Traditional balance you draw down each year in retirement. Taxed as ordinary income - see the estimated income tooltip for the breakdown.',
+    'Share of your projected Traditional balance you draw down each year in retirement. Taxed as ordinary income - see the income breakdown table below the chart.',
 };
 
 export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
@@ -249,6 +250,19 @@ export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
   tooltip: "Year you plan to retire by, counted from today (Y0) - set to 0 if you're already retired, to see the drawdown starting now.",
 };
 
+/** Rendered next to the breakdown table it controls, same as INSPECT_YEAR_FIELD above - separate
+ *  from Target year, since that's "when do you retire" (an input the whole projection depends on)
+ *  while this is "which year's numbers am I looking at" (a view into the already-computed
+ *  projection, which keeps going for POST_RETIREMENT_YEARS past retirement). Its practical range
+ *  depends on the current Target year, but sliders here use static ranges - RetirementPage clamps
+ *  the effective lookup to whatever the projection actually covers. */
+export const RETIREMENT_INSPECT_YEAR_FIELD: BaseFieldMeta = {
+  id: 'retirementInspectYear',
+  label: 'Inspect year',
+  format: 'yr',
+  tooltip: "Which year the breakdown table below shows - income (and whether an account has run dry) changes year to year, especially once you're retired.",
+};
+
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
@@ -260,6 +274,7 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
   RETIREMENT_TARGET_YEAR_FIELD.id,
+  RETIREMENT_INSPECT_YEAR_FIELD.id,
 ];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */

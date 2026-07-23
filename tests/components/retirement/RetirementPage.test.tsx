@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RetirementPage } from '@src/components/retirement/RetirementPage';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '@src/lib/baseData';
-import { buildRetirementVerdict, estimateHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
+import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
 import { formatCurrency, formatCurrencyCompact } from '@src/lib/format';
 import type { Answers } from '@src/lib/questions';
 
@@ -18,6 +18,7 @@ const BASE_INPUTS: BaseInputs = {
   retirementTraditionalWithdrawalRatePct: 4,
   retirementSocialSecurityMo: 2000,
   retirementTargetYear: 20,
+  retirementInspectYear: 20,
 };
 
 function renderRetirementPage(overrides: Partial<Parameters<typeof RetirementPage>[0]> = {}) {
@@ -107,50 +108,58 @@ describe('RetirementPage', () => {
     expect(onChange).toHaveBeenCalledWith('retirementTargetYear', 25);
   });
 
-  it('shows the combined Roth+Traditional balance at retirement, matching projectRetirementBalance for each pot', () => {
+  it('shows the combined Roth+Traditional balance at the inspected year, matching projectRetirementBalance for each pot', () => {
     const { container } = renderRetirementPage();
 
     const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
-    const combined = roth.balances[roth.retirementYearIndex] + traditional.balances[traditional.retirementYearIndex];
+    const combined = roth.balances[20] + traditional.balances[20];
 
-    expect(screen.getByText('Total balance, year 20')).toBeInTheDocument();
+    expect(screen.getByText('Total balance, inspect yr')).toBeInTheDocument();
     expect(container.querySelector('.metric-card__value')).toHaveTextContent(formatCurrencyCompact(combined));
   });
 
-  it("shows net estimated income, nominal and in today's dollars, matching estimateHouseholdRetirementIncome", () => {
+  it("shows net estimated income, nominal and in today's dollars, matching projectHouseholdRetirementIncome at the inspected year", () => {
     renderRetirementPage();
 
     const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
-    const income = estimateHouseholdRetirementIncome(
-      roth.balances[roth.retirementYearIndex],
-      4,
-      traditional.balances[traditional.retirementYearIndex],
-      4,
-      2000,
-      'single',
-      3,
-      20,
-    );
+    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3)[20];
 
-    expect(screen.getByText('Estimated income, year 20')).toBeInTheDocument();
+    expect(screen.getByText('Estimated income, inspect yr')).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
 
-    expect(screen.getByText("— in today's dollars")).toBeInTheDocument();
+    expect(screen.getAllByText("— in today's dollars").length).toBeGreaterThan(0);
     expect(screen.getByText(`${formatCurrency(income.netMonthlyReal)}/mo`)).toBeInTheDocument();
   });
 
-  it('shows a tax breakdown tooltip on the income metric', async () => {
-    const user = userEvent.setup();
+  it('shows a full income breakdown table at the inspected year, replacing the old cramped tooltip', () => {
     renderRetirementPage();
 
-    await user.hover(screen.getByText('Estimated income, year 20'));
-    const tooltip = await screen.findByRole('tooltip');
-    expect(tooltip).toHaveTextContent('Traditional withdrawal');
-    expect(tooltip).toHaveTextContent('Social Security');
-    expect(tooltip).toHaveTextContent('standard deduction');
-    expect(tooltip).toHaveTextContent('federal tax');
+    expect(screen.getByText('Year 20 detail')).toBeInTheDocument();
+    expect(screen.getByText('Traditional withdrawal, gross')).toBeInTheDocument();
+    expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
+    expect(screen.getByText('Standard deduction')).toBeInTheDocument();
+    expect(screen.getByText('Federal tax')).toBeInTheDocument();
+  });
+
+  it('renders an Inspect year slider separate from Target year, and calls onChange when dragged', () => {
+    const onChange = jest.fn();
+    renderRetirementPage({ onChange });
+
+    const slider = screen.getByLabelText('Inspect year') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(slider, '10');
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledWith('retirementInspectYear', 10);
+  });
+
+  it('changing the inspected year changes the breakdown table shown, since income can change once a pot depletes', () => {
+    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectYear: 5 } });
+
+    expect(screen.getByText('Year 5 detail')).toBeInTheDocument();
+    expect(screen.queryByText('Year 20 detail')).not.toBeInTheDocument();
   });
 
   it('uses married-filing-jointly brackets in the income estimate once that toggle is selected', () => {
@@ -158,16 +167,7 @@ describe('RetirementPage', () => {
 
     const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
-    const income = estimateHouseholdRetirementIncome(
-      roth.balances[roth.retirementYearIndex],
-      4,
-      traditional.balances[traditional.retirementYearIndex],
-      4,
-      2000,
-      'marriedJoint',
-      3,
-      20,
-    );
+    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'marriedJoint', 3)[20];
 
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
   });
