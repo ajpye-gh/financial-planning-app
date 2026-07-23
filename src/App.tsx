@@ -107,9 +107,6 @@ function App() {
   const brokerageAllocatedTotal = draft.goals.reduce((sum, goal) => sum + goal.brokerageAllocated, 0);
   const cashRemaining = Math.max(0, draft.baseInputs.cashTodayK * 1000 - cashAllocatedTotal);
   const brokerageRemaining = Math.max(0, draft.baseInputs.brokerageTodayK * 1000 - brokerageAllocatedTotal);
-  const homeEquity = ownsHome(draft.answers)
-    ? Math.max(0, draft.baseInputs.homeValueK - draft.baseInputs.mortgageBalanceK) * 1000
-    : 0;
 
   const metrics: Metric[] = [
     {
@@ -176,7 +173,8 @@ function App() {
               runningTotals={runningTotals}
               cashRemaining={cashRemaining}
               brokerageRemaining={brokerageRemaining}
-              homeEquity={homeEquity}
+              base={draft.baseInputs}
+              ownsHome={ownsHome(draft.answers)}
               onAdd={draft.addGoal}
               onRemove={draft.removeGoal}
               onUpdate={draft.updateGoal}

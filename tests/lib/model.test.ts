@@ -1,4 +1,11 @@
-import { estimateMortgage, monthlyMortgagePayment, runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
+import {
+  estimateMortgage,
+  monthlyMortgagePayment,
+  projectHomeEquity,
+  runModel,
+  type IncomeStreamInputs,
+  type ModelInputs,
+} from '@src/lib/model';
 import type { BaseInputs } from '@src/lib/baseData';
 import type { Child } from '@src/lib/children';
 import type { RecurringGoal } from '@src/lib/goals';
@@ -12,6 +19,7 @@ const BASE: BaseInputs = {
   housingPrincipalInterestMo: 1200,
   homeValueK: 350,
   mortgageBalanceK: 250,
+  currentMortgageRatePct: 6,
   brokerageTodayK: 50,
   cashTodayK: 20,
   salaryY0K: 70,
@@ -105,7 +113,6 @@ const PROPERTY_GOAL: RecurringGoal = {
   category: 'property',
   monthlyAmount: 500,
   monthlyAmountRange: { min: 0, max: 5000, step: 100 },
-  targetAmount: 100000,
   startYear: 1,
   endYear: 18,
   cashAllocated: 0,
@@ -283,31 +290,83 @@ describe('runModel', () => {
     });
   });
 
-  describe('goal asset allocation (equityAllocated)', () => {
-    it("seeds a property goal's Y0 balance with home equity (home value minus mortgage balance) when allocated", () => {
-      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true };
-      const result = run({ goals: [funded], base: { ...BASE, homeValueK: 350, mortgageBalanceK: 250 } });
+  describe('projectHomeEquity', () => {
+    const OWNED_BASE = { ...BASE, currentMortgageRatePct: 3 };
 
-      expect(result.chart.goalBalances.property[0]).toBe(100000);
+    it('projects home value via appreciation (inflation-linked) and mortgage balance via amortization', () => {
+      const result = projectHomeEquity(OWNED_BASE, true, 3);
+
+      expect(result.homeValue).toBeCloseTo(350000 * Math.pow(1.03, 3), 6);
+      expect(result.mortgageBalance).toBeGreaterThan(0);
+      expect(result.mortgageBalance).toBeLessThan(250000);
+      expect(result.equity).toBeCloseTo(result.homeValue - result.mortgageBalance, 6);
+    });
+
+    it('is $0 across the board when renting - no current home', () => {
+      expect(projectHomeEquity(OWNED_BASE, false, 5)).toEqual({ year: 5, homeValue: 0, mortgageBalance: 0, equity: 0 });
+    });
+
+    it('grows over time as the mortgage pays down and the home appreciates', () => {
+      const year3 = projectHomeEquity(OWNED_BASE, true, 3);
+      const year8 = projectHomeEquity(OWNED_BASE, true, 8);
+      expect(year8.equity).toBeGreaterThan(year3.equity);
+    });
+
+    it('floors the mortgage balance at $0 once the loan would be fully paid off', () => {
+      // $1200/mo at 3% pays off $250k in ~25yr - well past 18, so check further out than the app's
+      // own 18yr horizon ever would, just to confirm the flooring behavior itself is correct.
+      const result = projectHomeEquity(OWNED_BASE, true, 40);
+      expect(result.mortgageBalance).toBe(0);
+    });
+  });
+
+  describe('goal asset allocation (equityAllocated)', () => {
+    it('does not seed the Y0 balance with equity - it is injected at endYear instead', () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, endYear: 3 };
+      const result = run({ goals: [funded], base: { ...BASE, currentMortgageRatePct: 3 } });
+
+      expect(result.chart.goalBalances.property[0]).toBe(0);
+    });
+
+    it('injects the realistically projected equity exactly at endYear, matching projectHomeEquity', () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, monthlyAmount: 0, endYear: 3 };
+      const base = { ...BASE, currentMortgageRatePct: 3 };
+      const result = run({ goals: [funded], base });
+
+      const expectedEquity = projectHomeEquity(base, true, 3).equity;
+      expect(result.chart.goalBalances.property[2]).toBe(0); // year before endYear: still nothing
+      expect(result.chart.goalBalances.property[3]).toBeCloseTo(expectedEquity, 0); // rounded to whole dollars in the series
     });
 
     it('leaves the goal unfunded by equity when not allocated', () => {
-      const result = run({ goals: [PROPERTY_GOAL] });
-      expect(result.chart.goalBalances.property[0]).toBe(0);
+      const noContribution: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: false, monthlyAmount: 0 };
+      const result = run({ goals: [noContribution], base: { ...BASE, currentMortgageRatePct: 3 } });
+      expect(result.chart.goalBalances.property[18]).toBe(0);
     });
 
-    it('stacks equity on top of cash/brokerage allocated to the same goal', () => {
-      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, cashAllocated: 5000, brokerageAllocated: 10000 };
-      const result = run({ goals: [funded], base: { ...BASE, homeValueK: 350, mortgageBalanceK: 250, cashTodayK: 20, brokerageTodayK: 50 } });
+    it('stacks equity on top of ongoing monthly contributions', () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, endYear: 3 };
+      const base = { ...BASE, currentMortgageRatePct: 3 };
+      const withEquity = run({ goals: [funded], base }).chart.goalBalances.property[3];
+      const withoutEquity = run({ goals: [{ ...funded, equityAllocated: false }], base }).chart.goalBalances.property[3];
 
-      expect(result.chart.goalBalances.property[0]).toBe(100000 + 5000 + 10000);
+      expect(withEquity).toBeGreaterThan(withoutEquity);
+      expect(withEquity - withoutEquity).toBeCloseTo(projectHomeEquity(base, true, 3).equity, 0);
     });
 
     it("doesn't seed equity for a renter, even if allocated", () => {
-      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true };
-      const result = run({ goals: [funded], ownsHome: false });
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, monthlyAmount: 0 };
+      const result = run({ goals: [funded], ownsHome: false, base: { ...BASE, currentMortgageRatePct: 3 } });
 
-      expect(result.chart.goalBalances.property[0]).toBe(0);
+      expect(result.chart.goalBalances.property[18]).toBe(0);
+    });
+
+    it('does not compound the injected equity further - frozen immediately, same as any other post-endYear balance', () => {
+      const funded: RecurringGoal = { ...PROPERTY_GOAL, equityAllocated: true, monthlyAmount: 0, endYear: 3 };
+      const base = { ...BASE, currentMortgageRatePct: 3 };
+      const result = run({ goals: [funded], base });
+
+      expect(result.chart.goalBalances.property[10]).toBe(result.chart.goalBalances.property[3]);
     });
   });
 
@@ -372,9 +431,8 @@ describe('runModel', () => {
   });
 
   describe('estimateMortgage', () => {
-    it('uses the target amount as the down payment when one is set, ignoring the projected balance', () => {
-      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: 100000 };
-      const estimate = estimateMortgage(goal, 5000);
+    it('uses the projected balance as the down payment - property goals have no separate target amount', () => {
+      const estimate = estimateMortgage(PROPERTY_GOAL, 100000);
 
       expect(estimate.purchasePrice).toBe(400000);
       expect(estimate.downPayment).toBe(100000);
@@ -382,25 +440,16 @@ describe('runModel', () => {
       expect(estimate.monthlyPayment).toBeCloseTo(monthlyMortgagePayment(300000, 6, 30), 6);
     });
 
-    it('increasing the target amount lowers the loan amount and the monthly payment', () => {
-      const lowerTarget = estimateMortgage({ ...PROPERTY_GOAL, targetAmount: 50000 }, 0);
-      const higherTarget = estimateMortgage({ ...PROPERTY_GOAL, targetAmount: 150000 }, 0);
+    it('a larger projected balance lowers the loan amount and the monthly payment', () => {
+      const lower = estimateMortgage(PROPERTY_GOAL, 50000);
+      const higher = estimateMortgage(PROPERTY_GOAL, 150000);
 
-      expect(higherTarget.loanAmount).toBeLessThan(lowerTarget.loanAmount);
-      expect(higherTarget.monthlyPayment).toBeLessThan(lowerTarget.monthlyPayment);
+      expect(higher.loanAmount).toBeLessThan(lower.loanAmount);
+      expect(higher.monthlyPayment).toBeLessThan(lower.monthlyPayment);
     });
 
-    it('falls back to the projected balance when no target amount is set', () => {
-      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: undefined };
-      const estimate = estimateMortgage(goal, 75000);
-
-      expect(estimate.downPayment).toBe(75000);
-      expect(estimate.loanAmount).toBe(325000);
-    });
-
-    it('never lets the loan amount go negative when the down payment exceeds the purchase price', () => {
-      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: 500000 };
-      const estimate = estimateMortgage(goal, 0);
+    it('never lets the loan amount go negative when the projected balance exceeds the purchase price', () => {
+      const estimate = estimateMortgage(PROPERTY_GOAL, 500000);
 
       expect(estimate.loanAmount).toBe(0);
       expect(estimate.monthlyPayment).toBe(0);
@@ -414,18 +463,8 @@ describe('runModel', () => {
       expect(result.snapshot.housingCost).toBeCloseTo(1200 + 600 * Math.pow(1.03, 3), 6);
     });
 
-    it('replaces the base housing cost with the estimated mortgage payment once the purchase completes, using the target amount as the down payment', () => {
+    it('replaces the base housing cost with the estimated mortgage payment once the purchase completes, using the actual projected balance as the down payment', () => {
       const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2, monthlyAmount: 2000 };
-      const result = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
-
-      // PROPERTY_GOAL's targetAmount (100000) drives the estimate, not the actual projected balance -
-      // the goal is meant to be reached, so the mortgage assumes you hit your target.
-      const expectedPayment = monthlyMortgagePayment(400000 - 100000, 6, 30);
-      expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
-    });
-
-    it('falls back to the actual projected balance as the down payment when no target amount is set', () => {
-      const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2, monthlyAmount: 2000, targetAmount: undefined };
       const result = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
 
       const downPayment = result.chart.goalBalances.property[2];
@@ -446,7 +485,8 @@ describe('runModel', () => {
       const second: RecurringGoal = { ...PROPERTY_GOAL, id: 'second', startYear: 3, endYear: 4, purchasePriceK: 600 };
       const result = run({ goals: [first, second], base: { ...BASE, inspectYear: 6 } });
 
-      const expectedPayment = monthlyMortgagePayment(600000 - 100000, 6, 30);
+      const secondDownPayment = result.chart.goalBalances.second[4];
+      const expectedPayment = monthlyMortgagePayment(600000 - secondDownPayment, 6, 30);
       expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
     });
   });

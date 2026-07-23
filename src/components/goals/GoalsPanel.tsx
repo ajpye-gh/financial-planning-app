@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AddGoalCard } from './AddGoalCard';
 import { GoalCard } from './GoalCard';
+import type { BaseInputs } from '../../lib/baseData';
 import type { Goal } from '../../lib/goals';
 
 interface GoalsPanelProps {
@@ -8,7 +9,8 @@ interface GoalsPanelProps {
   runningTotals: Record<string, number>;
   cashRemaining: number;
   brokerageRemaining: number;
-  homeEquity: number;
+  base: BaseInputs;
+  ownsHome: boolean;
   onAdd: (goal: Goal) => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Goal>) => void;
@@ -19,7 +21,8 @@ export function GoalsPanel({
   runningTotals,
   cashRemaining,
   brokerageRemaining,
-  homeEquity,
+  base,
+  ownsHome,
   onAdd,
   onRemove,
   onUpdate,
@@ -42,7 +45,8 @@ export function GoalsPanel({
           runningTotal={runningTotals[goal.id]}
           cashRemaining={cashRemaining}
           brokerageRemaining={brokerageRemaining}
-          homeEquity={homeEquity}
+          base={base}
+          ownsHome={ownsHome}
           defaultExpanded={goal.id === newestGoalId}
           onUpdate={onUpdate}
           onRemove={onRemove}

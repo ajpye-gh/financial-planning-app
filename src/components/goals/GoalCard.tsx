@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import { HORIZON_YEARS, MORTGAGE_TERM_YEARS, estimateMortgage, type MortgageEstimate } from '../../lib/model';
+import {
+  HORIZON_YEARS,
+  MORTGAGE_TERM_YEARS,
+  estimateMortgage,
+  projectHomeEquity,
+  type HomeEquityProjection,
+  type MortgageEstimate,
+} from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
 import { Tooltip } from '../Tooltip';
 import { canAllocateBrokerage, canAllocateCash, canAllocateEquity, type Goal } from '../../lib/goals';
+import type { BaseInputs } from '../../lib/baseData';
 
 interface GoalCardProps {
   goal: Goal;
@@ -13,9 +21,11 @@ interface GoalCardProps {
    *  dragged into over-allocating the shared pool. */
   cashRemaining: number;
   brokerageRemaining: number;
-  /** Current home equity (home value minus mortgage balance), 0 if renting - all-or-nothing, so
-   *  unlike cashRemaining/brokerageRemaining there's no "remaining" variant to compute. */
-  homeEquity: number;
+  /** For projecting home equity at this goal's endYear (see projectHomeEquity) - unlike
+   *  cashRemaining/brokerageRemaining, equity is all-or-nothing and depends on *when* you'd roll it
+   *  over, so it can't be precomputed once in the parent the way those are. */
+  base: BaseInputs;
+  ownsHome: boolean;
   /** Initial expanded/collapsed state only - true for a just-added goal (so the user can configure
    *  it right away), false (collapsed) otherwise. The card's own chevron toggles it freely after
    *  that, uncontrolled. */
@@ -24,8 +34,8 @@ interface GoalCardProps {
   onRemove: (id: string) => void;
 }
 
-const TARGET_AMOUNT_RANGE = { min: 0, max: 1000000, step: 10000 };
 const ALLOCATION_STEP = 500;
+const TARGET_AMOUNT_RANGE = { min: 0, max: 1000000, step: 10000 };
 const PURCHASE_PRICE_RANGE = { min: 0, max: 2000, step: 10 };
 const MORTGAGE_RATE_RANGE = { min: 0, max: 15, step: 0.25 };
 const POST_PURCHASE_COST_RANGE = { min: 0, max: 5000, step: 50 };
@@ -40,12 +50,18 @@ function mortgageEstimateFor(goal: Goal, runningTotal: number | undefined): Mort
   return goal.category === 'property' ? estimateMortgage(goal, runningTotal ?? 0) : null;
 }
 
+/** Only goals allowed to claim home equity need a projection computed. */
+function equityProjectionFor(goal: Goal, base: BaseInputs, ownsHome: boolean): HomeEquityProjection | null {
+  return canAllocateEquity(goal) ? projectHomeEquity(base, ownsHome, goal.endYear) : null;
+}
+
 export function GoalCard({
   goal,
   runningTotal,
   cashRemaining,
   brokerageRemaining,
-  homeEquity,
+  base,
+  ownsHome,
   defaultExpanded = false,
   onUpdate,
   onRemove,
@@ -57,6 +73,7 @@ export function GoalCard({
   const clampYear = (value: number) => Math.min(Math.max(Math.round(value), 1), HORIZON_YEARS);
   const isProperty = goal.category === 'property';
   const mortgageEstimate = mortgageEstimateFor(goal, runningTotal);
+  const equityProjection = equityProjectionFor(goal, base, ownsHome);
 
   const startEditingName = () => {
     setDraftName(goal.name);
@@ -152,7 +169,7 @@ export function GoalCard({
             </div>
           </div>
 
-          {goal.mode === 'accumulate' && (
+          {goal.mode === 'accumulate' && !isProperty && (
             <div className="slider-field">
               <span className="slider-field__label">Target amount</span>
               <div className="slider-field__control">
@@ -208,14 +225,19 @@ export function GoalCard({
             </div>
           )}
 
-          {canAllocateEquity(goal) && homeEquity > 0 && (
+          {equityProjection && equityProjection.equity > 0 && (
             <label className="goal-card__toggle">
               <input
                 type="checkbox"
                 checked={goal.equityAllocated}
                 onChange={(event) => onUpdate(goal.id, { equityAllocated: event.target.checked })}
               />
-              Use home equity ({formatCurrency(homeEquity)})
+              <Tooltip
+                tip={`Projected in year ${goal.endYear}: ${formatCurrency(equityProjection.homeValue)} home value − ${formatCurrency(equityProjection.mortgageBalance)} remaining mortgage = ${formatCurrency(equityProjection.equity)} equity. Grows with home appreciation and mortgage paydown, not the market investment return.`}
+              >
+                Use home equity
+              </Tooltip>
+              {' '}({formatCurrency(equityProjection.equity)} projected)
             </label>
           )}
 

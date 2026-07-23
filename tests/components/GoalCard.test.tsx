@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GoalCard } from '@src/components/goals/GoalCard';
+import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '@src/lib/baseData';
 import { formatCurrency } from '@src/lib/format';
-import { monthlyMortgagePayment } from '@src/lib/model';
+import { monthlyMortgagePayment, projectHomeEquity } from '@src/lib/model';
 import type { Goal } from '@src/lib/goals';
 
 const baseGoal: Goal = {
@@ -21,6 +22,18 @@ const baseGoal: Goal = {
   isPurchase: false,
 };
 
+const BASE_INPUTS: BaseInputs = baseDefaults(DEFAULT_BASE_RANGES);
+
+// Fixture with a mortgage that actually amortizes within a few years, for equity-projection tests.
+const OWNED_BASE_INPUTS: BaseInputs = {
+  ...BASE_INPUTS,
+  homeValueK: 350,
+  mortgageBalanceK: 250,
+  currentMortgageRatePct: 3,
+  housingPrincipalInterestMo: 1200,
+  inflationPct: 3,
+};
+
 /** Expanded by default so the existing field-level tests below don't each need to click the
  *  expand toggle first - the collapse/expand behavior itself is covered by its own describe block. */
 function renderCard(overrides: Partial<Parameters<typeof GoalCard>[0]> = {}) {
@@ -29,7 +42,8 @@ function renderCard(overrides: Partial<Parameters<typeof GoalCard>[0]> = {}) {
       goal={baseGoal}
       cashRemaining={1000}
       brokerageRemaining={1000}
-      homeEquity={0}
+      base={BASE_INPUTS}
+      ownsHome={false}
       defaultExpanded
       onUpdate={jest.fn()}
       onRemove={jest.fn()}
@@ -209,36 +223,50 @@ describe('GoalCard asset allocation', () => {
 });
 
 describe('GoalCard equity allocation', () => {
-  it('shows the equity checkbox only for a property goal with nonzero home equity', () => {
-    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 50000 });
-    expect(screen.getByText('Use home equity ($50,000)')).toBeInTheDocument();
+  // baseGoal.endYear is 5 - the projection is computed at the goal's own endYear.
+  const projectedEquity = projectHomeEquity(OWNED_BASE_INPUTS, true, 5).equity;
+
+  it('shows the equity checkbox only for a property goal with nonzero projected equity, labeled with the projected amount', () => {
+    renderCard({ goal: { ...baseGoal, category: 'property' }, base: OWNED_BASE_INPUTS, ownsHome: true });
+    expect(screen.getByText(`(${formatCurrency(projectedEquity)} projected)`)).toBeInTheDocument();
   });
 
   it('hides the equity checkbox for a non-property goal', () => {
-    renderCard({ goal: { ...baseGoal, category: 'other' }, homeEquity: 50000 });
+    renderCard({ goal: { ...baseGoal, category: 'other' }, base: OWNED_BASE_INPUTS, ownsHome: true });
     expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
   });
 
-  it('hides the equity checkbox when there is no home equity', () => {
-    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 0 });
+  it('hides the equity checkbox when renting (no current home to project equity from)', () => {
+    renderCard({ goal: { ...baseGoal, category: 'property' }, base: OWNED_BASE_INPUTS, ownsHome: false });
     expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
   });
 
   it('calls onUpdate with equityAllocated when the checkbox is toggled', async () => {
     const user = userEvent.setup();
     const onUpdate = jest.fn();
-    renderCard({ goal: { ...baseGoal, category: 'property' }, homeEquity: 50000, onUpdate });
+    renderCard({ goal: { ...baseGoal, category: 'property' }, base: OWNED_BASE_INPUTS, ownsHome: true, onUpdate });
 
     await user.click(screen.getByRole('checkbox'));
 
     expect(onUpdate).toHaveBeenCalledWith('goal-1', { equityAllocated: true });
+  });
+
+  it('shows a breakdown tooltip explaining the projection', async () => {
+    const user = userEvent.setup();
+    renderCard({ goal: { ...baseGoal, category: 'property' }, base: OWNED_BASE_INPUTS, ownsHome: true });
+
+    await user.hover(screen.getByText('Use home equity'));
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('home value');
+    expect(tooltip).toHaveTextContent('remaining mortgage');
+    expect(tooltip).toHaveTextContent('market investment return');
   });
 });
 
 describe('GoalCard collapse/expand', () => {
   it('is collapsed by default, showing only monthly amount and projected final value', () => {
     render(
-      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} runningTotal={54000} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} runningTotal={54000} onUpdate={jest.fn()} onRemove={jest.fn()} />,
     );
 
     expect(screen.getByText('$200/mo')).toBeInTheDocument();
@@ -250,7 +278,7 @@ describe('GoalCard collapse/expand', () => {
   it('hides the mode badge while collapsed, shows it once expanded', async () => {
     const user = userEvent.setup();
     render(
-      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} onUpdate={jest.fn()} onRemove={jest.fn()} />,
     );
 
     expect(screen.queryByText('saving')).not.toBeInTheDocument();
@@ -260,7 +288,7 @@ describe('GoalCard collapse/expand', () => {
 
   it('shows no second figure when collapsed for a consume-mode goal (no balance)', () => {
     render(
-      <GoalCard goal={{ ...baseGoal, mode: 'consume' }} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+      <GoalCard goal={{ ...baseGoal, mode: 'consume' }} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} onUpdate={jest.fn()} onRemove={jest.fn()} />,
     );
 
     expect(screen.getByText('$200/mo')).toBeInTheDocument();
@@ -275,7 +303,7 @@ describe('GoalCard collapse/expand', () => {
   it('toggles between collapsed and expanded on click, independent of defaultExpanded', async () => {
     const user = userEvent.setup();
     render(
-      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} onUpdate={jest.fn()} onRemove={jest.fn()} />,
     );
 
     expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
@@ -288,7 +316,7 @@ describe('GoalCard collapse/expand', () => {
   it('hides the rename (edit) icon while collapsed, shows it once expanded', async () => {
     const user = userEvent.setup();
     render(
-      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} onUpdate={jest.fn()} onRemove={jest.fn()} />,
     );
 
     expect(screen.queryByRole('button', { name: 'Rename Travel fund' })).not.toBeInTheDocument();
@@ -300,7 +328,7 @@ describe('GoalCard collapse/expand', () => {
     const user = userEvent.setup();
     const onRemove = jest.fn();
     render(
-      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={onRemove} />,
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} base={BASE_INPUTS} ownsHome={false} onUpdate={jest.fn()} onRemove={onRemove} />,
     );
 
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
@@ -330,44 +358,48 @@ describe('GoalCard property purchase fields', () => {
     expect(screen.queryByText('Mortgage rate')).not.toBeInTheDocument();
   });
 
-  it('shows an estimated mortgage payment once a purchase price is set, falling back to the projected balance with no target set', () => {
+  it('shows an estimated mortgage payment using the projected balance as the down payment', () => {
     renderCard({ goal: propertyGoal, runningTotal: 60000 });
 
-    // No targetAmount set on propertyGoal - falls back to runningTotal: loan = 400000 - 60000 = 340000 @ 6%/30yr.
+    // loan = 400000 price - 60000 projected balance = 340000 @ 6%/30yr.
     expect(screen.getByText(/Estimated mortgage payment/)).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(340000, 6, 30))}/mo`)).toBeInTheDocument();
   });
 
-  it('uses the target amount, not the projected balance, as the down payment once a target is set', () => {
-    const { rerender } = renderCard({ goal: { ...propertyGoal, targetAmount: 40000 }, runningTotal: 60000 });
-    // targetAmount (40000) wins over runningTotal (60000): loan = 400000 - 40000 = 360000.
+  it('a larger projected balance lowers the estimated payment - no separate target amount to set instead', () => {
+    const { rerender } = renderCard({ goal: propertyGoal, runningTotal: 40000 });
     expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(360000, 6, 30))}/mo`)).toBeInTheDocument();
 
     rerender(
       <GoalCard
-        goal={{ ...propertyGoal, targetAmount: 100000 }}
+        goal={propertyGoal}
         cashRemaining={1000}
         brokerageRemaining={1000}
-        homeEquity={0}
+        base={BASE_INPUTS}
+        ownsHome={false}
         defaultExpanded
-        runningTotal={60000}
+        runningTotal={100000}
         onUpdate={jest.fn()}
         onRemove={jest.fn()}
       />,
     );
-    // Raising the target amount raises the down payment, lowering the loan and the payment.
     expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(300000, 6, 30))}/mo`)).toBeInTheDocument();
+  });
+
+  it('does not render a Target amount slider for a property goal - Total property price already covers it', () => {
+    renderCard({ goal: propertyGoal });
+    expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
   });
 
   it('shows a breakdown tooltip on the mortgage estimate', async () => {
     const user = userEvent.setup();
-    renderCard({ goal: { ...propertyGoal, targetAmount: 40000 }, runningTotal: 60000 });
+    renderCard({ goal: propertyGoal, runningTotal: 60000 });
 
     await user.hover(screen.getByText('Estimated mortgage payment'));
     const tooltip = await screen.findByRole('tooltip');
     expect(tooltip).toHaveTextContent('$400,000 price');
-    expect(tooltip).toHaveTextContent('$40,000 down payment');
-    expect(tooltip).toHaveTextContent('$360,000 loan');
+    expect(tooltip).toHaveTextContent('$60,000 down payment');
+    expect(tooltip).toHaveTextContent('$340,000 loan');
     expect(tooltip).toHaveTextContent('6.00%');
     expect(tooltip).toHaveTextContent('30yr');
   });

@@ -192,6 +192,16 @@ describe('sanitizeGoal', () => {
     expect(goal.equityAllocated).toBe(true);
   });
 
+  it('clears targetAmount on a property goal - Total property price already covers it', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', targetAmount: 60000 });
+    expect(goal.targetAmount).toBeUndefined();
+  });
+
+  it('leaves targetAmount untouched on a non-property goal', () => {
+    const goal = sanitizeGoal({ ...base, category: 'other', targetAmount: 60000 });
+    expect(goal.targetAmount).toBe(60000);
+  });
+
   it('forces isPurchase true for a property goal, even if the input says otherwise', () => {
     const goal = sanitizeGoal({ ...base, category: 'property', isPurchase: false });
     expect(goal.isPurchase).toBe(true);

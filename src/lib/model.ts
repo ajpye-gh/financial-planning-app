@@ -144,10 +144,13 @@ function isGoalActive(goal: RecurringGoal, year: number): boolean {
   return year >= goal.startYear && year <= goal.endYear;
 }
 
-/** A goal's Y0 starting balance: its one-time cash/brokerage allocation, plus home equity if it's
- *  the one goal that claimed it (see goals.ts's equityAllocated/canAllocateEquity). */
-function goalStartingBalance(goal: RecurringGoal, homeEquity: number): number {
-  return goal.cashAllocated + goal.brokerageAllocated + (goal.equityAllocated ? homeEquity : 0);
+/** A goal's Y0 starting balance: its one-time cash/brokerage allocation. Home equity (if claimed via
+ *  equityAllocated) is deliberately NOT included here - unlike cash/brokerage, it isn't liquid money
+ *  that starts "investing" today. It's injected once, at the goal's endYear, as its own realistically
+ *  projected amount (see projectHomeEquity/advanceGoalBalances) instead of compounding at the market
+ *  investment return for years like a brokerage account would. */
+function goalStartingBalance(goal: RecurringGoal): number {
+  return goal.cashAllocated + goal.brokerageAllocated;
 }
 
 /** Not a slider - loan term rarely varies, and it's one fewer slider to clutter a property goal
@@ -187,34 +190,87 @@ export interface MortgageEstimate {
   monthlyPayment: number;
 }
 
-/** Estimates a property goal's mortgage: down payment is the goal's target amount when set - the
- *  whole point of the goal is to reach that target and then buy, so the estimate (and the actual
- *  housing-cost replacement below) assume you hit it, same as the goal's own "Balance: $X / $Y
- *  target" framing already does. Falls back to `projectedBalance` (the goal's actual accumulated/
- *  frozen balance) only when no target is set. Shared by the live GoalCard preview and the real
- *  housing-cost-replacement computation so the two can never disagree. */
+/** Estimates a property goal's mortgage: down payment is the goal's actual projected balance at
+ *  endYear (its monthly contributions/allocations, including any rolled-over home equity - see
+ *  projectHomeEquity - all compounded/injected the same way the real model does it). Property goals
+ *  have no separate "target amount" to aim for instead - "Total property price" already captures
+ *  the number that matters. Shared by the live GoalCard preview and the real housing-cost-
+ *  replacement computation below so the two can never disagree. */
 export function estimateMortgage(goal: RecurringGoal, projectedBalance: number): MortgageEstimate {
-  const downPayment = goal.targetAmount ?? projectedBalance;
   const purchasePrice = (goal.purchasePriceK ?? 0) * 1000;
-  const loanAmount = Math.max(0, purchasePrice - downPayment);
+  const loanAmount = Math.max(0, purchasePrice - projectedBalance);
   const monthlyPayment = monthlyMortgagePayment(loanAmount, goal.mortgageRatePct ?? 0, MORTGAGE_TERM_YEARS);
-  return { purchasePrice, downPayment, loanAmount, monthlyPayment };
+  return { purchasePrice, downPayment: projectedBalance, loanAmount, monthlyPayment };
+}
+
+/** Balance remaining on a fixed-payment loan after `numPayments` more payments - the standard
+ *  amortization recurrence, run forward from a known current balance/rate/payment rather than
+ *  needing to first solve for the loan's total remaining term. */
+function remainingLoanBalance(currentBalance: number, annualRatePct: number, monthlyPayment: number, numPayments: number): number {
+  if (currentBalance <= 0 || monthlyPayment <= 0) {
+    return Math.max(0, currentBalance);
+  }
+  const monthlyRate = annualRatePct / 100 / 12;
+  if (monthlyRate === 0) {
+    return Math.max(0, currentBalance - monthlyPayment * numPayments);
+  }
+  const growth = Math.pow(1 + monthlyRate, numPayments);
+  return Math.max(0, currentBalance * growth - (monthlyPayment * (growth - 1)) / monthlyRate);
+}
+
+export interface HomeEquityProjection {
+  year: number;
+  homeValue: number;
+  mortgageBalance: number;
+  equity: number;
+}
+
+/** Projects what your CURRENT home's equity will be `year` years from now, instead of treating
+ *  today's equity as a lump sum that "invests" and grows at the market investment return (unrealistic
+ *  - a house isn't a brokerage account). Home value grows at the general inflation rate (a simple
+ *  stand-in for appreciation, consistent with how inflation already drives other costs); the mortgage
+ *  balance pays down via standard amortization at its own rate (currentMortgageRatePct - a separate,
+ *  per-loan assumption, since your existing mortgage's rate isn't a future purchase's rate) against
+ *  the fixed P&I payment you're already paying (housingPrincipalInterestMo). */
+export function projectHomeEquity(base: BaseInputs, ownsHome: boolean, year: number): HomeEquityProjection {
+  if (!ownsHome) {
+    return { year, homeValue: 0, mortgageBalance: 0, equity: 0 };
+  }
+  const homeValue = base.homeValueK * 1000 * Math.pow(1 + base.inflationPct / 100, year);
+  const mortgageBalance = remainingLoanBalance(
+    base.mortgageBalanceK * 1000,
+    base.currentMortgageRatePct,
+    base.housingPrincipalInterestMo,
+    year * 12,
+  );
+  return { year, homeValue, mortgageBalance, equity: Math.max(0, homeValue - mortgageBalance) };
 }
 
 /** Mutates `balances` in place. Before startYear, a goal's seed balance still compounds (money
  *  invested early grows even before the goal starts actively contributing). After endYear, the
  *  balance freezes entirely - no more growth, not just no more contribution - the goal is considered
- *  reached/realized at that point, not still sitting invested. */
-function advanceGoalBalances(year: number, goals: RecurringGoal[], balances: Record<string, number>, investmentReturnPct: number): void {
+ *  reached/realized at that point, not still sitting invested. A goal that claimed home equity
+ *  (equityAllocated) gets it injected exactly once, in its final active year (endYear) - realistically
+ *  projected (see projectHomeEquity), not compounded at the investment return like cash/brokerage. */
+function advanceGoalBalances(
+  year: number,
+  goals: RecurringGoal[],
+  balances: Record<string, number>,
+  investmentReturnPct: number,
+  base: BaseInputs,
+  ownsHome: boolean,
+): void {
   for (const goal of goals) {
-    if (goal.mode === 'accumulate') {
-      if (year > goal.endYear) {
-        continue;
-      }
-      const previous = balances[goal.id] ?? 0;
-      const contribution = isGoalActive(goal, year) ? goal.monthlyAmount * 12 : 0;
-      balances[goal.id] = previous * (1 + investmentReturnPct / 100) + contribution;
+    if (goal.mode !== 'accumulate' || year > goal.endYear) {
+      continue;
     }
+    const previous = balances[goal.id] ?? 0;
+    const contribution = isGoalActive(goal, year) ? goal.monthlyAmount * 12 : 0;
+    let balance = previous * (1 + investmentReturnPct / 100) + contribution;
+    if (goal.equityAllocated && year === goal.endYear) {
+      balance += projectHomeEquity(base, ownsHome, year).equity;
+    }
+    balances[goal.id] = balance;
   }
 }
 
@@ -372,12 +428,11 @@ export function runModel(inputs: ModelInputs): ModelResult {
     brokerage: base.brokerageTodayK * 1000 - brokerageAllocatedTotal,
     cash: base.cashTodayK * 1000 - cashAllocatedTotal,
   };
-  const homeEquity = ownsHome ? Math.max(0, base.homeValueK - base.mortgageBalanceK) * 1000 : 0;
 
   const goalBalances: Record<string, number> = {};
   for (const goal of goals) {
     if (goal.mode === 'accumulate') {
-      goalBalances[goal.id] = goalStartingBalance(goal, homeEquity);
+      goalBalances[goal.id] = goalStartingBalance(goal);
     }
   }
   const goalSeries = initGoalSeries(goals);
@@ -438,7 +493,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
       };
     }
 
-    advanceGoalBalances(year, goals, goalBalances, investmentReturn);
+    advanceGoalBalances(year, goals, goalBalances, investmentReturn, base, ownsHome);
     advanceUnallocatedPool(pool, freeCash, investmentReturn);
 
     yearLabels.push(`Y${year}`);

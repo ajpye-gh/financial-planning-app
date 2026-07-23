@@ -7,6 +7,7 @@ export type BaseFieldId =
   | 'housingPrincipalInterestMo'
   | 'homeValueK'
   | 'mortgageBalanceK'
+  | 'currentMortgageRatePct'
   | 'cashTodayK'
   | 'brokerageTodayK'
   | 'salaryY0K'
@@ -128,6 +129,14 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         label: 'Mortgage balance (current)',
         format: 'k',
         tooltip: 'Remaining principal owed on your current mortgage. Reflects your current home only, not a future purchase.',
+        visibleIf: ownsHome,
+      },
+      {
+        id: 'currentMortgageRatePct',
+        label: 'Mortgage rate (current)',
+        format: '%',
+        tooltip:
+          "Your current mortgage's interest rate - used to project how much of it you'll have paid off (and how much home equity you'll have) by the time you roll it into a future purchase.",
         visibleIf: ownsHome,
       },
       {

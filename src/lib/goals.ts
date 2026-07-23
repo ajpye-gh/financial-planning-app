@@ -19,10 +19,16 @@ export interface RecurringGoal {
   category: GoalCategory;
   monthlyAmount: number;
   monthlyAmountRange: { min: number; max: number; step: number };
-  /** Inclusive 1-indexed year range this goal is active. Outside it, the goal contributes $0 -
-   *  but an `accumulate` balance keeps compounding at the investment return even after `endYear`. */
+  /** Inclusive 1-indexed year range this goal is active. Outside it, the goal contributes $0 - an
+   *  `accumulate` balance keeps growing before startYear (money invested early still compounds) but
+   *  freezes entirely after endYear (see model.ts's advanceGoalBalances - the goal is considered
+   *  reached/realized at that point, not still sitting invested). */
   startYear: number;
   endYear: number;
+  /** A savings target to compare the projected balance against (see the goal card's "Balance: $X /
+   *  $Y target" line) - purely informational, doesn't feed back into the projection. Not used for
+   *  `category: 'property'` goals - "Total property price" (purchasePriceK) already captures the
+   *  number that matters there, so a separate target would be redundant (see `sanitizeGoal`). */
   targetAmount?: number;
   /** One-time starting balance carried over from your current Cash today - only ever nonzero for
    *  `category: 'emergency'` goals (see `canAllocateCash`). */
@@ -30,10 +36,13 @@ export interface RecurringGoal {
   /** One-time starting balance carried over from your current Brokerage today - never allowed for
    *  `category: 'retirement'` goals (see `canAllocateBrokerage`). */
   brokerageAllocated: number;
-  /** All-or-nothing: whether this goal's starting balance includes your full home equity
-   *  (home value minus mortgage balance). Only ever `true` for `category: 'property'` goals (see
-   *  `canAllocateEquity`), and only for one goal at a time - equity is a single real-world pool, so
-   *  setting it on one goal clears it from every other (see `enforceExclusiveEquity`). */
+  /** All-or-nothing: whether this goal claims your current home's equity, realistically projected
+   *  (home appreciation minus mortgage paydown - see model.ts's projectHomeEquity) and injected once,
+   *  at this goal's endYear - not added to the Y0 starting balance and compounded at the market
+   *  investment return like cash/brokerage (a house isn't a brokerage account). Only ever `true` for
+   *  `category: 'property'` goals (see `canAllocateEquity`), and only for one goal at a time - equity
+   *  is a single real-world pool, so setting it on one goal clears it from every other (see
+   *  `enforceExclusiveEquity`). */
   equityAllocated: boolean;
   /** Whether this goal's balance gets "spent" on a purchase at endYear, producing an ongoing
    *  monthly cost afterward (see model.ts's activePropertyGoal/isPurchaseGoal usage). Always `true`
@@ -90,6 +99,7 @@ export function sanitizeGoal(goal: RecurringGoal): RecurringGoal {
   const isPurchase = isProperty || goal.isPurchase;
   return {
     ...goal,
+    targetAmount: isProperty ? undefined : goal.targetAmount,
     cashAllocated: canAllocateCash(goal) ? goal.cashAllocated : 0,
     brokerageAllocated: canAllocateBrokerage(goal) ? goal.brokerageAllocated : 0,
     equityAllocated: canAllocateEquity(goal) ? goal.equityAllocated : false,
@@ -180,7 +190,6 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       category: 'property',
       monthlyAmount: 500,
       monthlyAmountRange: { ...DEFAULT_RANGE },
-      targetAmount: 60000,
       purchasePriceK: 300,
       mortgageRatePct: 6.5,
       ...PROPERTY_HORIZON,
@@ -198,7 +207,6 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       category: 'property',
       monthlyAmount: 500,
       monthlyAmountRange: { ...DEFAULT_RANGE },
-      targetAmount: 100000,
       purchasePriceK: 500,
       mortgageRatePct: 6.5,
       ...PROPERTY_HORIZON,
