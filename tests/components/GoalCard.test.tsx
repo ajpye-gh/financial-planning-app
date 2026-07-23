@@ -242,6 +242,18 @@ describe('GoalCard collapse/expand', () => {
     expect(screen.getByText('$200/mo')).toBeInTheDocument();
     expect(screen.getByText('→ $54k')).toBeInTheDocument();
     expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
+    expect(screen.queryByText('saving')).not.toBeInTheDocument();
+  });
+
+  it('hides the mode badge while collapsed, shows it once expanded', async () => {
+    const user = userEvent.setup();
+    render(
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+    );
+
+    expect(screen.queryByText('saving')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Travel fund' }));
+    expect(screen.getByText('saving')).toBeInTheDocument();
   });
 
   it('shows no second figure when collapsed for a consume-mode goal (no balance)', () => {

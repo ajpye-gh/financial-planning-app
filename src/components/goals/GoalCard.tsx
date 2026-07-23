@@ -115,10 +115,6 @@ export function GoalCard({
         </button>
       </div>
 
-      <span className={`goal-card__mode-badge goal-card__mode-badge--${goal.mode}`}>
-        {goal.mode === 'accumulate' ? 'saving' : 'spending'}
-      </span>
-
       {!isExpanded ? (
         <div className="goal-card__summary">
           <span className="goal-card__summary-amount">{formatCurrency(goal.monthlyAmount)}/mo</span>
@@ -126,6 +122,10 @@ export function GoalCard({
         </div>
       ) : (
         <>
+          <span className={`goal-card__mode-badge goal-card__mode-badge--${goal.mode}`}>
+            {goal.mode === 'accumulate' ? 'saving' : 'spending'}
+          </span>
+
           <div className="slider-field">
             <span className="slider-field__label">Monthly amount</span>
             <div className="slider-field__control">
