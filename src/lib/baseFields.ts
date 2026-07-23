@@ -208,7 +208,7 @@ export const RETIREMENT_ROTH_CONTRIBUTION_FIELD: BaseFieldMeta = {
 
 export const RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   id: 'retirementRothWithdrawalRatePct',
-  label: 'Withdrawal rate',
+  label: 'Initial withdrawal rate',
   format: '%',
   tooltip:
     'Share of your projected Roth balance withdrawn in your first year of retirement (the "4% rule" is the common default). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - so the withdrawal keeps climbing in nominal terms even at a fixed rate. A rule-of-thumb estimate, not a full drawdown simulation.',
@@ -230,7 +230,7 @@ export const RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD: BaseFieldMeta = {
 
 export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   id: 'retirementTraditionalWithdrawalRatePct',
-  label: 'Withdrawal rate',
+  label: 'Initial withdrawal rate',
   format: '%',
   tooltip:
     'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance. Taxed as ordinary income - see the income breakdown table below the chart.',

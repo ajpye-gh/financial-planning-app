@@ -44,7 +44,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Current Roth savings')).toBeInTheDocument();
     expect(screen.getByText('Current Traditional savings')).toBeInTheDocument();
     expect(screen.getAllByText('Monthly contribution')).toHaveLength(2);
-    expect(screen.getAllByText('Withdrawal rate')).toHaveLength(2);
+    expect(screen.getAllByText('Initial withdrawal rate')).toHaveLength(2);
     expect(screen.getByText('Target age')).toBeInTheDocument();
   });
 
@@ -52,7 +52,7 @@ describe('RetirementPage', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
 
-    const [rothSlider, traditionalSlider] = screen.getAllByLabelText('Withdrawal rate') as HTMLInputElement[];
+    const [rothSlider, traditionalSlider] = screen.getAllByLabelText('Initial withdrawal rate') as HTMLInputElement[];
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
 
     setter?.call(rothSlider, '5');
