@@ -1,6 +1,6 @@
 import type { BaseInputs } from './baseData';
 import type { Child } from './children';
-import type { RecurringGoal } from './goals';
+import { isPurchaseGoal, type RecurringGoal } from './goals';
 import type { SalaryRaiseBreakpoint } from './salaryRaises';
 
 /** A single wage earner's salary trajectory: today's gross salary, cumulative raises above it, a flat
@@ -31,6 +31,9 @@ export interface YearSnapshot {
   livingCosts: number;
   kidsCost: number;
   housingCost: number;
+  /** Monthly cost from completed non-property purchase goals (e.g. a boat) - additive on top of
+   *  housingCost, unlike a completed property purchase which replaces it (see computeYearFigures). */
+  purchaseCosts: number;
   totalExpenses: number;
   freeCash: number;
   goalContributions: Record<string, number>;
@@ -147,12 +150,53 @@ function goalStartingBalance(goal: RecurringGoal, homeEquity: number): number {
   return goal.cashAllocated + goal.brokerageAllocated + (goal.equityAllocated ? homeEquity : 0);
 }
 
-/** Mutates `balances` in place. A goal's balance keeps compounding at the investment return even
- *  outside its active window - only the new contribution stops, matching how a real account behaves
- *  once you stop (or haven't yet started) funding it. */
+/** Not a slider - loan term rarely varies, and it's one fewer slider to clutter a property goal
+ *  with. Mortgage rate, unlike this, is a per-goal field (see goals.ts) since a future purchase's
+ *  prevailing rate can differ from today's. */
+export const MORTGAGE_TERM_YEARS = 30;
+
+/** Standard amortization formula for a fixed-rate loan's monthly principal+interest payment.
+ *  Zero-rate is special-cased (division by zero otherwise) - an interest-free loan just splits the
+ *  principal evenly across every payment. */
+export function monthlyMortgagePayment(loanAmount: number, annualRatePct: number, termYears: number): number {
+  if (loanAmount <= 0) {
+    return 0;
+  }
+  const numPayments = termYears * 12;
+  const monthlyRate = annualRatePct / 100 / 12;
+  if (monthlyRate === 0) {
+    return loanAmount / numPayments;
+  }
+  return (loanAmount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -numPayments));
+}
+
+/** Among property goals already completed as of `year` (endYear < year), the most recently
+ *  completed one - that's the home you're actually living in now, so its estimated mortgage payment
+ *  is what replaces your base housing cost (see computeYearFigures). `undefined` if none have
+ *  completed yet, in which case the base housing cost still applies. */
+function activePropertyGoal(goals: RecurringGoal[], year: number): RecurringGoal | undefined {
+  return goals
+    .filter((goal) => goal.category === 'property' && goal.endYear < year)
+    .sort((a, b) => b.endYear - a.endYear)[0];
+}
+
+/** The monthly mortgage payment for a completed property purchase: loan = purchase price minus the
+ *  goal's projected ending balance (the down payment, frozen at endYear - see advanceGoalBalances). */
+function propertyMortgagePayment(goal: RecurringGoal, endingBalance: number): number {
+  const loanAmount = Math.max(0, (goal.purchasePriceK ?? 0) * 1000 - endingBalance);
+  return monthlyMortgagePayment(loanAmount, goal.mortgageRatePct ?? 0, MORTGAGE_TERM_YEARS);
+}
+
+/** Mutates `balances` in place. Before startYear, a goal's seed balance still compounds (money
+ *  invested early grows even before the goal starts actively contributing). After endYear, the
+ *  balance freezes entirely - no more growth, not just no more contribution - the goal is considered
+ *  reached/realized at that point, not still sitting invested. */
 function advanceGoalBalances(year: number, goals: RecurringGoal[], balances: Record<string, number>, investmentReturnPct: number): void {
   for (const goal of goals) {
     if (goal.mode === 'accumulate') {
+      if (year > goal.endYear) {
+        continue;
+      }
       const previous = balances[goal.id] ?? 0;
       const contribution = isGoalActive(goal, year) ? goal.monthlyAmount * 12 : 0;
       balances[goal.id] = previous * (1 + investmentReturnPct / 100) + contribution;
@@ -188,6 +232,11 @@ interface YearContext {
   nonHousingLiving: number;
   fixedHousing: number;
   inflatingHousingBase: number;
+  /** Live reference to runModel's goalBalances, mutated in place by advanceGoalBalances each year
+   *  after this year's figures are computed - so it always reflects the balance as of the *previous*
+   *  year when read here, which (thanks to the endYear freeze) is exactly a completed goal's frozen
+   *  ending balance from then on. */
+  goalBalances: Record<string, number>;
 }
 
 interface YearFigures {
@@ -196,11 +245,37 @@ interface YearFigures {
   livingCosts: number;
   kidsCost: number;
   housingCost: number;
+  purchaseCosts: number;
   goalContributions: Record<string, number>;
   totalExpenses: number;
   freeCash: number;
   grossSalary: number;
   partnerGrossSalary: number;
+}
+
+/** The current housing cost: a completed property purchase's estimated mortgage payment (fixed,
+ *  doesn't inflate - same treatment as the base P&I) replaces the base housing cost entirely once
+ *  it exists; otherwise the base cost applies as before. */
+function computeHousingCost(year: number, ctx: YearContext, inflationFactor: number): number {
+  const purchasedHome = activePropertyGoal(ctx.goals, year);
+  if (purchasedHome) {
+    const endingBalance = ctx.goalBalances[purchasedHome.id] ?? 0;
+    return propertyMortgagePayment(purchasedHome, endingBalance);
+  }
+  return ctx.fixedHousing + ctx.inflatingHousingBase * inflationFactor;
+}
+
+/** Monthly cost from every completed non-property purchase goal (e.g. a boat) - unlike a property
+ *  purchase's mortgage payment, this is a manual today's-dollars estimate, so it inflates like any
+ *  other living cost. */
+function computePurchaseCosts(year: number, goals: RecurringGoal[], inflationFactor: number): number {
+  let total = 0;
+  for (const goal of goals) {
+    if (goal.category !== 'property' && isPurchaseGoal(goal) && year > goal.endYear) {
+      total += (goal.postPurchaseMonthlyCost ?? 0) * inflationFactor;
+    }
+  }
+  return total;
 }
 
 function computeYearFigures(year: number, ctx: YearContext): YearFigures {
@@ -212,7 +287,8 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
   const livingCosts = ctx.nonHousingLiving * inflationFactor;
   const childCount = ctx.children.filter((child) => child.year <= year).length;
   const kidsCost = childCount * ctx.base.costPerKidMo * inflationFactor;
-  const housingCost = ctx.fixedHousing + ctx.inflatingHousingBase * inflationFactor;
+  const housingCost = computeHousingCost(year, ctx, inflationFactor);
+  const purchaseCosts = computePurchaseCosts(year, ctx.goals, inflationFactor);
 
   const goalContributions: Record<string, number> = {};
   let goalTotal = 0;
@@ -222,7 +298,7 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
     goalTotal += amount;
   }
 
-  const totalExpenses = livingCosts + kidsCost + housingCost;
+  const totalExpenses = livingCosts + kidsCost + housingCost + purchaseCosts;
   const freeCash = income - totalExpenses - goalTotal;
 
   return {
@@ -231,6 +307,7 @@ function computeYearFigures(year: number, ctx: YearContext): YearFigures {
     livingCosts,
     kidsCost,
     housingCost,
+    purchaseCosts,
     goalContributions,
     totalExpenses,
     freeCash,
@@ -309,6 +386,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
     nonHousingLiving,
     fixedHousing,
     inflatingHousingBase,
+    goalBalances,
   };
 
   // Year 0: today, before any growth or inflation - anchors the chart at your actual current
@@ -336,6 +414,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
         livingCosts: figures.livingCosts,
         kidsCost: figures.kidsCost,
         housingCost: figures.housingCost,
+        purchaseCosts: figures.purchaseCosts,
         totalExpenses: figures.totalExpenses,
         freeCash,
         goalContributions: figures.goalContributions,

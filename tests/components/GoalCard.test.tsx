@@ -16,8 +16,11 @@ const baseGoal: Goal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: false,
 };
 
+/** Expanded by default so the existing field-level tests below don't each need to click the
+ *  expand toggle first - the collapse/expand behavior itself is covered by its own describe block. */
 function renderCard(overrides: Partial<Parameters<typeof GoalCard>[0]> = {}) {
   return render(
     <GoalCard
@@ -25,6 +28,7 @@ function renderCard(overrides: Partial<Parameters<typeof GoalCard>[0]> = {}) {
       cashRemaining={1000}
       brokerageRemaining={1000}
       homeEquity={0}
+      defaultExpanded
       onUpdate={jest.fn()}
       onRemove={jest.fn()}
       {...overrides}
@@ -226,6 +230,115 @@ describe('GoalCard equity allocation', () => {
     await user.click(screen.getByRole('checkbox'));
 
     expect(onUpdate).toHaveBeenCalledWith('goal-1', { equityAllocated: true });
+  });
+});
+
+describe('GoalCard collapse/expand', () => {
+  it('is collapsed by default, showing only monthly amount and projected final value', () => {
+    render(
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} runningTotal={54000} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+    );
+
+    expect(screen.getByText('$200/mo')).toBeInTheDocument();
+    expect(screen.getByText('→ $54k')).toBeInTheDocument();
+    expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
+  });
+
+  it('shows no second figure when collapsed for a consume-mode goal (no balance)', () => {
+    render(
+      <GoalCard goal={{ ...baseGoal, mode: 'consume' }} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+    );
+
+    expect(screen.getByText('$200/mo')).toBeInTheDocument();
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument();
+  });
+
+  it('starts expanded when defaultExpanded is set (e.g. a just-added goal)', () => {
+    renderCard();
+    expect(screen.getByText('Target amount')).toBeInTheDocument();
+  });
+
+  it('toggles between collapsed and expanded on click, independent of defaultExpanded', async () => {
+    const user = userEvent.setup();
+    render(
+      <GoalCard goal={baseGoal} cashRemaining={0} brokerageRemaining={0} homeEquity={0} onUpdate={jest.fn()} onRemove={jest.fn()} />,
+    );
+
+    expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand Travel fund' }));
+    expect(screen.getByText('Target amount')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Collapse Travel fund' }));
+    expect(screen.queryByText('Target amount')).not.toBeInTheDocument();
+  });
+});
+
+describe('GoalCard property purchase fields', () => {
+  const propertyGoal: Goal = { ...baseGoal, category: 'property', isPurchase: true, purchasePriceK: 400, mortgageRatePct: 6 };
+
+  it('shows Total property price and Mortgage rate sliders only for a property goal', () => {
+    renderCard({ goal: propertyGoal });
+
+    expect(screen.getByText('Total property price')).toBeInTheDocument();
+    expect(screen.getByText('Mortgage rate')).toBeInTheDocument();
+  });
+
+  it('hides property fields for a non-property goal', () => {
+    renderCard({ goal: { ...baseGoal, category: 'other' } });
+
+    expect(screen.queryByText('Total property price')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mortgage rate')).not.toBeInTheDocument();
+  });
+
+  it('shows an estimated mortgage payment once a purchase price is set', () => {
+    renderCard({ goal: propertyGoal, runningTotal: 60000 });
+
+    // loanAmount = 400000 - 60000 = 340000 @ 6%/30yr
+    expect(screen.getByText(/Estimated mortgage payment/)).toBeInTheDocument();
+  });
+
+  it('does not show the "ends in a purchase" checkbox for a property goal - it is always a purchase', () => {
+    renderCard({ goal: propertyGoal });
+    expect(screen.queryByText('This ends in a purchase')).not.toBeInTheDocument();
+  });
+
+  it('calls onUpdate with purchasePriceK when the price slider changes', () => {
+    const onUpdate = jest.fn();
+    renderCard({ goal: propertyGoal, onUpdate });
+
+    const slider = screen.getByText('Total property price').parentElement?.querySelector('input[type="range"]') as HTMLInputElement;
+    fireSliderChange(slider, '500');
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { purchasePriceK: 500 });
+  });
+});
+
+describe('GoalCard generic purchase toggle', () => {
+  it('shows "This ends in a purchase" checkbox for a non-property accumulate goal', () => {
+    renderCard();
+    expect(screen.getByText('This ends in a purchase')).toBeInTheDocument();
+  });
+
+  it('hides it for a consume-mode goal', () => {
+    renderCard({ goal: { ...baseGoal, mode: 'consume' } });
+    expect(screen.queryByText('This ends in a purchase')).not.toBeInTheDocument();
+  });
+
+  it('shows the post-purchase monthly cost slider only when isPurchase is set', () => {
+    renderCard({ goal: { ...baseGoal, isPurchase: false } });
+    expect(screen.queryByText('Post-purchase monthly cost')).not.toBeInTheDocument();
+
+    renderCard({ goal: { ...baseGoal, isPurchase: true } });
+    expect(screen.getByText('Post-purchase monthly cost')).toBeInTheDocument();
+  });
+
+  it('calls onUpdate with isPurchase when the checkbox is toggled', async () => {
+    const user = userEvent.setup();
+    const onUpdate = jest.fn();
+    renderCard({ goal: { ...baseGoal, isPurchase: false }, onUpdate });
+
+    await user.click(screen.getByRole('checkbox', { name: 'This ends in a purchase' }));
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { isPurchase: true });
   });
 });
 

@@ -92,13 +92,14 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
       },
       {
         id: 'housingPaymentMo',
-        label: 'Housing payment',
+        label: 'Housing payment (current)',
         format: '$',
-        tooltip: 'Your current all-in monthly housing payment — rent, or mortgage P&I plus escrow.',
+        tooltip:
+          'Your current all-in monthly housing payment — rent, or mortgage P&I plus escrow. Automatically replaced by the estimated mortgage payment once a property-purchase goal completes.',
       },
       {
         id: 'housingPrincipalInterestMo',
-        label: '— of which P&I',
+        label: '— of which P&I (current)',
         format: '$',
         tooltip: 'The principal and interest slice of your mortgage payment. Fixed forever; the remainder is escrow, which inflates.',
         visibleIf: ownsHome,
@@ -117,16 +118,16 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
     fields: [
       {
         id: 'homeValueK',
-        label: 'Home value',
+        label: 'Home value (current)',
         format: 'k',
-        tooltip: 'Current market value of your home.',
+        tooltip: 'Current market value of your home. Reflects your current home only, not a future purchase.',
         visibleIf: ownsHome,
       },
       {
         id: 'mortgageBalanceK',
-        label: 'Mortgage balance',
+        label: 'Mortgage balance (current)',
         format: 'k',
-        tooltip: 'Remaining principal owed on your current mortgage.',
+        tooltip: 'Remaining principal owed on your current mortgage. Reflects your current home only, not a future purchase.',
         visibleIf: ownsHome,
       },
       {

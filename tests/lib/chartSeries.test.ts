@@ -23,6 +23,7 @@ const ACCUMULATE_GOAL: RecurringGoal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: false,
 };
 
 const CONSUME_GOAL: RecurringGoal = {
@@ -38,6 +39,7 @@ const CONSUME_GOAL: RecurringGoal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: false,
 };
 
 describe('chartToggleOptions', () => {

@@ -629,6 +629,22 @@ input[type='range']::-moz-range-thumb {
   box-shadow: none;
 }
 
+.goal-card__expand {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.goal-card__expand:hover:not(:disabled) {
+  color: var(--accent);
+  box-shadow: none;
+}
+
 .goal-card__remove {
   flex: none;
   width: 22px;
@@ -667,13 +683,37 @@ input[type='range']::-moz-range-thumb {
   color: var(--warning);
 }
 
-.goal-card__equity-toggle {
+.goal-card__toggle {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
   color: var(--text-secondary);
   margin-top: 10px;
+}
+
+.goal-card__summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.goal-card__summary-amount {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.goal-card__mortgage-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 10px;
+}
+
+.goal-card__mortgage-preview-value {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .goal-card__years {

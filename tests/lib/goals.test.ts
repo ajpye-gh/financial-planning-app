@@ -5,9 +5,10 @@ import {
   canAllocateEquity,
   enforceExclusiveEquity,
   generateGoalId,
+  isPurchaseGoal,
   isValidGoal,
   rebalanceAllocations,
-  sanitizeAllocations,
+  sanitizeGoal,
   type RecurringGoal,
 } from '@src/lib/goals';
 
@@ -31,31 +32,42 @@ describe('GOAL_CATALOG', () => {
     expect(entry).toBeUndefined();
   });
 
-  it('tags Emergency fund top-up as "emergency", Property purchase as "property", everything else "other"', () => {
+  it('offers two property entries - First home purchase and Move-up purchase (equity rollover)', () => {
+    const firstHome = GOAL_CATALOG.find((candidate) => candidate.label === 'First home purchase');
+    const moveUp = GOAL_CATALOG.find((candidate) => candidate.label === 'Move-up purchase (equity rollover)');
+    expect(firstHome).toBeDefined();
+    expect(moveUp).toBeDefined();
+
+    for (const entry of [firstHome, moveUp]) {
+      const goal = entry?.create(generateGoalId());
+      expect(goal?.mode).toBe('accumulate');
+      expect(goal?.category).toBe('property');
+      expect(goal?.isPurchase).toBe(true);
+      expect(goal?.purchasePriceK).toBeGreaterThan(0);
+      expect(goal?.mortgageRatePct).toBeGreaterThan(0);
+    }
+  });
+
+  it('tags Emergency fund top-up as "emergency", both property entries as "property", everything else "other"', () => {
     const categoryFor = (label: string) => GOAL_CATALOG.find((candidate) => candidate.label === label)?.create(generateGoalId()).category;
 
     expect(categoryFor('Emergency fund top-up')).toBe('emergency');
-    expect(categoryFor('Property purchase')).toBe('property');
+    expect(categoryFor('First home purchase')).toBe('property');
+    expect(categoryFor('Move-up purchase (equity rollover)')).toBe('property');
     expect(categoryFor('Travel')).toBe('other');
     expect(categoryFor('College savings')).toBe('other');
     expect(categoryFor('Custom savings goal')).toBe('other');
     expect(categoryFor('Custom spending goal')).toBe('other');
   });
 
-  it('starts every catalog entry with no asset allocation', () => {
+  it('starts every catalog entry with no asset allocation, and isPurchase only set for property', () => {
     for (const entry of GOAL_CATALOG) {
       const goal = entry.create(generateGoalId());
       expect(goal.cashAllocated).toBe(0);
       expect(goal.brokerageAllocated).toBe(0);
       expect(goal.equityAllocated).toBe(false);
+      expect(goal.isPurchase).toBe(goal.category === 'property');
     }
-  });
-
-  it('includes a Property purchase entry, in accumulate mode with category "property"', () => {
-    const entry = GOAL_CATALOG.find((candidate) => candidate.label === 'Property purchase');
-    const goal = entry?.create(generateGoalId());
-    expect(goal?.mode).toBe('accumulate');
-    expect(goal?.category).toBe('property');
   });
 });
 
@@ -84,6 +96,10 @@ describe('isValidGoal', () => {
     ['non-finite cashAllocated', { ...valid, cashAllocated: 'lots' }],
     ['negative brokerageAllocated', { ...valid, brokerageAllocated: -1 }],
     ['non-boolean equityAllocated', { ...valid, equityAllocated: 'yes' }],
+    ['non-boolean isPurchase', { ...valid, isPurchase: 'yes' }],
+    ['non-finite purchasePriceK', { ...valid, purchasePriceK: 'lots' }],
+    ['non-finite mortgageRatePct', { ...valid, mortgageRatePct: 'lots' }],
+    ['non-finite postPurchaseMonthlyCost', { ...valid, postPurchaseMonthlyCost: 'lots' }],
   ])('rejects %s', (_label, candidate) => {
     expect(isValidGoal(candidate)).toBe(false);
   });
@@ -115,7 +131,15 @@ describe('canAllocateEquity', () => {
   });
 });
 
-describe('sanitizeAllocations', () => {
+describe('isPurchaseGoal', () => {
+  it('requires accumulate mode and isPurchase', () => {
+    expect(isPurchaseGoal({ mode: 'accumulate', isPurchase: true })).toBe(true);
+    expect(isPurchaseGoal({ mode: 'accumulate', isPurchase: false })).toBe(false);
+    expect(isPurchaseGoal({ mode: 'consume', isPurchase: true })).toBe(false);
+  });
+});
+
+describe('sanitizeGoal', () => {
   const base: RecurringGoal = {
     kind: 'recurring',
     id: 'g1',
@@ -129,38 +153,71 @@ describe('sanitizeAllocations', () => {
     cashAllocated: 0,
     brokerageAllocated: 0,
     equityAllocated: false,
+    isPurchase: false,
   };
 
   it('zeroes brokerageAllocated on a retirement goal', () => {
-    const goal = sanitizeAllocations({ ...base, category: 'retirement', brokerageAllocated: 5000 });
+    const goal = sanitizeGoal({ ...base, category: 'retirement', brokerageAllocated: 5000 });
     expect(goal.brokerageAllocated).toBe(0);
   });
 
   it('zeroes cashAllocated on any non-emergency goal', () => {
-    const goal = sanitizeAllocations({ ...base, category: 'other', cashAllocated: 5000 });
+    const goal = sanitizeGoal({ ...base, category: 'other', cashAllocated: 5000 });
     expect(goal.cashAllocated).toBe(0);
   });
 
   it('zeroes equityAllocated on any non-property goal', () => {
-    const goal = sanitizeAllocations({ ...base, category: 'other', equityAllocated: true });
+    const goal = sanitizeGoal({ ...base, category: 'other', equityAllocated: true });
     expect(goal.equityAllocated).toBe(false);
   });
 
   it('zeroes both cash/brokerage allocations on a consume-mode goal', () => {
-    const goal = sanitizeAllocations({ ...base, mode: 'consume', category: 'emergency', cashAllocated: 500, brokerageAllocated: 500 });
+    const goal = sanitizeGoal({ ...base, mode: 'consume', category: 'emergency', cashAllocated: 500, brokerageAllocated: 500 });
     expect(goal.cashAllocated).toBe(0);
     expect(goal.brokerageAllocated).toBe(0);
   });
 
   it('leaves a permitted allocation untouched', () => {
-    const goal = sanitizeAllocations({ ...base, category: 'emergency', cashAllocated: 5000, brokerageAllocated: 3000 });
+    const goal = sanitizeGoal({ ...base, category: 'emergency', cashAllocated: 5000, brokerageAllocated: 3000 });
     expect(goal.cashAllocated).toBe(5000);
     expect(goal.brokerageAllocated).toBe(3000);
   });
 
   it('leaves equityAllocated untouched on a property goal', () => {
-    const goal = sanitizeAllocations({ ...base, category: 'property', equityAllocated: true });
+    const goal = sanitizeGoal({ ...base, category: 'property', equityAllocated: true });
     expect(goal.equityAllocated).toBe(true);
+  });
+
+  it('forces isPurchase true for a property goal, even if the input says otherwise', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', isPurchase: false });
+    expect(goal.isPurchase).toBe(true);
+  });
+
+  it('clears purchasePriceK/mortgageRatePct on a non-property goal', () => {
+    const goal = sanitizeGoal({ ...base, category: 'other', isPurchase: true, purchasePriceK: 400, mortgageRatePct: 6.5 });
+    expect(goal.purchasePriceK).toBeUndefined();
+    expect(goal.mortgageRatePct).toBeUndefined();
+  });
+
+  it('leaves purchasePriceK/mortgageRatePct untouched on a property goal', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', purchasePriceK: 400, mortgageRatePct: 6.5 });
+    expect(goal.purchasePriceK).toBe(400);
+    expect(goal.mortgageRatePct).toBe(6.5);
+  });
+
+  it('clears postPurchaseMonthlyCost when not a purchase', () => {
+    const goal = sanitizeGoal({ ...base, isPurchase: false, postPurchaseMonthlyCost: 200 });
+    expect(goal.postPurchaseMonthlyCost).toBeUndefined();
+  });
+
+  it('clears postPurchaseMonthlyCost on a property goal - it estimates cost from the mortgage fields instead', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', postPurchaseMonthlyCost: 200 });
+    expect(goal.postPurchaseMonthlyCost).toBeUndefined();
+  });
+
+  it('leaves postPurchaseMonthlyCost untouched on a non-property purchase goal', () => {
+    const goal = sanitizeGoal({ ...base, isPurchase: true, postPurchaseMonthlyCost: 200 });
+    expect(goal.postPurchaseMonthlyCost).toBe(200);
   });
 });
 
@@ -178,6 +235,7 @@ describe('enforceExclusiveEquity', () => {
     cashAllocated: 0,
     brokerageAllocated: 0,
     equityAllocated: true,
+    isPurchase: true,
   };
 
   it('clears equityAllocated on every other goal, leaving the target goal untouched', () => {
@@ -209,6 +267,7 @@ describe('rebalanceAllocations', () => {
     cashAllocated: 0,
     brokerageAllocated: 0,
     equityAllocated: false,
+    isPurchase: false,
   };
 
   it('leaves allocations untouched when the total still covers them', () => {

@@ -40,6 +40,9 @@ export function BreakdownTable({ snapshot, goals }: Readonly<BreakdownTableProps
           <Row label="Living costs, non-housing" value={formatCurrency(snapshot.livingCosts)} muted />
           <Row label="Children" value={formatCurrency(snapshot.kidsCost)} muted />
           <Row label="Housing" value={formatCurrency(snapshot.housingCost)} muted />
+          {snapshot.purchaseCosts > 0 && (
+            <Row label="Other purchase costs" value={formatCurrency(snapshot.purchaseCosts)} muted />
+          )}
           <Row label="Total expenses" value={formatCurrency(snapshot.totalExpenses)} />
           {goals.length > 0 && (
             <>

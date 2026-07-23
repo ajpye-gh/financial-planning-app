@@ -1,4 +1,4 @@
-import { runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
+import { monthlyMortgagePayment, runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
 import type { BaseInputs } from '@src/lib/baseData';
 import type { Child } from '@src/lib/children';
 import type { RecurringGoal } from '@src/lib/goals';
@@ -77,6 +77,7 @@ const TRAVEL_GOAL: RecurringGoal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: false,
 };
 
 const COLLEGE_GOAL: RecurringGoal = {
@@ -93,6 +94,7 @@ const COLLEGE_GOAL: RecurringGoal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: false,
 };
 
 const PROPERTY_GOAL: RecurringGoal = {
@@ -109,6 +111,26 @@ const PROPERTY_GOAL: RecurringGoal = {
   cashAllocated: 0,
   brokerageAllocated: 0,
   equityAllocated: false,
+  isPurchase: true,
+  purchasePriceK: 400,
+  mortgageRatePct: 6,
+};
+
+const BOAT_GOAL: RecurringGoal = {
+  kind: 'recurring',
+  id: 'boat',
+  name: 'Boat',
+  mode: 'accumulate',
+  category: 'other',
+  monthlyAmount: 200,
+  monthlyAmountRange: { min: 0, max: 2000, step: 50 },
+  startYear: 1,
+  endYear: 3,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
+  equityAllocated: false,
+  isPurchase: true,
+  postPurchaseMonthlyCost: 150,
 };
 
 describe('runModel', () => {
@@ -309,16 +331,16 @@ describe('runModel', () => {
       }
     });
 
-    it('keeps an accumulate-mode balance compounding after endYear with no new contributions', () => {
+    it('freezes an accumulate-mode balance entirely after endYear - no more growth, not just no more contributions', () => {
       const windowed: RecurringGoal = { ...COLLEGE_GOAL, startYear: 1, endYear: 3 };
       const result = run({ goals: [windowed] });
       const balances = result.chart.goalBalances.college;
 
-      // Balance still grows year-over-year after year 3 (investment return applied)... (index === year)
-      expect(balances[6]).toBeGreaterThan(balances[4]);
-      // ...but by ~the return rate (allowing a few dollars of rounding drift, since each year's
-      // balance is independently rounded before the next year's growth is applied to it).
-      expect(Math.abs(balances[6] - balances[5] * 1.06)).toBeLessThan(2);
+      // Every year past endYear 3 holds at exactly the year-3 balance - the goal is considered
+      // reached/realized at that point, not still sitting invested and compounding.
+      for (let year = 4; year <= 18; year++) {
+        expect(balances[year]).toBe(balances[3]);
+      }
     });
 
     it('holds an accumulate-mode balance at $0 before startYear', () => {
@@ -329,6 +351,78 @@ describe('runModel', () => {
       // Indices 0-5 are years 0-5, all before startYear 6.
       expect(balances.slice(0, 6)).toEqual([0, 0, 0, 0, 0, 0]);
       expect(balances[6]).toBeGreaterThan(0);
+    });
+  });
+
+  describe('monthlyMortgagePayment', () => {
+    it('matches a hand-verified standard amortization payment', () => {
+      // $300,000 loan, 6% annual (0.5%/mo), 30yr (360 payments):
+      // M = 300000 * 0.005 / (1 - 1.005^-360) ~= 1798.65
+      expect(monthlyMortgagePayment(300000, 6, 30)).toBeCloseTo(1798.65, 1);
+    });
+
+    it('splits the principal evenly across payments at a zero interest rate', () => {
+      expect(monthlyMortgagePayment(360000, 0, 30)).toBeCloseTo(1000, 6);
+    });
+
+    it('is $0 for a zero or negative loan amount (down payment covers the full price)', () => {
+      expect(monthlyMortgagePayment(0, 6, 30)).toBe(0);
+      expect(monthlyMortgagePayment(-5000, 6, 30)).toBe(0);
+    });
+  });
+
+  describe('housing cost replacement (a completed property purchase)', () => {
+    it('uses the base housing cost before the purchase completes', () => {
+      const result = run({ goals: [PROPERTY_GOAL], base: { ...BASE, inspectYear: 3 } });
+      // Year 3 <= endYear 18: purchase hasn't completed, base housing (1200 + 600*1.03^3) applies.
+      expect(result.snapshot.housingCost).toBeCloseTo(1200 + 600 * Math.pow(1.03, 3), 6);
+    });
+
+    it('replaces the base housing cost with the estimated mortgage payment once the purchase completes', () => {
+      const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2, monthlyAmount: 2000 };
+      const result = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
+
+      const downPayment = result.chart.goalBalances.property[2];
+      const expectedPayment = monthlyMortgagePayment(400000 - downPayment, 6, 30);
+      expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
+    });
+
+    it('does not inflate the post-purchase mortgage payment - same fixed-P&I treatment as base housing', () => {
+      const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2 };
+      const year5 = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
+      const year10 = run({ goals: [completed], base: { ...BASE, inspectYear: 10 } });
+
+      expect(year5.snapshot.housingCost).toBeCloseTo(year10.snapshot.housingCost, 6);
+    });
+
+    it('uses the most recently completed property goal when more than one has completed', () => {
+      const first: RecurringGoal = { ...PROPERTY_GOAL, id: 'first', startYear: 1, endYear: 2, purchasePriceK: 300 };
+      const second: RecurringGoal = { ...PROPERTY_GOAL, id: 'second', startYear: 3, endYear: 4, purchasePriceK: 600 };
+      const result = run({ goals: [first, second], base: { ...BASE, inspectYear: 6 } });
+
+      const secondDownPayment = result.chart.goalBalances.second[4];
+      const expectedPayment = monthlyMortgagePayment(600000 - secondDownPayment, 6, 30);
+      expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
+    });
+  });
+
+  describe('other purchase costs (non-property isPurchase goals)', () => {
+    it('adds nothing before the purchase completes', () => {
+      const result = run({ goals: [BOAT_GOAL], base: { ...BASE, inspectYear: 2 } });
+      expect(result.snapshot.purchaseCosts).toBe(0);
+    });
+
+    it('adds the manual monthly cost on top of expenses once completed, inflated from today', () => {
+      const result = run({ goals: [BOAT_GOAL], base: { ...BASE, inspectYear: 5 } });
+      expect(result.snapshot.purchaseCosts).toBeCloseTo(150 * Math.pow(1.03, 5), 6);
+    });
+
+    it('does not replace housing cost - additive, unlike a property purchase', () => {
+      const withBoat = run({ goals: [BOAT_GOAL], base: { ...BASE, inspectYear: 5 } });
+      const withoutBoat = run({ goals: [], base: { ...BASE, inspectYear: 5 } });
+
+      expect(withBoat.snapshot.housingCost).toBeCloseTo(withoutBoat.snapshot.housingCost, 6);
+      expect(withBoat.snapshot.totalExpenses).toBeGreaterThan(withoutBoat.snapshot.totalExpenses);
     });
   });
 

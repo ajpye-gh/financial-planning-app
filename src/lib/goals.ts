@@ -35,6 +35,28 @@ export interface RecurringGoal {
    *  `canAllocateEquity`), and only for one goal at a time - equity is a single real-world pool, so
    *  setting it on one goal clears it from every other (see `enforceExclusiveEquity`). */
   equityAllocated: boolean;
+  /** Whether this goal's balance gets "spent" on a purchase at endYear, producing an ongoing
+   *  monthly cost afterward (see model.ts's activePropertyGoal/isPurchaseGoal usage). Always `true`
+   *  for `category: 'property'` goals (a property goal is inherently a purchase - not user-toggled,
+   *  see `sanitizeGoal`); optional for any other accumulate goal (e.g. a boat). */
+  isPurchase: boolean;
+  /** Total purchase price, thousands - only meaningful for `category: 'property'`. Combined with the
+   *  goal's projected ending balance (the down payment) and `mortgageRatePct`, estimates the monthly
+   *  mortgage payment that replaces your base housing cost once the purchase completes. */
+  purchasePriceK?: number;
+  /** Only meaningful for `category: 'property'` - a per-goal assumption, not global, since a future
+   *  purchase's prevailing rate can differ from today's. Loan term is a fixed 30yr, not a field. */
+  mortgageRatePct?: number;
+  /** Manually-estimated ongoing monthly cost once the purchase completes - only meaningful when
+   *  `isPurchase && category !== 'property'` (property estimates its cost from the mortgage fields
+   *  above instead). Adds on top of expenses, unlike a property purchase which replaces housing cost. */
+  postPurchaseMonthlyCost?: number;
+}
+
+/** mode: 'accumulate' && isPurchase - the goal's balance is "spent" at endYear rather than staying
+ *  invested, producing an ongoing monthly cost from then on (see model.ts). */
+export function isPurchaseGoal(goal: Pick<RecurringGoal, 'mode' | 'isPurchase'>): boolean {
+  return goal.mode === 'accumulate' && goal.isPurchase;
 }
 
 export type Goal = RecurringGoal;
@@ -57,14 +79,24 @@ export function canAllocateEquity(goal: Pick<RecurringGoal, 'mode' | 'category'>
   return goal.mode === 'accumulate' && goal.category === 'property';
 }
 
-/** Zeroes out any allocation a goal's mode/category doesn't permit - e.g. brokerage assigned to a
- *  retirement goal, or either allocation on a consume-mode goal (no balance to seed). */
-export function sanitizeAllocations(goal: RecurringGoal): RecurringGoal {
+/** Zeroes out any allocation, or purchase field, a goal's mode/category doesn't permit - e.g.
+ *  brokerage assigned to a retirement goal, either allocation on a consume-mode goal (no balance to
+ *  seed), or a mortgage rate on a non-property goal. Also enforces that `isPurchase` is always `true`
+ *  for a property goal (inherently a purchase, not user-toggled) and clears the manual
+ *  postPurchaseMonthlyCost estimate for property goals (they estimate their cost from the mortgage
+ *  fields instead - see model.ts). */
+export function sanitizeGoal(goal: RecurringGoal): RecurringGoal {
+  const isProperty = goal.category === 'property';
+  const isPurchase = isProperty || goal.isPurchase;
   return {
     ...goal,
     cashAllocated: canAllocateCash(goal) ? goal.cashAllocated : 0,
     brokerageAllocated: canAllocateBrokerage(goal) ? goal.brokerageAllocated : 0,
     equityAllocated: canAllocateEquity(goal) ? goal.equityAllocated : false,
+    isPurchase,
+    purchasePriceK: isProperty ? goal.purchasePriceK : undefined,
+    mortgageRatePct: isProperty ? goal.mortgageRatePct : undefined,
+    postPurchaseMonthlyCost: isPurchase && !isProperty ? goal.postPurchaseMonthlyCost : undefined,
   };
 }
 
@@ -113,7 +145,11 @@ export interface GoalCatalogEntry {
 
 const DEFAULT_RANGE = { min: 0, max: 5000, step: 100 };
 const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
-const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false };
+const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false, isPurchase: false };
+// Property goals default to a realistic near-term purchase year instead of the full 18-year
+// horizon other catalog entries use - buying in "year 18" wouldn't exercise the post-purchase
+// housing-cost replacement in any reasonable demo/testing.
+const PROPERTY_HORIZON = { startYear: 1, endYear: 5 };
 
 // 'retirement' stays a valid GoalCategory (see above) even though it's no longer offered here -
 // retirement planning now lives on its own page (RetirementPage.tsx) - so an already-saved plan
@@ -149,18 +185,39 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
     }),
   },
   {
-    label: 'Property purchase',
+    label: 'First home purchase',
     create: (id) => ({
       kind: 'recurring',
       id,
-      name: 'Property purchase',
+      name: 'First home purchase',
+      mode: 'accumulate',
+      category: 'property',
+      monthlyAmount: 500,
+      monthlyAmountRange: { ...DEFAULT_RANGE },
+      targetAmount: 60000,
+      purchasePriceK: 300,
+      mortgageRatePct: 6.5,
+      ...PROPERTY_HORIZON,
+      ...NO_ALLOCATION,
+      isPurchase: true,
+    }),
+  },
+  {
+    label: 'Move-up purchase (equity rollover)',
+    create: (id) => ({
+      kind: 'recurring',
+      id,
+      name: 'Move-up purchase',
       mode: 'accumulate',
       category: 'property',
       monthlyAmount: 500,
       monthlyAmountRange: { ...DEFAULT_RANGE },
       targetAmount: 100000,
-      ...FULL_HORIZON,
+      purchasePriceK: 500,
+      mortgageRatePct: 6.5,
+      ...PROPERTY_HORIZON,
       ...NO_ALLOCATION,
+      isPurchase: true,
     }),
   },
   {
@@ -233,6 +290,29 @@ function isValidMonthlyAmountRange(value: unknown): boolean {
   );
 }
 
+/** cashAllocated/brokerageAllocated/equityAllocated - the one-time asset-allocation fields. */
+function isValidAllocationFields(goal: Record<string, unknown>): boolean {
+  return (
+    isValidAllocation(goal.cashAllocated) &&
+    isValidAllocation(goal.brokerageAllocated) &&
+    typeof goal.equityAllocated === 'boolean'
+  );
+}
+
+/** isPurchase and its optional property/manual-cost fields - see the RecurringGoal doc comments. */
+function isValidPurchaseFields(goal: Record<string, unknown>): boolean {
+  if (typeof goal.isPurchase !== 'boolean') {
+    return false;
+  }
+  if (goal.purchasePriceK !== undefined && !isFiniteNumber(goal.purchasePriceK)) {
+    return false;
+  }
+  if (goal.mortgageRatePct !== undefined && !isFiniteNumber(goal.mortgageRatePct)) {
+    return false;
+  }
+  return goal.postPurchaseMonthlyCost === undefined || isFiniteNumber(goal.postPurchaseMonthlyCost);
+}
+
 export function isValidGoal(value: unknown): value is Goal {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -256,10 +336,10 @@ export function isValidGoal(value: unknown): value is Goal {
   if (!isFiniteNumber(goal.monthlyAmount)) {
     return false;
   }
-  if (!isValidAllocation(goal.cashAllocated) || !isValidAllocation(goal.brokerageAllocated)) {
+  if (!isValidAllocationFields(goal)) {
     return false;
   }
-  if (typeof goal.equityAllocated !== 'boolean') {
+  if (!isValidPurchaseFields(goal)) {
     return false;
   }
   if (!isFiniteNumber(goal.startYear) || !isFiniteNumber(goal.endYear) || goal.startYear > goal.endYear) {

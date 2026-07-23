@@ -3,7 +3,7 @@ import type { Answers } from '../lib/questions';
 import type { BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
 import { generateChildId, isValidChild, nextChildYear, type Child } from '../lib/children';
-import { enforceExclusiveEquity, isValidGoal, rebalanceAllocations, sanitizeAllocations, type Goal } from '../lib/goals';
+import { enforceExclusiveEquity, isValidGoal, rebalanceAllocations, sanitizeGoal, type Goal } from '../lib/goals';
 import { freshPlan, isValidJobLossYear, type Plan } from '../lib/plans';
 import {
   applyRaiseUpdate,
@@ -131,7 +131,7 @@ export function useDraftState(): UseDraftStateResult {
 
   const updateGoal = useCallback((id: string, patch: Partial<Goal>) => {
     setDraft((prev) => {
-      let goals = prev.goals.map((goal) => (goal.id === id ? sanitizeAllocations({ ...goal, ...patch }) : goal));
+      let goals = prev.goals.map((goal) => (goal.id === id ? sanitizeGoal({ ...goal, ...patch }) : goal));
       if (patch.equityAllocated) {
         goals = enforceExclusiveEquity(goals, id);
       }
