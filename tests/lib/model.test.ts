@@ -1,4 +1,4 @@
-import { monthlyMortgagePayment, runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
+import { estimateMortgage, monthlyMortgagePayment, runModel, type IncomeStreamInputs, type ModelInputs } from '@src/lib/model';
 import type { BaseInputs } from '@src/lib/baseData';
 import type { Child } from '@src/lib/children';
 import type { RecurringGoal } from '@src/lib/goals';
@@ -371,6 +371,42 @@ describe('runModel', () => {
     });
   });
 
+  describe('estimateMortgage', () => {
+    it('uses the target amount as the down payment when one is set, ignoring the projected balance', () => {
+      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: 100000 };
+      const estimate = estimateMortgage(goal, 5000);
+
+      expect(estimate.purchasePrice).toBe(400000);
+      expect(estimate.downPayment).toBe(100000);
+      expect(estimate.loanAmount).toBe(300000);
+      expect(estimate.monthlyPayment).toBeCloseTo(monthlyMortgagePayment(300000, 6, 30), 6);
+    });
+
+    it('increasing the target amount lowers the loan amount and the monthly payment', () => {
+      const lowerTarget = estimateMortgage({ ...PROPERTY_GOAL, targetAmount: 50000 }, 0);
+      const higherTarget = estimateMortgage({ ...PROPERTY_GOAL, targetAmount: 150000 }, 0);
+
+      expect(higherTarget.loanAmount).toBeLessThan(lowerTarget.loanAmount);
+      expect(higherTarget.monthlyPayment).toBeLessThan(lowerTarget.monthlyPayment);
+    });
+
+    it('falls back to the projected balance when no target amount is set', () => {
+      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: undefined };
+      const estimate = estimateMortgage(goal, 75000);
+
+      expect(estimate.downPayment).toBe(75000);
+      expect(estimate.loanAmount).toBe(325000);
+    });
+
+    it('never lets the loan amount go negative when the down payment exceeds the purchase price', () => {
+      const goal: RecurringGoal = { ...PROPERTY_GOAL, targetAmount: 500000 };
+      const estimate = estimateMortgage(goal, 0);
+
+      expect(estimate.loanAmount).toBe(0);
+      expect(estimate.monthlyPayment).toBe(0);
+    });
+  });
+
   describe('housing cost replacement (a completed property purchase)', () => {
     it('uses the base housing cost before the purchase completes', () => {
       const result = run({ goals: [PROPERTY_GOAL], base: { ...BASE, inspectYear: 3 } });
@@ -378,8 +414,18 @@ describe('runModel', () => {
       expect(result.snapshot.housingCost).toBeCloseTo(1200 + 600 * Math.pow(1.03, 3), 6);
     });
 
-    it('replaces the base housing cost with the estimated mortgage payment once the purchase completes', () => {
+    it('replaces the base housing cost with the estimated mortgage payment once the purchase completes, using the target amount as the down payment', () => {
       const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2, monthlyAmount: 2000 };
+      const result = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
+
+      // PROPERTY_GOAL's targetAmount (100000) drives the estimate, not the actual projected balance -
+      // the goal is meant to be reached, so the mortgage assumes you hit your target.
+      const expectedPayment = monthlyMortgagePayment(400000 - 100000, 6, 30);
+      expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
+    });
+
+    it('falls back to the actual projected balance as the down payment when no target amount is set', () => {
+      const completed: RecurringGoal = { ...PROPERTY_GOAL, startYear: 1, endYear: 2, monthlyAmount: 2000, targetAmount: undefined };
       const result = run({ goals: [completed], base: { ...BASE, inspectYear: 5 } });
 
       const downPayment = result.chart.goalBalances.property[2];
@@ -400,8 +446,7 @@ describe('runModel', () => {
       const second: RecurringGoal = { ...PROPERTY_GOAL, id: 'second', startYear: 3, endYear: 4, purchasePriceK: 600 };
       const result = run({ goals: [first, second], base: { ...BASE, inspectYear: 6 } });
 
-      const secondDownPayment = result.chart.goalBalances.second[4];
-      const expectedPayment = monthlyMortgagePayment(600000 - secondDownPayment, 6, 30);
+      const expectedPayment = monthlyMortgagePayment(600000 - 100000, 6, 30);
       expect(result.snapshot.housingCost).toBeCloseTo(expectedPayment, 6);
     });
   });

@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GoalCard } from '@src/components/goals/GoalCard';
+import { formatCurrency } from '@src/lib/format';
+import { monthlyMortgagePayment } from '@src/lib/model';
 import type { Goal } from '@src/lib/goals';
 
 const baseGoal: Goal = {
@@ -328,11 +330,46 @@ describe('GoalCard property purchase fields', () => {
     expect(screen.queryByText('Mortgage rate')).not.toBeInTheDocument();
   });
 
-  it('shows an estimated mortgage payment once a purchase price is set', () => {
+  it('shows an estimated mortgage payment once a purchase price is set, falling back to the projected balance with no target set', () => {
     renderCard({ goal: propertyGoal, runningTotal: 60000 });
 
-    // loanAmount = 400000 - 60000 = 340000 @ 6%/30yr
+    // No targetAmount set on propertyGoal - falls back to runningTotal: loan = 400000 - 60000 = 340000 @ 6%/30yr.
     expect(screen.getByText(/Estimated mortgage payment/)).toBeInTheDocument();
+    expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(340000, 6, 30))}/mo`)).toBeInTheDocument();
+  });
+
+  it('uses the target amount, not the projected balance, as the down payment once a target is set', () => {
+    const { rerender } = renderCard({ goal: { ...propertyGoal, targetAmount: 40000 }, runningTotal: 60000 });
+    // targetAmount (40000) wins over runningTotal (60000): loan = 400000 - 40000 = 360000.
+    expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(360000, 6, 30))}/mo`)).toBeInTheDocument();
+
+    rerender(
+      <GoalCard
+        goal={{ ...propertyGoal, targetAmount: 100000 }}
+        cashRemaining={1000}
+        brokerageRemaining={1000}
+        homeEquity={0}
+        defaultExpanded
+        runningTotal={60000}
+        onUpdate={jest.fn()}
+        onRemove={jest.fn()}
+      />,
+    );
+    // Raising the target amount raises the down payment, lowering the loan and the payment.
+    expect(screen.getByText(`${formatCurrency(monthlyMortgagePayment(300000, 6, 30))}/mo`)).toBeInTheDocument();
+  });
+
+  it('shows a breakdown tooltip on the mortgage estimate', async () => {
+    const user = userEvent.setup();
+    renderCard({ goal: { ...propertyGoal, targetAmount: 40000 }, runningTotal: 60000 });
+
+    await user.hover(screen.getByText('Estimated mortgage payment'));
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('$400,000 price');
+    expect(tooltip).toHaveTextContent('$40,000 down payment');
+    expect(tooltip).toHaveTextContent('$360,000 loan');
+    expect(tooltip).toHaveTextContent('6.00%');
+    expect(tooltip).toHaveTextContent('30yr');
   });
 
   it('does not show the "ends in a purchase" checkbox for a property goal - it is always a purchase', () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HORIZON_YEARS, MORTGAGE_TERM_YEARS, monthlyMortgagePayment } from '../../lib/model';
+import { HORIZON_YEARS, MORTGAGE_TERM_YEARS, estimateMortgage, type MortgageEstimate } from '../../lib/model';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
 import { Tooltip } from '../Tooltip';
@@ -35,6 +35,11 @@ function cardClassName(isExpanded: boolean): string {
   return isExpanded ? 'goal-card' : 'goal-card goal-card--collapsed';
 }
 
+/** Only property goals get a mortgage estimate. */
+function mortgageEstimateFor(goal: Goal, runningTotal: number | undefined): MortgageEstimate | null {
+  return goal.category === 'property' ? estimateMortgage(goal, runningTotal ?? 0) : null;
+}
+
 export function GoalCard({
   goal,
   runningTotal,
@@ -51,6 +56,7 @@ export function GoalCard({
 
   const clampYear = (value: number) => Math.min(Math.max(Math.round(value), 1), HORIZON_YEARS);
   const isProperty = goal.category === 'property';
+  const mortgageEstimate = mortgageEstimateFor(goal, runningTotal);
 
   const startEditingName = () => {
     setDraftName(goal.name);
@@ -243,19 +249,15 @@ export function GoalCard({
                   <span className="slider-field__value">{(goal.mortgageRatePct ?? 0).toFixed(2)}%</span>
                 </div>
               </div>
-              {(goal.purchasePriceK ?? 0) > 0 && (
+              {mortgageEstimate && mortgageEstimate.purchasePrice > 0 && (
                 <div className="goal-card__mortgage-preview">
-                  Estimated mortgage payment:{' '}
-                  <span className="goal-card__mortgage-preview-value">
-                    {formatCurrency(
-                      monthlyMortgagePayment(
-                        (goal.purchasePriceK ?? 0) * 1000 - (runningTotal ?? 0),
-                        goal.mortgageRatePct ?? 0,
-                        MORTGAGE_TERM_YEARS,
-                      ),
-                    )}
-                    /mo
-                  </span>
+                  <Tooltip
+                    tip={`${formatCurrency(mortgageEstimate.purchasePrice)} price − ${formatCurrency(mortgageEstimate.downPayment)} down payment = ${formatCurrency(mortgageEstimate.loanAmount)} loan, amortized at ${(goal.mortgageRatePct ?? 0).toFixed(2)}% over ${MORTGAGE_TERM_YEARS}yr.`}
+                  >
+                    Estimated mortgage payment
+                  </Tooltip>
+                  :{' '}
+                  <span className="goal-card__mortgage-preview-value">{formatCurrency(mortgageEstimate.monthlyPayment)}/mo</span>
                 </div>
               )}
             </>

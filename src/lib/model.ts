@@ -180,11 +180,25 @@ function activePropertyGoal(goals: RecurringGoal[], year: number): RecurringGoal
     .sort((a, b) => b.endYear - a.endYear)[0];
 }
 
-/** The monthly mortgage payment for a completed property purchase: loan = purchase price minus the
- *  goal's projected ending balance (the down payment, frozen at endYear - see advanceGoalBalances). */
-function propertyMortgagePayment(goal: RecurringGoal, endingBalance: number): number {
-  const loanAmount = Math.max(0, (goal.purchasePriceK ?? 0) * 1000 - endingBalance);
-  return monthlyMortgagePayment(loanAmount, goal.mortgageRatePct ?? 0, MORTGAGE_TERM_YEARS);
+export interface MortgageEstimate {
+  purchasePrice: number;
+  downPayment: number;
+  loanAmount: number;
+  monthlyPayment: number;
+}
+
+/** Estimates a property goal's mortgage: down payment is the goal's target amount when set - the
+ *  whole point of the goal is to reach that target and then buy, so the estimate (and the actual
+ *  housing-cost replacement below) assume you hit it, same as the goal's own "Balance: $X / $Y
+ *  target" framing already does. Falls back to `projectedBalance` (the goal's actual accumulated/
+ *  frozen balance) only when no target is set. Shared by the live GoalCard preview and the real
+ *  housing-cost-replacement computation so the two can never disagree. */
+export function estimateMortgage(goal: RecurringGoal, projectedBalance: number): MortgageEstimate {
+  const downPayment = goal.targetAmount ?? projectedBalance;
+  const purchasePrice = (goal.purchasePriceK ?? 0) * 1000;
+  const loanAmount = Math.max(0, purchasePrice - downPayment);
+  const monthlyPayment = monthlyMortgagePayment(loanAmount, goal.mortgageRatePct ?? 0, MORTGAGE_TERM_YEARS);
+  return { purchasePrice, downPayment, loanAmount, monthlyPayment };
 }
 
 /** Mutates `balances` in place. Before startYear, a goal's seed balance still compounds (money
@@ -260,7 +274,7 @@ function computeHousingCost(year: number, ctx: YearContext, inflationFactor: num
   const purchasedHome = activePropertyGoal(ctx.goals, year);
   if (purchasedHome) {
     const endingBalance = ctx.goalBalances[purchasedHome.id] ?? 0;
-    return propertyMortgagePayment(purchasedHome, endingBalance);
+    return estimateMortgage(purchasedHome, endingBalance).monthlyPayment;
   }
   return ctx.fixedHousing + ctx.inflatingHousingBase * inflationFactor;
 }
