@@ -1,4 +1,5 @@
 import { useState, type MouseEvent } from 'react';
+import { Tooltip } from '../Tooltip';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import type { RetirementProjection } from '../../lib/retirement';
 
@@ -210,7 +211,17 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
           <span className="cashflow-chart__swatch cashflow-chart__swatch--unallocated" /> Traditional
         </span>
         <span className="cashflow-chart__legend-item">
-          <span className="cashflow-chart__swatch cashflow-chart__swatch--cash" /> Income tax
+          <span className="cashflow-chart__swatch cashflow-chart__swatch--cash" />
+          <Tooltip
+            tip={
+              'Climbs even at a fixed withdrawal rate, for two compounding reasons: the withdrawal amount itself grows ' +
+              'with inflation every year after the first (the "4% rule" pattern - see the Withdrawal rate tooltips), and ' +
+              'the IRS thresholds that decide how much Social Security is taxable are fixed in nominal dollars, so a ' +
+              'growing share of it becomes taxable purely from nominal income growth.'
+            }
+          >
+            Income tax
+          </Tooltip>
         </span>
       </div>
     </div>

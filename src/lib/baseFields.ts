@@ -211,7 +211,7 @@ export const RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   label: 'Withdrawal rate',
   format: '%',
   tooltip:
-    'Share of your projected Roth balance you draw down each year in retirement (the "4% rule" is the common default). A rule-of-thumb estimate, not a full drawdown simulation.',
+    'Share of your projected Roth balance withdrawn in your first year of retirement (the "4% rule" is the common default). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - so the withdrawal keeps climbing in nominal terms even at a fixed rate. A rule-of-thumb estimate, not a full drawdown simulation.',
 };
 
 export const RETIREMENT_TRADITIONAL_SAVINGS_FIELD: BaseFieldMeta = {
@@ -233,7 +233,7 @@ export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   label: 'Withdrawal rate',
   format: '%',
   tooltip:
-    'Share of your projected Traditional balance you draw down each year in retirement. Taxed as ordinary income - see the income breakdown table below the chart.',
+    'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance. Taxed as ordinary income - see the income breakdown table below the chart.',
 };
 
 export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
@@ -241,7 +241,7 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
   label: 'Social Security benefit',
   format: '$',
   tooltip:
-    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - see the estimated income tooltip.",
+    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart.",
 };
 
 /** Rendered on the Retirement page's own sidebar - ages, rather than a raw year offset, are what

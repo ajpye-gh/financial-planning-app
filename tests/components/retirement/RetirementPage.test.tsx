@@ -157,6 +157,16 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Federal tax')).toBeInTheDocument();
   });
 
+  it('explains on hover why the income-tax line climbs even at a fixed withdrawal rate', async () => {
+    const user = userEvent.setup();
+    renderRetirementPage();
+
+    await user.hover(screen.getByText('Income tax'));
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('grows with inflation');
+    expect(tooltip).toHaveTextContent('fixed in nominal dollars');
+  });
+
   it('renders an Inspect age slider separate from Target age, and calls onChange when dragged', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
