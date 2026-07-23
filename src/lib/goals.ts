@@ -215,11 +215,11 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
     }),
   },
   {
-    label: 'Emergency fund top-up',
+    label: 'Emergency fund',
     create: (id) => ({
       kind: 'recurring',
       id,
-      name: 'Emergency fund top-up',
+      name: 'Emergency fund',
       mode: 'accumulate',
       category: 'emergency',
       monthlyAmount: 200,

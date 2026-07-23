@@ -53,10 +53,10 @@ describe('GOAL_CATALOG', () => {
     }
   });
 
-  it('tags Emergency fund top-up as "emergency", both property entries as "property", everything else "other"', () => {
+  it('tags Emergency fund as "emergency", both property entries as "property", everything else "other"', () => {
     const categoryFor = (label: string) => GOAL_CATALOG.find((candidate) => candidate.label === label)?.create(generateGoalId()).category;
 
-    expect(categoryFor('Emergency fund top-up')).toBe('emergency');
+    expect(categoryFor('Emergency fund')).toBe('emergency');
     expect(categoryFor('First home purchase')).toBe('property');
     expect(categoryFor('Move-up purchase (equity rollover)')).toBe('property');
     expect(categoryFor('College savings')).toBe('other');

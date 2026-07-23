@@ -253,7 +253,7 @@ describe('runModel', () => {
     });
   });
 
-  describe('unallocated pool (no reserve-target top-up - see goals.ts "Emergency fund top-up" for that now)', () => {
+  describe('unallocated pool (no reserve-target - see goals.ts "Emergency fund" for that now)', () => {
     it('grows unallocated savings by exactly free cash * 12, with cash today left untouched', () => {
       const result = run({
         goals: [],

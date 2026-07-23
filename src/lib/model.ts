@@ -130,7 +130,7 @@ interface UnallocatedPool {
 }
 
 /** All free cash invests into brokerage; a dedicated reserve/emergency-fund target is just an
- *  `accumulate`-mode goal now (see goals.ts's "Emergency fund top-up" catalog entry), not a base
+ *  `accumulate`-mode goal now (see goals.ts's "Emergency fund" catalog entry), not a base
  *  mechanic. Cash today only moves if brokerage runs dry, as a last-resort draw-down. */
 function advanceUnallocatedPool(pool: UnallocatedPool, freeCash: number, investmentReturnPct: number): void {
   pool.brokerage = pool.brokerage * (1 + investmentReturnPct / 100) + freeCash * 12;
