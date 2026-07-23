@@ -21,6 +21,26 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Target year')).toBeInTheDocument();
   });
 
+  it('renders the shared Assumptions group (inflation, investment return) in the sidebar', () => {
+    render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={jest.fn()} />);
+
+    expect(screen.getByRole('button', { name: /Assumptions/ })).toBeInTheDocument();
+    expect(screen.getByText('Inflation')).toBeInTheDocument();
+    expect(screen.getByText('Investment return')).toBeInTheDocument();
+  });
+
+  it('calls onChange with the field id when the investment-return slider (shared with the primary page) changes', () => {
+    const onChange = jest.fn();
+    render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={onChange} />);
+
+    const slider = screen.getByLabelText('Investment return') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(slider, '8');
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledWith('investmentReturnPct', 8);
+  });
+
   it('calls onChange with the field id when a slider is dragged', () => {
     const onChange = jest.fn();
     render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={onChange} />);

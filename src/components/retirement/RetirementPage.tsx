@@ -1,16 +1,29 @@
 import { useMemo } from 'react';
+import { ControlGroup } from '../controls/ControlGroup';
 import { SliderField } from '../controls/SliderField';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
+  BASE_FIELD_GROUPS,
   RETIREMENT_CONTRIBUTION_FIELD,
   RETIREMENT_SAVINGS_FIELD,
   RETIREMENT_TARGET_YEAR_FIELD,
   type BaseFieldId,
+  type BaseFieldGroup,
 } from '../../lib/baseFields';
 import { formatCurrencyCompact } from '../../lib/format';
 import { projectRetirementBalance } from '../../lib/retirement';
+
+const RETIREMENT_GROUP: BaseFieldGroup = {
+  title: 'Retirement',
+  fields: [RETIREMENT_SAVINGS_FIELD, RETIREMENT_CONTRIBUTION_FIELD],
+};
+
+// Same "Assumptions" group (inflation, investment return) the primary page's sidebar renders -
+// shown here too so it's editable in place, not just silently used by the projection. It's the
+// same shared baseInputs either way, so a change here is a change on the primary page too.
+const ASSUMPTIONS_GROUP = BASE_FIELD_GROUPS.find((group) => group.title === 'Assumptions');
 
 interface RetirementPageProps {
   baseInputs: BaseInputs;
@@ -19,8 +32,7 @@ interface RetirementPageProps {
 }
 
 /** Same shape as the primary page (App.tsx): sidebar on the left for inputs, chart on the right for
- *  results. Investment return (and any other assumption) is read straight from `baseInputs`, shared
- *  with the primary page - carried over automatically, nothing to duplicate here. */
+ *  results. */
 export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<RetirementPageProps>) {
   const projection = useMemo(
     () =>
@@ -45,18 +57,8 @@ export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<Retire
     <div className="app-shell">
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
-          <SliderField
-            meta={RETIREMENT_SAVINGS_FIELD}
-            range={ranges.retirementSavingsTodayK}
-            value={baseInputs.retirementSavingsTodayK}
-            onChange={onChange}
-          />
-          <SliderField
-            meta={RETIREMENT_CONTRIBUTION_FIELD}
-            range={ranges.retirementContributionMo}
-            value={baseInputs.retirementContributionMo}
-            onChange={onChange}
-          />
+          <ControlGroup group={RETIREMENT_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
+          {ASSUMPTIONS_GROUP && <ControlGroup group={ASSUMPTIONS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />}
         </div>
       </aside>
 
