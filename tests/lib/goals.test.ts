@@ -26,17 +26,16 @@ describe('GOAL_CATALOG', () => {
     }
   });
 
-  it('includes a Retirement savings entry, in accumulate mode', () => {
+  it('does not offer a Retirement savings entry - retirement planning has its own page now', () => {
     const entry = GOAL_CATALOG.find((candidate) => candidate.label === 'Retirement savings');
-    expect(entry).toBeDefined();
-    expect(entry?.create(generateGoalId()).mode).toBe('accumulate');
+    expect(entry).toBeUndefined();
   });
 
-  it('tags Retirement savings as category "retirement", Emergency fund top-up as "emergency", everything else "other"', () => {
+  it('tags Emergency fund top-up as "emergency", Property purchase as "property", everything else "other"', () => {
     const categoryFor = (label: string) => GOAL_CATALOG.find((candidate) => candidate.label === label)?.create(generateGoalId()).category;
 
-    expect(categoryFor('Retirement savings')).toBe('retirement');
     expect(categoryFor('Emergency fund top-up')).toBe('emergency');
+    expect(categoryFor('Property purchase')).toBe('property');
     expect(categoryFor('Travel')).toBe('other');
     expect(categoryFor('College savings')).toBe('other');
     expect(categoryFor('Custom savings goal')).toBe('other');

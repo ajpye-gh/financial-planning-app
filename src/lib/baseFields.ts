@@ -18,7 +18,10 @@ export type BaseFieldId =
   | 'costPerKidMo'
   | 'inflationPct'
   | 'investmentReturnPct'
-  | 'inspectYear';
+  | 'inspectYear'
+  | 'retirementSavingsTodayK'
+  | 'retirementContributionMo'
+  | 'retirementTargetYear';
 
 export interface BaseFieldMeta {
   id: BaseFieldId;
@@ -50,7 +53,7 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         label: 'Net keep rate',
         format: '%',
         tooltip:
-          "Share of your gross salary you keep after tax and benefits - applied to your whole salary, today and every future raise. Retirement contributions aren't included here; add them as a Retirement savings goal instead. Your derived net income /mo is shown alongside; adjust the slider until it matches your real take-home pay.",
+          "Share of your gross salary you keep after tax and benefits - applied to your whole salary, today and every future raise. Retirement contributions aren't included here; track them on the Retirement page instead. Your derived net income /mo is shown alongside; adjust the slider until it matches your real take-home pay.",
       },
     ],
   },
@@ -167,9 +170,37 @@ export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
   tooltip: 'Which year the detail table below shows.',
 };
 
+/** Rendered on the Retirement page's own sidebar/chart, not the primary page's ControlsPanel -
+ *  same reasoning as INSPECT_YEAR_FIELD above, just a different page. Investment return and other
+ *  assumptions used in the retirement projection are read straight from BASE_FIELD_GROUPS's
+ *  Assumptions group instead of being duplicated here. */
+export const RETIREMENT_SAVINGS_FIELD: BaseFieldMeta = {
+  id: 'retirementSavingsTodayK',
+  label: 'Current retirement savings',
+  format: 'k',
+  tooltip: 'Your current retirement account balance(s) today.',
+};
+
+export const RETIREMENT_CONTRIBUTION_FIELD: BaseFieldMeta = {
+  id: 'retirementContributionMo',
+  label: 'Monthly contribution',
+  format: '$',
+  tooltip: 'How much you contribute to retirement accounts each month.',
+};
+
+export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
+  id: 'retirementTargetYear',
+  label: 'Target year',
+  format: 'yr',
+  tooltip: 'Year you plan to retire by, counted from today (Y0).',
+};
+
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
+  RETIREMENT_SAVINGS_FIELD.id,
+  RETIREMENT_CONTRIBUTION_FIELD.id,
+  RETIREMENT_TARGET_YEAR_FIELD.id,
 ];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */

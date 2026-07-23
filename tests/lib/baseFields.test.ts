@@ -1,4 +1,11 @@
-import { ALL_BASE_FIELD_IDS, INSPECT_YEAR_FIELD, visibleBaseFieldGroups } from '@src/lib/baseFields';
+import {
+  ALL_BASE_FIELD_IDS,
+  INSPECT_YEAR_FIELD,
+  RETIREMENT_CONTRIBUTION_FIELD,
+  RETIREMENT_SAVINGS_FIELD,
+  RETIREMENT_TARGET_YEAR_FIELD,
+  visibleBaseFieldGroups,
+} from '@src/lib/baseFields';
 
 function fieldIdsIn(title: string, groups: ReturnType<typeof visibleBaseFieldGroups>): string[] {
   return groups.find((group) => group.title === title)?.fields.map((field) => field.id) ?? [];
@@ -52,5 +59,15 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIds).not.toContain('inspectYear');
     expect(INSPECT_YEAR_FIELD.id).toBe('inspectYear');
     expect(ALL_BASE_FIELD_IDS).toContain('inspectYear');
+  });
+
+  it('does not render the retirement fields in any primary-page sidebar group - they belong to the Retirement page instead', () => {
+    const fieldIds = visibleBaseFieldGroups({}).flatMap((group) => group.fields.map((field) => field.id));
+    expect(fieldIds).not.toContain('retirementSavingsTodayK');
+    expect(fieldIds).not.toContain('retirementContributionMo');
+    expect(fieldIds).not.toContain('retirementTargetYear');
+    expect(ALL_BASE_FIELD_IDS).toEqual(
+      expect.arrayContaining([RETIREMENT_SAVINGS_FIELD.id, RETIREMENT_CONTRIBUTION_FIELD.id, RETIREMENT_TARGET_YEAR_FIELD.id]),
+    );
   });
 });

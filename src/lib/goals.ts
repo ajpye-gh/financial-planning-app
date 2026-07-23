@@ -115,21 +115,10 @@ const DEFAULT_RANGE = { min: 0, max: 5000, step: 100 };
 const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
 const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false };
 
+// 'retirement' stays a valid GoalCategory (see above) even though it's no longer offered here -
+// retirement planning now lives on its own page (RetirementPage.tsx) - so an already-saved plan
+// with an old retirement goal still loads and validates correctly.
 export const GOAL_CATALOG: GoalCatalogEntry[] = [
-  {
-    label: 'Retirement savings',
-    create: (id) => ({
-      kind: 'recurring',
-      id,
-      name: 'Retirement savings',
-      mode: 'accumulate',
-      category: 'retirement',
-      monthlyAmount: 1000,
-      monthlyAmountRange: { ...DEFAULT_RANGE },
-      ...FULL_HORIZON,
-      ...NO_ALLOCATION,
-    }),
-  },
   {
     label: 'Travel',
     create: (id) => ({

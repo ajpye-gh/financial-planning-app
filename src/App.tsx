@@ -5,6 +5,7 @@ import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRa
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
 import { PlanControls } from './components/PlanControls';
+import { RetirementPage } from './components/retirement/RetirementPage';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
 import { MetricCards, type Metric } from './components/results/MetricCards';
@@ -18,9 +19,12 @@ import { runModel, type IncomeStreamInputs } from './lib/model';
 import { chartToggleOptions, primarySeriesFor, type ChartSeriesId } from './lib/chartSeries';
 import { formatCurrency, formatCurrencyCompact } from './lib/format';
 
+type PageTab = 'primary' | 'retirement';
+
 function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
+  const [activeTab, setActiveTab] = useState<PageTab>('primary');
 
   const primaryIncomeControls: SalaryRaiseBreakpointsProps = {
     breakpoints: draft.salaryRaises,
@@ -133,49 +137,70 @@ function App() {
         trade off against your free cash.
       </p>
 
-      <div className="app-shell">
-        <aside className="app-shell__sidebar">
-          <ControlsPanel
-            answers={draft.answers}
-            onAnswer={draft.setAnswer}
-            ranges={DEFAULT_BASE_RANGES}
-            values={draft.baseInputs}
-            onChange={draft.setBaseInput}
-            primaryIncomeControls={primaryIncomeControls}
-            partnerIncomeControls={partnerIncomeControls}
-            childrenControls={childrenControls}
-          />
-        </aside>
+      <nav className="page-tabs">
+        <button
+          type="button"
+          className={activeTab === 'primary' ? 'page-tabs__item page-tabs__item--active' : 'page-tabs__item'}
+          onClick={() => setActiveTab('primary')}
+        >
+          Primary
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'retirement' ? 'page-tabs__item page-tabs__item--active' : 'page-tabs__item'}
+          onClick={() => setActiveTab('retirement')}
+        >
+          Retirement
+        </button>
+      </nav>
 
-        <div className="app-shell__main">
-          <div className="page__section-title">Goals</div>
-          <GoalsPanel
-            goals={draft.goals}
-            runningTotals={runningTotals}
-            cashRemaining={cashRemaining}
-            brokerageRemaining={brokerageRemaining}
-            homeEquity={homeEquity}
-            onAdd={draft.addGoal}
-            onRemove={draft.removeGoal}
-            onUpdate={draft.updateGoal}
-          />
-
-          <div className="page__section-title">Results</div>
-          <VerdictBanner verdict={result.verdict} />
-          <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
-          <CashflowChart chart={result.chart} primary={primary} />
-          <div className="inspect-year-control">
-            <SliderField
-              meta={INSPECT_YEAR_FIELD}
-              range={DEFAULT_BASE_RANGES.inspectYear}
-              value={draft.baseInputs.inspectYear}
+      {activeTab === 'primary' ? (
+        <div className="app-shell">
+          <aside className="app-shell__sidebar">
+            <ControlsPanel
+              answers={draft.answers}
+              onAnswer={draft.setAnswer}
+              ranges={DEFAULT_BASE_RANGES}
+              values={draft.baseInputs}
               onChange={draft.setBaseInput}
+              primaryIncomeControls={primaryIncomeControls}
+              partnerIncomeControls={partnerIncomeControls}
+              childrenControls={childrenControls}
             />
+          </aside>
+
+          <div className="app-shell__main">
+            <div className="page__section-title">Goals</div>
+            <GoalsPanel
+              goals={draft.goals}
+              runningTotals={runningTotals}
+              cashRemaining={cashRemaining}
+              brokerageRemaining={brokerageRemaining}
+              homeEquity={homeEquity}
+              onAdd={draft.addGoal}
+              onRemove={draft.removeGoal}
+              onUpdate={draft.updateGoal}
+            />
+
+            <div className="page__section-title">Results</div>
+            <VerdictBanner verdict={result.verdict} />
+            <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
+            <CashflowChart chart={result.chart} primary={primary} />
+            <div className="inspect-year-control">
+              <SliderField
+                meta={INSPECT_YEAR_FIELD}
+                range={DEFAULT_BASE_RANGES.inspectYear}
+                value={draft.baseInputs.inspectYear}
+                onChange={draft.setBaseInput}
+              />
+            </div>
+            <MetricCards metrics={metrics} />
+            <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
           </div>
-          <MetricCards metrics={metrics} />
-          <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
         </div>
-      </div>
+      ) : (
+        <RetirementPage baseInputs={draft.baseInputs} ranges={DEFAULT_BASE_RANGES} onChange={draft.setBaseInput} />
+      )}
     </main>
   );
 }
