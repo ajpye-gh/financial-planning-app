@@ -993,6 +993,17 @@ input[type='range']::-moz-range-thumb {
   fill: none;
 }
 
+.cashflow-chart__retirement-marker {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.cashflow-chart__retirement-marker-label {
+  fill: var(--accent);
+  font-size: 11px;
+}
+
 .cashflow-chart__line--zero-cash {
   stroke: var(--danger);
   stroke-width: 1;

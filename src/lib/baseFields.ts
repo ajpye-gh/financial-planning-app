@@ -203,7 +203,7 @@ export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
   id: 'retirementTargetYear',
   label: 'Target year',
   format: 'yr',
-  tooltip: 'Year you plan to retire by, counted from today (Y0).',
+  tooltip: "Year you plan to retire by, counted from today (Y0) - set to 0 if you're already retired, to see the drawdown starting now.",
 };
 
 export const RETIREMENT_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {

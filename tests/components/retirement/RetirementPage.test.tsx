@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { RetirementPage } from '@src/components/retirement/RetirementPage';
 import { DEFAULT_BASE_RANGES, baseDefaults } from '@src/lib/baseData';
-import { estimateRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
+import { buildRetirementVerdict, estimateRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
 import { formatCurrency, formatCurrencyCompact } from '@src/lib/format';
 
 const BASE_INPUTS = {
@@ -68,11 +68,12 @@ describe('RetirementPage', () => {
     expect(onChange).toHaveBeenCalledWith('retirementTargetYear', 25);
   });
 
-  it('shows the projected balance at the target year, matching projectRetirementBalance', () => {
+  it('shows the projected balance AT RETIREMENT (not the end of the drawdown chart), matching projectRetirementBalance', () => {
     const { container } = render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={jest.fn()} />);
 
-    const projection = projectRetirementBalance(100000, 1000, 6, 20);
-    const expected = formatCurrencyCompact(projection.balances.at(-1) ?? 0);
+    const projection = projectRetirementBalance(100000, 1000, 6, 20, 4, 3);
+    const balanceAtRetirement = projection.balances[projection.retirementYearIndex];
+    const expected = formatCurrencyCompact(balanceAtRetirement);
 
     expect(screen.getByText('Projected balance, year 20')).toBeInTheDocument();
     expect(container.querySelector('.metric-card__value')).toHaveTextContent(expected);
@@ -81,13 +82,36 @@ describe('RetirementPage', () => {
   it("shows estimated retirement income, nominal and in today's dollars, matching estimateRetirementIncome", () => {
     render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={jest.fn()} />);
 
-    const projection = projectRetirementBalance(100000, 1000, 6, 20);
-    const income = estimateRetirementIncome(projection.balances.at(-1) ?? 0, 4, 3, 20);
+    const projection = projectRetirementBalance(100000, 1000, 6, 20, 4, 3);
+    const balanceAtRetirement = projection.balances[projection.retirementYearIndex];
+    const income = estimateRetirementIncome(balanceAtRetirement, 4, 3, 20);
 
     expect(screen.getByText('Estimated income, year 20')).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.monthlyIncomeNominal)}/mo`)).toBeInTheDocument();
 
     expect(screen.getByText("— in today's dollars")).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.monthlyIncomeReal)}/mo`)).toBeInTheDocument();
+  });
+
+  it('shows a verdict banner reflecting whether the savings last, matching buildRetirementVerdict', () => {
+    render(<RetirementPage baseInputs={BASE_INPUTS} ranges={DEFAULT_BASE_RANGES} onChange={jest.fn()} />);
+
+    const projection = projectRetirementBalance(100000, 1000, 6, 20, 4, 3);
+    const verdict = buildRetirementVerdict(projection);
+
+    expect(screen.getByText(verdict.headline)).toBeInTheDocument();
+    expect(document.querySelector(`.verdict-banner--${verdict.tone}`)).toBeInTheDocument();
+  });
+
+  it('shows a danger verdict when the retirement drawdown depletes the balance', () => {
+    render(
+      <RetirementPage
+        baseInputs={{ ...BASE_INPUTS, retirementSavingsTodayK: 10, retirementContributionMo: 0, retirementWithdrawalRatePct: 8 }}
+        ranges={DEFAULT_BASE_RANGES}
+        onChange={jest.fn()}
+      />,
+    );
+
+    expect(document.querySelector('.verdict-banner--danger')).toBeInTheDocument();
   });
 });

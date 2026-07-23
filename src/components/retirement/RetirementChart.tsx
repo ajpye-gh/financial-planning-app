@@ -30,7 +30,7 @@ function axisTicks(min: number, max: number, count: number): number[] {
  *  new CSS - CashflowChart itself isn't reusable as a component here since its scaling logic is
  *  hard-wired to three named series (primary/unallocated/cash), not a generic one-series chart. */
 export function RetirementChart({ projection }: Readonly<RetirementChartProps>) {
-  const { yearLabels, balances } = projection;
+  const { yearLabels, balances, retirementYearIndex } = projection;
   const count = balances.length;
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
@@ -73,7 +73,7 @@ export function RetirementChart({ projection }: Readonly<RetirementChartProps>) 
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="cashflow-chart__svg"
         role="img"
-        aria-label={`Projected retirement balance across ${count} years`}
+        aria-label={`Projected retirement balance across ${count} years, including drawdown after retirement`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
@@ -89,6 +89,21 @@ export function RetirementChart({ projection }: Readonly<RetirementChartProps>) 
         ))}
 
         <path d={line} className="cashflow-chart__line cashflow-chart__line--primary" />
+
+        {retirementYearIndex > 0 && retirementYearIndex < count - 1 && (
+          <>
+            <line
+              x1={scaleX(retirementYearIndex)}
+              x2={scaleX(retirementYearIndex)}
+              y1={PADDING.top}
+              y2={HEIGHT - PADDING.bottom}
+              className="cashflow-chart__retirement-marker"
+            />
+            <text x={scaleX(retirementYearIndex) + 4} y={PADDING.top + 10} className="cashflow-chart__retirement-marker-label">
+              Retirement
+            </text>
+          </>
+        )}
 
         {xTickIndexes.map((index) => (
           <text key={index} x={scaleX(index)} y={HEIGHT - 8} className="cashflow-chart__tick" textAnchor="middle">

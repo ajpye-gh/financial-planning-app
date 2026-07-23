@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ControlGroup } from '../controls/ControlGroup';
 import { SliderField } from '../controls/SliderField';
 import { MetricCards, type Metric } from '../results/MetricCards';
+import { VerdictBanner } from '../results/VerdictBanner';
 import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
@@ -14,7 +15,7 @@ import {
   type BaseFieldGroup,
 } from '../../lib/baseFields';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
-import { estimateRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
+import { buildRetirementVerdict, estimateRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
 
 const RETIREMENT_GROUP: BaseFieldGroup = {
   title: 'Retirement',
@@ -42,26 +43,33 @@ export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<Retire
         baseInputs.retirementContributionMo,
         baseInputs.investmentReturnPct,
         baseInputs.retirementTargetYear,
-      ),
-    [baseInputs.retirementSavingsTodayK, baseInputs.retirementContributionMo, baseInputs.investmentReturnPct, baseInputs.retirementTargetYear],
-  );
-
-  const income = useMemo(
-    () =>
-      estimateRetirementIncome(
-        projection.balances.at(-1) ?? 0,
         baseInputs.retirementWithdrawalRatePct,
         baseInputs.inflationPct,
-        baseInputs.retirementTargetYear,
       ),
-    [projection, baseInputs.retirementWithdrawalRatePct, baseInputs.inflationPct, baseInputs.retirementTargetYear],
+    [
+      baseInputs.retirementSavingsTodayK,
+      baseInputs.retirementContributionMo,
+      baseInputs.investmentReturnPct,
+      baseInputs.retirementTargetYear,
+      baseInputs.retirementWithdrawalRatePct,
+      baseInputs.inflationPct,
+    ],
+  );
+
+  // The balance at retirement itself, not the end of the chart - the chart now runs
+  // POST_RETIREMENT_YEARS past that point to show the drawdown.
+  const balanceAtRetirement = projection.balances[projection.retirementYearIndex] ?? 0;
+
+  const income = useMemo(
+    () => estimateRetirementIncome(balanceAtRetirement, baseInputs.retirementWithdrawalRatePct, baseInputs.inflationPct, baseInputs.retirementTargetYear),
+    [balanceAtRetirement, baseInputs.retirementWithdrawalRatePct, baseInputs.inflationPct, baseInputs.retirementTargetYear],
   );
 
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
       label: `Projected balance, year ${baseInputs.retirementTargetYear}`,
-      value: formatCurrencyCompact(projection.balances.at(-1) ?? 0),
+      value: formatCurrencyCompact(balanceAtRetirement),
     },
     {
       id: 'retirement-income',
@@ -74,6 +82,8 @@ export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<Retire
       value: `${formatCurrency(income.monthlyIncomeReal)}/mo`,
     },
   ];
+
+  const verdict = buildRetirementVerdict(projection);
 
   return (
     <div className="app-shell">
@@ -93,6 +103,7 @@ export function RetirementPage({ baseInputs, ranges, onChange }: Readonly<Retire
             onChange={onChange}
           />
         </div>
+        <VerdictBanner verdict={verdict} />
         <RetirementChart projection={projection} />
         <MetricCards metrics={metrics} />
       </div>
