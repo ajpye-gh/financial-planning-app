@@ -3,7 +3,7 @@ import { formatCurrency } from '../../lib/format';
 import type { HouseholdRetirementIncome } from '../../lib/retirement';
 
 interface RetirementBreakdownTableProps {
-  year: number;
+  age: number;
   rothBalance: number;
   traditionalBalance: number;
   income: HouseholdRetirementIncome;
@@ -11,13 +11,13 @@ interface RetirementBreakdownTableProps {
 
 /** Same shape/styling as the primary page's BreakdownTable (reuses its exported Row) - the old
  *  "estimated income" tooltip had gotten too dense for a hover bubble, so this replaces it with a
- *  proper line-item breakdown at the inspected year. */
-export function RetirementBreakdownTable({ year, rothBalance, traditionalBalance, income }: Readonly<RetirementBreakdownTableProps>) {
+ *  proper line-item breakdown at the inspected age. */
+export function RetirementBreakdownTable({ age, rothBalance, traditionalBalance, income }: Readonly<RetirementBreakdownTableProps>) {
   const grossIncome = income.rothWithdrawal + income.traditionalWithdrawal + income.ssGross;
 
   return (
     <div className="breakdown-table-wrap">
-      <div className="breakdown-table__title">Year {year} detail</div>
+      <div className="breakdown-table__title">Age {age} detail</div>
       <table className="breakdown-table">
         <tbody>
           <Row label="Roth balance" value={formatCurrency(rothBalance)} muted />

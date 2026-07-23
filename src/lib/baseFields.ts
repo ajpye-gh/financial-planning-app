@@ -27,8 +27,9 @@ export type BaseFieldId =
   | 'retirementTraditionalContributionMo'
   | 'retirementTraditionalWithdrawalRatePct'
   | 'retirementSocialSecurityMo'
-  | 'retirementTargetYear'
-  | 'retirementInspectYear';
+  | 'retirementCurrentAge'
+  | 'retirementTargetAge'
+  | 'retirementInspectAge';
 
 export interface BaseFieldMeta {
   id: BaseFieldId;
@@ -243,24 +244,33 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
     "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - see the estimated income tooltip.",
 };
 
-export const RETIREMENT_TARGET_YEAR_FIELD: BaseFieldMeta = {
-  id: 'retirementTargetYear',
-  label: 'Target year',
-  format: 'yr',
-  tooltip: "Year you plan to retire by, counted from today (Y0) - set to 0 if you're already retired, to see the drawdown starting now.",
+/** Rendered on the Retirement page's own sidebar - ages, rather than a raw year offset, are what
+ *  the rest of the retirement fields (and the chart's x-axis) are expressed in terms of. */
+export const RETIREMENT_CURRENT_AGE_FIELD: BaseFieldMeta = {
+  id: 'retirementCurrentAge',
+  label: 'Current age',
+  format: 'n',
+  tooltip: 'Your age today - used to translate the target/inspect ages and the chart below into actual ages instead of a plain year count.',
+};
+
+export const RETIREMENT_TARGET_AGE_FIELD: BaseFieldMeta = {
+  id: 'retirementTargetAge',
+  label: 'Target age',
+  format: 'n',
+  tooltip: "Age you plan to retire at. If it's at or before your current age, the drawdown starts immediately (same as if you're already retired).",
 };
 
 /** Rendered next to the breakdown table it controls, same as INSPECT_YEAR_FIELD above - separate
- *  from Target year, since that's "when do you retire" (an input the whole projection depends on)
- *  while this is "which year's numbers am I looking at" (a view into the already-computed
+ *  from Target age, since that's "when do you retire" (an input the whole projection depends on)
+ *  while this is "which age's numbers am I looking at" (a view into the already-computed
  *  projection, which keeps going for POST_RETIREMENT_YEARS past retirement). Its practical range
- *  depends on the current Target year, but sliders here use static ranges - RetirementPage clamps
- *  the effective lookup to whatever the projection actually covers. */
-export const RETIREMENT_INSPECT_YEAR_FIELD: BaseFieldMeta = {
-  id: 'retirementInspectYear',
-  label: 'Inspect year',
-  format: 'yr',
-  tooltip: "Which year the breakdown table below shows - income (and whether an account has run dry) changes year to year, especially once you're retired.",
+ *  depends on the current Current/Target age, but sliders here use static ranges - RetirementPage
+ *  clamps the effective lookup to whatever the projection actually covers. */
+export const RETIREMENT_INSPECT_AGE_FIELD: BaseFieldMeta = {
+  id: 'retirementInspectAge',
+  label: 'Inspect age',
+  format: 'n',
+  tooltip: "Which age the breakdown table below shows - income (and whether an account has run dry) changes year to year, especially once you're retired.",
 };
 
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
@@ -273,8 +283,9 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
-  RETIREMENT_TARGET_YEAR_FIELD.id,
-  RETIREMENT_INSPECT_YEAR_FIELD.id,
+  RETIREMENT_CURRENT_AGE_FIELD.id,
+  RETIREMENT_TARGET_AGE_FIELD.id,
+  RETIREMENT_INSPECT_AGE_FIELD.id,
 ];
 
 /** Groups filtered down to their currently-visible fields; groups left with no visible fields are dropped entirely. */

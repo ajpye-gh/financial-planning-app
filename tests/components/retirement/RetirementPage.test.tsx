@@ -17,8 +17,9 @@ const BASE_INPUTS: BaseInputs = {
   retirementTraditionalContributionMo: 500,
   retirementTraditionalWithdrawalRatePct: 4,
   retirementSocialSecurityMo: 2000,
-  retirementTargetYear: 20,
-  retirementInspectYear: 20,
+  retirementCurrentAge: 35,
+  retirementTargetAge: 55,
+  retirementInspectAge: 55,
 };
 
 function renderRetirementPage(overrides: Partial<Parameters<typeof RetirementPage>[0]> = {}) {
@@ -44,7 +45,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Current Traditional savings')).toBeInTheDocument();
     expect(screen.getAllByText('Monthly contribution')).toHaveLength(2);
     expect(screen.getAllByText('Withdrawal rate')).toHaveLength(2);
-    expect(screen.getByText('Target year')).toBeInTheDocument();
+    expect(screen.getByText('Target age')).toBeInTheDocument();
   });
 
   it('calls onChange with the right field id for the Roth vs Traditional withdrawal-rate sliders', () => {
@@ -96,70 +97,84 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Investment return')).toBeInTheDocument();
   });
 
-  it('calls onChange with the field id when the target-year slider is dragged', () => {
+  it('calls onChange with the field id when the target-age slider is dragged', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
 
-    const slider = screen.getByLabelText('Target year') as HTMLInputElement;
+    const slider = screen.getByLabelText('Target age') as HTMLInputElement;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(slider, '25');
+    setter?.call(slider, '60');
     slider.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(onChange).toHaveBeenCalledWith('retirementTargetYear', 25);
+    expect(onChange).toHaveBeenCalledWith('retirementTargetAge', 60);
   });
 
-  it('shows the combined Roth+Traditional balance at the inspected year, matching projectRetirementBalance for each pot', () => {
+  it('renders a Current age slider and calls onChange with the field id when dragged', () => {
+    const onChange = jest.fn();
+    renderRetirementPage({ onChange });
+
+    const slider = screen.getByLabelText('Current age') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(slider, '40');
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledWith('retirementCurrentAge', 40);
+  });
+
+  it('shows the combined Roth+Traditional balance at the inspected age, matching projectRetirementBalance for each pot', () => {
     const { container } = renderRetirementPage();
 
     const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
     const combined = roth.balances[20] + traditional.balances[20];
 
-    expect(screen.getByText('Total balance, inspect yr')).toBeInTheDocument();
+    expect(screen.getByText('Total balance, inspect age')).toBeInTheDocument();
     expect(container.querySelector('.metric-card__value')).toHaveTextContent(formatCurrencyCompact(combined));
   });
 
-  it("shows net estimated income, nominal and in today's dollars, matching projectHouseholdRetirementIncome at the inspected year", () => {
+  it("shows net estimated income, nominal and in today's dollars, matching projectHouseholdRetirementIncome at the inspected age", () => {
     renderRetirementPage();
 
     const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
     const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3)[20];
 
-    expect(screen.getByText('Estimated income, inspect yr')).toBeInTheDocument();
+    expect(screen.getByText('Estimated income, inspect age')).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
 
     expect(screen.getAllByText("— in today's dollars").length).toBeGreaterThan(0);
     expect(screen.getByText(`${formatCurrency(income.netMonthlyReal)}/mo`)).toBeInTheDocument();
   });
 
-  it('shows a full income breakdown table at the inspected year, replacing the old cramped tooltip', () => {
+  it('shows a full income breakdown table at the inspected age, replacing the old cramped tooltip', () => {
     renderRetirementPage();
 
-    expect(screen.getByText('Year 20 detail')).toBeInTheDocument();
+    // currentAge 35 + inspect index 20 (retirementInspectAge 55 - retirementCurrentAge 35) = age 55.
+    expect(screen.getByText('Age 55 detail')).toBeInTheDocument();
     expect(screen.getByText('Traditional withdrawal, gross')).toBeInTheDocument();
     expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
     expect(screen.getByText('Standard deduction')).toBeInTheDocument();
     expect(screen.getByText('Federal tax')).toBeInTheDocument();
   });
 
-  it('renders an Inspect year slider separate from Target year, and calls onChange when dragged', () => {
+  it('renders an Inspect age slider separate from Target age, and calls onChange when dragged', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
 
-    const slider = screen.getByLabelText('Inspect year') as HTMLInputElement;
+    const slider = screen.getByLabelText('Inspect age') as HTMLInputElement;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(slider, '10');
+    setter?.call(slider, '40');
     slider.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(onChange).toHaveBeenCalledWith('retirementInspectYear', 10);
+    expect(onChange).toHaveBeenCalledWith('retirementInspectAge', 40);
   });
 
-  it('changing the inspected year changes the breakdown table shown, since income can change once a pot depletes', () => {
-    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectYear: 5 } });
+  it('changing the inspected age changes the breakdown table shown, since income can change once a pot depletes', () => {
+    // currentAge 35 + 5 = age 40, instead of the default inspect age 55.
+    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectAge: 40 } });
 
-    expect(screen.getByText('Year 5 detail')).toBeInTheDocument();
-    expect(screen.queryByText('Year 20 detail')).not.toBeInTheDocument();
+    expect(screen.getByText('Age 40 detail')).toBeInTheDocument();
+    expect(screen.queryByText('Age 55 detail')).not.toBeInTheDocument();
   });
 
   it('uses married-filing-jointly brackets in the income estimate once that toggle is selected', () => {

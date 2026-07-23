@@ -9,6 +9,10 @@ interface RetirementChartProps {
    *  lines, so it gets its own right-side axis (same reasoning as CashflowChart's cash/primary
    *  split). */
   taxSeries: number[];
+  /** The projections are indexed by year-offset-from-today internally; this converts the x-axis
+   *  and tooltip to actual ages (index 0 = currentAge), which read far more naturally than a raw
+   *  year count. */
+  currentAge: number;
 }
 
 const WIDTH = 720;
@@ -37,11 +41,12 @@ function axisTicks(min: number, max: number, count: number): number[] {
  *  Traditional share one (left) y-scale - same kind of quantity, a running balance. Tax gets its
  *  own (right) y-scale, same split CashflowChart already uses between its balance-like series and
  *  its very-differently-scaled monthly cashflow series. */
-export function RetirementChart({ rothProjection, traditionalProjection, taxSeries }: Readonly<RetirementChartProps>) {
+export function RetirementChart({ rothProjection, traditionalProjection, taxSeries, currentAge }: Readonly<RetirementChartProps>) {
   const { yearLabels, retirementYearIndex } = rothProjection;
   const rothBalances = rothProjection.balances;
   const traditionalBalances = traditionalProjection.balances;
   const count = yearLabels.length;
+  const ageLabels = yearLabels.map((_, index) => String(currentAge + index));
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -101,7 +106,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="cashflow-chart__svg"
         role="img"
-        aria-label={`Projected Roth and Traditional retirement balances and estimated income tax across ${count} years, including drawdown after retirement`}
+        aria-label={`Projected Roth and Traditional retirement balances and estimated income tax from age ${currentAge} through age ${currentAge + count - 1}, including drawdown after retirement`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
@@ -137,7 +142,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
 
         {xTickIndexes.map((index) => (
           <text key={index} x={scaleX(index)} y={HEIGHT - 8} className="cashflow-chart__tick" textAnchor="middle">
-            {yearLabels[index]}
+            {ageLabels[index]}
           </text>
         ))}
 
@@ -181,7 +186,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
             <g transform={`translate(${tooltipX}, ${PADDING.top})`} className="cashflow-chart__tooltip">
               <rect width={TOOLTIP_WIDTH} height={tooltipHeight} rx={8} className="cashflow-chart__tooltip-box" />
               <text x={10} y={TOOLTIP_TOP_PADDING} className="cashflow-chart__tooltip-title">
-                {yearLabels[hoverIndex]}
+                Age {ageLabels[hoverIndex]}
               </text>
               {tooltipRows.map((row, index) => (
                 <text

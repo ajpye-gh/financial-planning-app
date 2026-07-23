@@ -9,12 +9,13 @@ import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
   BASE_FIELD_GROUPS,
-  RETIREMENT_INSPECT_YEAR_FIELD,
+  RETIREMENT_CURRENT_AGE_FIELD,
+  RETIREMENT_INSPECT_AGE_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
   RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
-  RETIREMENT_TARGET_YEAR_FIELD,
+  RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
@@ -56,13 +57,20 @@ interface RetirementPageProps {
 /** Same shape as the primary page (App.tsx): sidebar on the left for inputs, chart on the right for
  *  results. */
 export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer }: Readonly<RetirementPageProps>) {
+  const currentAge = baseInputs.retirementCurrentAge;
+  // Everything below still works in terms of "years from today," same as before ages existed -
+  // this is just the translation layer between that and the age the user actually thinks in.
+  // Target age at or before current age means "already retired," same as the old targetYear=0
+  // case - drawdown starts immediately.
+  const targetYearOffset = Math.max(0, baseInputs.retirementTargetAge - currentAge);
+
   const rothProjection = useMemo(
     () =>
       projectRetirementBalance(
         baseInputs.retirementRothSavingsTodayK * 1000,
         baseInputs.retirementRothContributionMo,
         baseInputs.investmentReturnPct,
-        baseInputs.retirementTargetYear,
+        targetYearOffset,
         baseInputs.retirementRothWithdrawalRatePct,
         baseInputs.inflationPct,
       ),
@@ -70,7 +78,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.retirementRothSavingsTodayK,
       baseInputs.retirementRothContributionMo,
       baseInputs.investmentReturnPct,
-      baseInputs.retirementTargetYear,
+      targetYearOffset,
       baseInputs.retirementRothWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
@@ -82,7 +90,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.retirementTraditionalSavingsTodayK * 1000,
         baseInputs.retirementTraditionalContributionMo,
         baseInputs.investmentReturnPct,
-        baseInputs.retirementTargetYear,
+        targetYearOffset,
         baseInputs.retirementTraditionalWithdrawalRatePct,
         baseInputs.inflationPct,
       ),
@@ -90,7 +98,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.retirementTraditionalSavingsTodayK,
       baseInputs.retirementTraditionalContributionMo,
       baseInputs.investmentReturnPct,
-      baseInputs.retirementTargetYear,
+      targetYearOffset,
       baseInputs.retirementTraditionalWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
@@ -111,12 +119,14 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   );
   const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
 
-  // The inspect-year slider uses a static range (its practical span depends on the current Target
-  // year, which sliders here can't express), so clamp the lookup to whatever the projection - Y0
-  // through Target year + POST_RETIREMENT_YEARS - actually covers. Same clamping pattern App.tsx
-  // already uses for a goal's runningTotal at its own endYear.
+  // The inspect-age slider uses a static range (its practical span depends on the current
+  // Current/Target age, which sliders here can't express), so clamp the lookup to whatever the
+  // projection - age currentAge through currentAge + targetYearOffset + POST_RETIREMENT_YEARS -
+  // actually covers. Same clamping pattern App.tsx already uses for a goal's runningTotal at its
+  // own endYear.
   const lastIndex = incomeSeries.length - 1;
-  const inspectIndex = Math.min(Math.max(baseInputs.retirementInspectYear, 0), lastIndex);
+  const inspectIndex = Math.min(Math.max(baseInputs.retirementInspectAge - currentAge, 0), lastIndex);
+  const inspectedAge = currentAge + inspectIndex;
   const inspectedIncome = incomeSeries[inspectIndex];
   const rothBalanceAtInspectYear = rothProjection.balances[inspectIndex] ?? 0;
   const traditionalBalanceAtInspectYear = traditionalProjection.balances[inspectIndex] ?? 0;
@@ -124,12 +134,12 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
-      label: 'Total balance, inspect yr',
+      label: 'Total balance, inspect age',
       value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear),
     },
     {
       id: 'retirement-income',
-      label: 'Estimated income, inspect yr',
+      label: 'Estimated income, inspect age',
       value: `${formatCurrency(inspectedIncome.netMonthlyNominal)}/mo`,
     },
     {
@@ -165,25 +175,38 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       <div className="app-shell__main">
         <div className="inspect-year-control">
           <SliderField
-            meta={RETIREMENT_TARGET_YEAR_FIELD}
-            range={ranges.retirementTargetYear}
-            value={baseInputs.retirementTargetYear}
+            meta={RETIREMENT_CURRENT_AGE_FIELD}
+            range={ranges.retirementCurrentAge}
+            value={baseInputs.retirementCurrentAge}
+            onChange={onChange}
+          />
+        </div>
+        <div className="inspect-year-control">
+          <SliderField
+            meta={RETIREMENT_TARGET_AGE_FIELD}
+            range={ranges.retirementTargetAge}
+            value={baseInputs.retirementTargetAge}
             onChange={onChange}
           />
         </div>
         <VerdictBanner verdict={verdict} />
-        <RetirementChart rothProjection={rothProjection} traditionalProjection={traditionalProjection} taxSeries={taxSeries} />
+        <RetirementChart
+          rothProjection={rothProjection}
+          traditionalProjection={traditionalProjection}
+          taxSeries={taxSeries}
+          currentAge={currentAge}
+        />
         <div className="inspect-year-control">
           <SliderField
-            meta={RETIREMENT_INSPECT_YEAR_FIELD}
-            range={ranges.retirementInspectYear}
-            value={baseInputs.retirementInspectYear}
+            meta={RETIREMENT_INSPECT_AGE_FIELD}
+            range={ranges.retirementInspectAge}
+            value={baseInputs.retirementInspectAge}
             onChange={onChange}
           />
         </div>
         <MetricCards metrics={metrics} />
         <RetirementBreakdownTable
-          year={inspectIndex}
+          age={inspectedAge}
           rothBalance={rothBalanceAtInspectYear}
           traditionalBalance={traditionalBalanceAtInspectYear}
           income={inspectedIncome}

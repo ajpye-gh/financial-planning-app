@@ -5,7 +5,7 @@ import {
   RETIREMENT_ROTH_SAVINGS_FIELD,
   RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
-  RETIREMENT_TARGET_YEAR_FIELD,
+  RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
@@ -75,7 +75,7 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIds).not.toContain('retirementTraditionalContributionMo');
     expect(fieldIds).not.toContain('retirementTraditionalWithdrawalRatePct');
     expect(fieldIds).not.toContain('retirementSocialSecurityMo');
-    expect(fieldIds).not.toContain('retirementTargetYear');
+    expect(fieldIds).not.toContain('retirementTargetAge');
     expect(ALL_BASE_FIELD_IDS).toEqual(
       expect.arrayContaining([
         RETIREMENT_ROTH_SAVINGS_FIELD.id,
@@ -85,7 +85,7 @@ describe('visibleBaseFieldGroups', () => {
         RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
         RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
         RETIREMENT_SOCIAL_SECURITY_FIELD.id,
-        RETIREMENT_TARGET_YEAR_FIELD.id,
+        RETIREMENT_TARGET_AGE_FIELD.id,
       ]),
     );
   });
