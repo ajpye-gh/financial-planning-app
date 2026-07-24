@@ -133,8 +133,9 @@ describe('RetirementPage', () => {
   it('shows the combined Roth+Traditional balance at the inspected age, matching projectRetirementBalance for each pot', () => {
     const { container } = renderRetirementPage();
 
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
     const combined = roth.balances[20] + traditional.balances[20];
 
     expect(screen.getByText('Total balance, inspect age')).toBeInTheDocument();
@@ -144,8 +145,9 @@ describe('RetirementPage', () => {
   it("shows net estimated income, nominal and in today's dollars, matching projectHouseholdRetirementIncome at the inspected age", () => {
     renderRetirementPage();
 
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
     const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3)[20];
 
     expect(screen.getByText('Estimated income, inspect age')).toBeInTheDocument();
@@ -199,8 +201,9 @@ describe('RetirementPage', () => {
   it('uses married-filing-jointly brackets in the income estimate once that toggle is selected', () => {
     renderRetirementPage({ answers: { filingStatus: 'marriedJoint' } as Answers });
 
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
     const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'marriedJoint', 3)[20];
 
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
@@ -209,9 +212,10 @@ describe('RetirementPage', () => {
   it('shows a verdict banner reflecting whether the savings last, matching buildRetirementVerdict', () => {
     renderRetirementPage();
 
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 4, 3);
-    const verdict = buildRetirementVerdict(roth, traditional);
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
+    const verdict = buildRetirementVerdict(roth, traditional, BASE_INPUTS.retirementCurrentAge);
 
     expect(screen.getByText(verdict.headline)).toBeInTheDocument();
     expect(document.querySelector(`.verdict-banner--${verdict.tone}`)).toBeInTheDocument();

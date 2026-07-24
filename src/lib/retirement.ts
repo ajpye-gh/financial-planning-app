@@ -16,23 +16,29 @@ export interface RetirementProjection {
   depletionYear: number | null;
 }
 
-/** How far past the target year to keep projecting the drawdown - long enough to give a real sense
- *  of whether the balance actually lasts, not just a snapshot at the retirement date itself. */
-export const POST_RETIREMENT_YEARS = 25;
+/** Retirement projections (and the "Inspect age" slider's range) always run through this age -
+ *  fixed rather than a set number of years past retirement, so someone retiring at 40 gets just as
+ *  much drawdown runway to inspect as someone retiring at 65. Keep DEFAULT_BASE_RANGES's
+ *  retirementInspectAge.max in Defaults.json in sync with this (a test asserts it). */
+export const MAX_PROJECTION_AGE = 100;
 
 /** Projects the full retirement arc: accumulation (compound growth + a fixed monthly contribution,
- *  same formula as model.ts's advanceGoalBalances) through the target year, then decumulation for
- *  POST_RETIREMENT_YEARS more - the standard "4% rule" mechanics: the first year's withdrawal is
- *  `withdrawalRatePct` of the balance at retirement, and every year after that the withdrawal amount
- *  itself grows with inflation (to hold its purchasing power) regardless of how the portfolio
- *  performs, while the remaining balance keeps growing at the investment return net of that
- *  withdrawal. Balance floors at $0 - once depleted, it stays depleted; the actual (capped) amount
- *  withdrawn each year is tracked separately (see `withdrawals`) since it can't exceed what's left. */
+ *  same formula as model.ts's advanceGoalBalances) through the target year, then decumulation
+ *  through finalYear (years from today - the caller works out how far that is, RetirementPage
+ *  always uses MAX_PROJECTION_AGE - currentAge) - the standard "4% rule" mechanics: the first year's
+ *  withdrawal is `withdrawalRatePct` of the balance at retirement, and every year after that the
+ *  withdrawal amount itself grows with inflation (to hold its purchasing power) regardless of how
+ *  the portfolio performs, while the remaining balance keeps growing at the investment return net of
+ *  that withdrawal. Balance floors at $0 - once depleted, it stays depleted; the actual (capped)
+ *  amount withdrawn each year is tracked separately (see `withdrawals`) since it can't exceed what's
+ *  left. If finalYear <= targetYear there's no decumulation phase to project - falls out naturally
+ *  from the loop bounds below, no special-casing needed. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
   investmentReturnPct: number,
   targetYear: number,
+  finalYear: number,
   withdrawalRatePct: number,
   inflationPct: number,
 ): RetirementProjection {
@@ -50,8 +56,7 @@ export function projectRetirementBalance(
 
   let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
-  const lastYear = targetYear + POST_RETIREMENT_YEARS;
-  for (let year = targetYear + 1; year <= lastYear; year++) {
+  for (let year = targetYear + 1; year <= finalYear; year++) {
     const grown = balance * (1 + investmentReturnPct / 100);
     const actualWithdrawal = Math.min(scheduledWithdrawal, grown);
     balance = grown - actualWithdrawal;
@@ -114,8 +119,13 @@ export function projectHouseholdRetirementIncome(
  *  prominent, at-a-glance answer to "does this retirement plan actually work". Four states since
  *  there are now two independent pots: either could outlast the other, so "ran out" only really
  *  means something once *both* are gone - as long as either pot still has money, the household still
- *  has some income coming in. */
-export function buildRetirementVerdict(rothProjection: RetirementProjection, traditionalProjection: RetirementProjection): Verdict {
+ *  has some income coming in. Speaks in ages (via currentAge), matching the rest of the retirement
+ *  page rather than the projections' internal year-offset indices. */
+export function buildRetirementVerdict(
+  rothProjection: RetirementProjection,
+  traditionalProjection: RetirementProjection,
+  currentAge: number,
+): Verdict {
   const rothDepletionYear = rothProjection.depletionYear;
   const traditionalDepletionYear = traditionalProjection.depletionYear;
 
@@ -123,32 +133,34 @@ export function buildRetirementVerdict(rothProjection: RetirementProjection, tra
     return {
       tone: 'success',
       headline: 'Lasts the distance.',
-      detail: `Both your Roth and Traditional savings are projected to last at least ${POST_RETIREMENT_YEARS} years into retirement.`,
+      detail: `Both your Roth and Traditional savings are projected to last all the way to age ${MAX_PROJECTION_AGE}.`,
     };
   }
 
   if (rothDepletionYear !== null && traditionalDepletionYear !== null) {
-    const lastYear = Math.max(rothDepletionYear, traditionalDepletionYear);
+    const lastAge = currentAge + Math.max(rothDepletionYear, traditionalDepletionYear);
     return {
       tone: 'danger',
-      headline: `Both accounts run out by year ${lastYear}.`,
-      detail: `Roth is projected to deplete in year ${rothDepletionYear}, Traditional in year ${traditionalDepletionYear} - by year ${lastYear} you'd have no more retirement savings income.`,
+      headline: `Both accounts run out by age ${lastAge}.`,
+      detail: `Roth is projected to deplete at age ${currentAge + rothDepletionYear}, Traditional at age ${currentAge + traditionalDepletionYear} - by age ${lastAge} you'd have no more retirement savings income.`,
     };
   }
 
   if (rothDepletionYear !== null) {
+    const depletionAge = currentAge + rothDepletionYear;
     const yearsIntoRetirement = rothDepletionYear - rothProjection.retirementYearIndex;
     return {
       tone: 'warning',
-      headline: `Roth runs out in year ${rothDepletionYear}.`,
-      detail: `Your Roth savings are projected to be depleted ${yearsIntoRetirement} years into retirement, but Traditional savings continue.`,
+      headline: `Roth runs out at age ${depletionAge}.`,
+      detail: `Your Roth savings are projected to be depleted ${yearsIntoRetirement} years into retirement (age ${depletionAge}), but Traditional savings continue.`,
     };
   }
 
+  const depletionAge = currentAge + (traditionalDepletionYear as number);
   const yearsIntoRetirement = (traditionalDepletionYear as number) - traditionalProjection.retirementYearIndex;
   return {
     tone: 'warning',
-    headline: `Traditional runs out in year ${traditionalDepletionYear}.`,
-    detail: `Your Traditional savings are projected to be depleted ${yearsIntoRetirement} years into retirement, but Roth savings continue.`,
+    headline: `Traditional runs out at age ${depletionAge}.`,
+    detail: `Your Traditional savings are projected to be depleted ${yearsIntoRetirement} years into retirement (age ${depletionAge}), but Roth savings continue.`,
   };
 }

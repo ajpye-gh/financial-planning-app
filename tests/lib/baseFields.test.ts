@@ -1,3 +1,4 @@
+import { DEFAULT_BASE_RANGES } from '@src/lib/baseData';
 import {
   ALL_BASE_FIELD_IDS,
   INSPECT_YEAR_FIELD,
@@ -11,6 +12,7 @@ import {
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
   visibleBaseFieldGroups,
 } from '@src/lib/baseFields';
+import { MAX_PROJECTION_AGE } from '@src/lib/retirement';
 
 function fieldIdsIn(title: string, groups: ReturnType<typeof visibleBaseFieldGroups>): string[] {
   return groups.find((group) => group.title === title)?.fields.map((field) => field.id) ?? [];
@@ -88,5 +90,9 @@ describe('visibleBaseFieldGroups', () => {
         RETIREMENT_TARGET_AGE_FIELD.id,
       ]),
     );
+  });
+
+  it("Inspect age's slider max stays in sync with retirement.ts's MAX_PROJECTION_AGE - both should always cap the projection/inspection window at the same age", () => {
+    expect(DEFAULT_BASE_RANGES.retirementInspectAge.max).toBe(MAX_PROJECTION_AGE);
   });
 });

@@ -26,5 +26,5 @@
   "retirementSocialSecurityMo": { "min": 0, "max": 5000, "step": 50, "default": 2000 },
   "retirementCurrentAge": { "min": 18, "max": 100, "step": 1, "default": 35 },
   "retirementTargetAge": { "min": 18, "max": 100, "step": 1, "default": 65 },
-  "retirementInspectAge": { "min": 18, "max": 125, "step": 1, "default": 66 }
+  "retirementInspectAge": { "min": 18, "max": 100, "step": 1, "default": 66 }
 }

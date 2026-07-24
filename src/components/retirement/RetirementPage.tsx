@@ -24,7 +24,12 @@ import {
 } from '../../lib/baseFields';
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { filingStatus as getFilingStatus, type Answers } from '../../lib/questions';
-import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
+import {
+  buildRetirementVerdict,
+  MAX_PROJECTION_AGE,
+  projectHouseholdRetirementIncome,
+  projectRetirementBalance,
+} from '../../lib/retirement';
 
 const AGE_GROUP: BaseFieldGroup = {
   title: 'Age',
@@ -66,8 +71,10 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   // Everything below still works in terms of "years from today," same as before ages existed -
   // this is just the translation layer between that and the age the user actually thinks in.
   // Target age at or before current age means "already retired," same as the old targetYear=0
-  // case - drawdown starts immediately.
+  // case - drawdown starts immediately. Projections always run through MAX_PROJECTION_AGE
+  // (currently 100), not a fixed number of years past retirement.
   const targetYearOffset = Math.max(0, baseInputs.retirementTargetAge - currentAge);
+  const finalYearOffset = MAX_PROJECTION_AGE - currentAge;
 
   const rothProjection = useMemo(
     () =>
@@ -76,6 +83,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.retirementRothContributionMo,
         baseInputs.investmentReturnPct,
         targetYearOffset,
+        finalYearOffset,
         baseInputs.retirementRothWithdrawalRatePct,
         baseInputs.inflationPct,
       ),
@@ -84,6 +92,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.retirementRothContributionMo,
       baseInputs.investmentReturnPct,
       targetYearOffset,
+      finalYearOffset,
       baseInputs.retirementRothWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
@@ -96,6 +105,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.retirementTraditionalContributionMo,
         baseInputs.investmentReturnPct,
         targetYearOffset,
+        finalYearOffset,
         baseInputs.retirementTraditionalWithdrawalRatePct,
         baseInputs.inflationPct,
       ),
@@ -104,6 +114,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.retirementTraditionalContributionMo,
       baseInputs.investmentReturnPct,
       targetYearOffset,
+      finalYearOffset,
       baseInputs.retirementTraditionalWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
@@ -124,11 +135,10 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   );
   const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
 
-  // The inspect-age slider uses a static range (its practical span depends on the current
-  // Current/Target age, which sliders here can't express), so clamp the lookup to whatever the
-  // projection - age currentAge through currentAge + targetYearOffset + POST_RETIREMENT_YEARS -
-  // actually covers. Same clamping pattern App.tsx already uses for a goal's runningTotal at its
-  // own endYear.
+  // Both the inspect-age slider and the projection itself top out at MAX_PROJECTION_AGE, but their
+  // sliders move independently, so an inspect age below the current age (or above what a very old
+  // current age leaves room to project) still needs clamping into whatever the projection actually
+  // covers. Same clamping pattern App.tsx already uses for a goal's runningTotal at its own endYear.
   const lastIndex = incomeSeries.length - 1;
   const inspectIndex = Math.min(Math.max(baseInputs.retirementInspectAge - currentAge, 0), lastIndex);
   const inspectedAge = currentAge + inspectIndex;
@@ -154,7 +164,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     },
   ];
 
-  const verdict = buildRetirementVerdict(rothProjection, traditionalProjection);
+  const verdict = buildRetirementVerdict(rothProjection, traditionalProjection, currentAge);
 
   return (
     <div className="app-shell">

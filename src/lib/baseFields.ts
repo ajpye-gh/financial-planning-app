@@ -263,9 +263,9 @@ export const RETIREMENT_TARGET_AGE_FIELD: BaseFieldMeta = {
 /** Rendered next to the breakdown table it controls, same as INSPECT_YEAR_FIELD above - separate
  *  from Target age, since that's "when do you retire" (an input the whole projection depends on)
  *  while this is "which age's numbers am I looking at" (a view into the already-computed
- *  projection, which keeps going for POST_RETIREMENT_YEARS past retirement). Its practical range
- *  depends on the current Current/Target age, but sliders here use static ranges - RetirementPage
- *  clamps the effective lookup to whatever the projection actually covers. */
+ *  projection, which now always runs through MAX_PROJECTION_AGE in retirement.ts - this field's max
+ *  below should match that constant). RetirementPage still clamps the effective lookup at read time,
+ *  since this slider and Current age move independently of each other. */
 export const RETIREMENT_INSPECT_AGE_FIELD: BaseFieldMeta = {
   id: 'retirementInspectAge',
   label: 'Inspect age',
