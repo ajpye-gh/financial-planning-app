@@ -157,6 +157,19 @@ describe('RetirementPage', () => {
     expect(screen.getByText(`${formatCurrency(income.netMonthlyReal)}/mo`)).toBeInTheDocument();
   });
 
+  it('shows total retirement income taxes paid, summed in nominal dollars across the whole projection', () => {
+    renderRetirementPage();
+
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
+    const series = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3);
+    const totalTaxPaid = series.reduce((sum, entry) => sum + entry.tax.tax, 0);
+
+    expect(screen.getByText('Total retirement income taxes paid')).toBeInTheDocument();
+    expect(screen.getByText(formatCurrencyCompact(totalTaxPaid))).toBeInTheDocument();
+  });
+
   it('shows a full income breakdown table at the inspected age, replacing the old cramped tooltip', () => {
     renderRetirementPage();
 

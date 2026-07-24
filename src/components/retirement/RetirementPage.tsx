@@ -134,6 +134,9 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     [rothProjection, traditionalProjection, baseInputs.retirementSocialSecurityMo, status, baseInputs.inflationPct],
   );
   const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
+  // Nominal-dollar sum across the whole projection - pre-retirement years are already $0 (no
+  // withdrawals or Social Security yet), so this only really accumulates from retirement onward.
+  const totalTaxPaid = useMemo(() => taxSeries.reduce((sum, tax) => sum + tax, 0), [taxSeries]);
 
   // Both the inspect-age slider and the projection itself top out at MAX_PROJECTION_AGE, but their
   // sliders move independently, so an inspect age below the current age (or above what a very old
@@ -161,6 +164,11 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       id: 'retirement-income-real',
       label: "— in today's dollars",
       value: `${formatCurrency(inspectedIncome.netMonthlyReal)}/mo`,
+    },
+    {
+      id: 'retirement-total-tax',
+      label: 'Total retirement income taxes paid',
+      value: formatCurrencyCompact(totalTaxPaid),
     },
   ];
 
