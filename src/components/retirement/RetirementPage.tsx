@@ -173,21 +173,23 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       </aside>
 
       <div className="app-shell__main">
-        <div className="inspect-year-control">
-          <SliderField
-            meta={RETIREMENT_CURRENT_AGE_FIELD}
-            range={ranges.retirementCurrentAge}
-            value={baseInputs.retirementCurrentAge}
-            onChange={onChange}
-          />
-        </div>
-        <div className="inspect-year-control">
-          <SliderField
-            meta={RETIREMENT_TARGET_AGE_FIELD}
-            range={ranges.retirementTargetAge}
-            value={baseInputs.retirementTargetAge}
-            onChange={onChange}
-          />
+        <div className="inspect-year-control-row">
+          <div className="inspect-year-control">
+            <SliderField
+              meta={RETIREMENT_CURRENT_AGE_FIELD}
+              range={ranges.retirementCurrentAge}
+              value={baseInputs.retirementCurrentAge}
+              onChange={onChange}
+            />
+          </div>
+          <div className="inspect-year-control">
+            <SliderField
+              meta={RETIREMENT_TARGET_AGE_FIELD}
+              range={ranges.retirementTargetAge}
+              value={baseInputs.retirementTargetAge}
+              onChange={onChange}
+            />
+          </div>
         </div>
         <VerdictBanner verdict={verdict} />
         <RetirementChart
