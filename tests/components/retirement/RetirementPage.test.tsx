@@ -48,6 +48,15 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Target age')).toBeInTheDocument();
   });
 
+  it('renders Current age and Target age together in their own sidebar group, not the main content area', () => {
+    const { container } = renderRetirementPage();
+
+    expect(screen.getByRole('button', { name: /Age/ })).toBeInTheDocument();
+    const sidebar = container.querySelector('.app-shell__sidebar');
+    expect(sidebar).toContainElement(screen.getByLabelText('Current age'));
+    expect(sidebar).toContainElement(screen.getByLabelText('Target age'));
+  });
+
   it('calls onChange with the right field id for the Roth vs Traditional withdrawal-rate sliders', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });

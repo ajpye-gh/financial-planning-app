@@ -26,6 +26,11 @@ import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { filingStatus as getFilingStatus, type Answers } from '../../lib/questions';
 import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '../../lib/retirement';
 
+const AGE_GROUP: BaseFieldGroup = {
+  title: 'Age',
+  fields: [RETIREMENT_CURRENT_AGE_FIELD, RETIREMENT_TARGET_AGE_FIELD],
+};
+
 const ROTH_GROUP: BaseFieldGroup = {
   title: 'Roth',
   fields: [RETIREMENT_ROTH_SAVINGS_FIELD, RETIREMENT_ROTH_CONTRIBUTION_FIELD, RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD],
@@ -155,6 +160,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     <div className="app-shell">
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
+          <ControlGroup group={AGE_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup group={ROTH_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup group={TRADITIONAL_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup
@@ -173,24 +179,6 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       </aside>
 
       <div className="app-shell__main">
-        <div className="inspect-year-control-row">
-          <div className="inspect-year-control">
-            <SliderField
-              meta={RETIREMENT_CURRENT_AGE_FIELD}
-              range={ranges.retirementCurrentAge}
-              value={baseInputs.retirementCurrentAge}
-              onChange={onChange}
-            />
-          </div>
-          <div className="inspect-year-control">
-            <SliderField
-              meta={RETIREMENT_TARGET_AGE_FIELD}
-              range={ranges.retirementTargetAge}
-              value={baseInputs.retirementTargetAge}
-              onChange={onChange}
-            />
-          </div>
-        </div>
         <VerdictBanner verdict={verdict} />
         <RetirementChart
           rothProjection={rothProjection}

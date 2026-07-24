@@ -937,17 +937,6 @@ input[type='range']::-moz-range-thumb {
   margin-bottom: 1rem;
 }
 
-.inspect-year-control-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.inspect-year-control-row .inspect-year-control {
-  margin-bottom: 0;
-}
-
 /* Chart */
 
 .cashflow-chart {
