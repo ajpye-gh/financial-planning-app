@@ -167,7 +167,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     },
     {
       id: 'retirement-total-tax',
-      label: 'Total retirement income taxes paid',
+      label: 'Total taxes paid',
       value: formatCurrencyCompact(totalTaxPaid),
     },
   ];

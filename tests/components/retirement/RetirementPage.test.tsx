@@ -166,7 +166,7 @@ describe('RetirementPage', () => {
     const series = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3);
     const totalTaxPaid = series.reduce((sum, entry) => sum + entry.tax.tax, 0);
 
-    expect(screen.getByText('Total retirement income taxes paid')).toBeInTheDocument();
+    expect(screen.getByText('Total taxes paid')).toBeInTheDocument();
     expect(screen.getByText(formatCurrencyCompact(totalTaxPaid))).toBeInTheDocument();
   });
 
