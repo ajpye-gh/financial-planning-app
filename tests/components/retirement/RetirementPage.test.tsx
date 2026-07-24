@@ -203,6 +203,13 @@ describe('RetirementPage', () => {
     expect(onChange).toHaveBeenCalledWith('retirementInspectAge', 40);
   });
 
+  it("Inspect age slider's minimum tracks Current age instead of the static Defaults.json floor", () => {
+    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementCurrentAge: 50 } });
+
+    const slider = screen.getByLabelText('Inspect age') as HTMLInputElement;
+    expect(slider.min).toBe('50');
+  });
+
   it('changing the inspected age changes the breakdown table shown, since income can change once a pot depletes', () => {
     // currentAge 35 + 5 = age 40, instead of the default inspect age 55.
     renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectAge: 40 } });

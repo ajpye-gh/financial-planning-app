@@ -138,10 +138,13 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   // withdrawals or Social Security yet), so this only really accumulates from retirement onward.
   const totalTaxPaid = useMemo(() => taxSeries.reduce((sum, tax) => sum + tax, 0), [taxSeries]);
 
-  // Both the inspect-age slider and the projection itself top out at MAX_PROJECTION_AGE, but their
-  // sliders move independently, so an inspect age below the current age (or above what a very old
-  // current age leaves room to project) still needs clamping into whatever the projection actually
-  // covers. Same clamping pattern App.tsx already uses for a goal's runningTotal at its own endYear.
+  // Can't inspect an age before you've reached it, so the slider's floor tracks Current age instead
+  // of the static Defaults.json minimum. The two sliders still move independently though (raising
+  // Current age doesn't retroactively drag Inspect age's stored value up with it), so the clamp
+  // below remains necessary for whatever the projection actually covers - both the inspect-age
+  // slider and the projection itself top out at MAX_PROJECTION_AGE. Same clamping pattern App.tsx
+  // already uses for a goal's runningTotal at its own endYear.
+  const inspectAgeRange = { ...ranges.retirementInspectAge, min: currentAge };
   const lastIndex = incomeSeries.length - 1;
   const inspectIndex = Math.min(Math.max(baseInputs.retirementInspectAge - currentAge, 0), lastIndex);
   const inspectedAge = currentAge + inspectIndex;
@@ -207,7 +210,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         <div className="inspect-year-control">
           <SliderField
             meta={RETIREMENT_INSPECT_AGE_FIELD}
-            range={ranges.retirementInspectAge}
+            range={inspectAgeRange}
             value={baseInputs.retirementInspectAge}
             onChange={onChange}
           />
