@@ -255,7 +255,7 @@ export const RETIREMENT_CURRENT_AGE_FIELD: BaseFieldMeta = {
 
 export const RETIREMENT_TARGET_AGE_FIELD: BaseFieldMeta = {
   id: 'retirementTargetAge',
-  label: 'Target age',
+  label: 'Target retirement age',
   format: 'n',
   tooltip: "Age you plan to retire at. If it's at or before your current age, the drawdown starts immediately (same as if you're already retired).",
 };

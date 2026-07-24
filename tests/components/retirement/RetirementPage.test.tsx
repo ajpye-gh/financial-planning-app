@@ -45,7 +45,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Current Traditional savings')).toBeInTheDocument();
     expect(screen.getAllByText('Monthly contribution')).toHaveLength(2);
     expect(screen.getAllByText('Initial withdrawal rate')).toHaveLength(2);
-    expect(screen.getByText('Target age')).toBeInTheDocument();
+    expect(screen.getByText('Target retirement age')).toBeInTheDocument();
   });
 
   it('renders Current age and Target age together in their own sidebar group, not the main content area', () => {
@@ -54,7 +54,7 @@ describe('RetirementPage', () => {
     expect(screen.getByRole('button', { name: /Age/ })).toBeInTheDocument();
     const sidebar = container.querySelector('.app-shell__sidebar');
     expect(sidebar).toContainElement(screen.getByLabelText('Current age'));
-    expect(sidebar).toContainElement(screen.getByLabelText('Target age'));
+    expect(sidebar).toContainElement(screen.getByLabelText('Target retirement age'));
   });
 
   it('calls onChange with the right field id for the Roth vs Traditional withdrawal-rate sliders', () => {
@@ -110,7 +110,7 @@ describe('RetirementPage', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
 
-    const slider = screen.getByLabelText('Target age') as HTMLInputElement;
+    const slider = screen.getByLabelText('Target retirement age') as HTMLInputElement;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
     setter?.call(slider, '60');
     slider.dispatchEvent(new Event('change', { bubbles: true }));
