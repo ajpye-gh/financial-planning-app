@@ -49,12 +49,14 @@ describe('projectRetirementBalance', () => {
       expect(result.withdrawals.slice(0, 6)).toEqual([0, 0, 0, 0, 0, 5920]);
     });
 
-    it('with a target year of 0 (already retired), skips accumulation and starts the drawdown immediately from Y0', () => {
+    it('with a target year of 0 (already retired), skips accumulation and starts the drawdown immediately in Y0 itself', () => {
       const result = projectRetirementBalance(1000000, 5000, 6, 0, 25, 4, 3);
       expect(result.retirementYearIndex).toBe(0);
-      expect(result.balances[0]).toBe(1000000);
-      // Year 1 is already the first year of decumulation: 1,000,000*1.06 - 40,000 = 1,020,000.
-      expect(result.balances[1]).toBe(1020000);
+      // Y0 is the first withdrawal year now, not just the raw input: 1,000,000*1.06 - 40,000 = 1,020,000.
+      expect(result.balances[0]).toBe(1020000);
+      expect(result.withdrawals[0]).toBe(40000);
+      // Y1: withdrawal grows 3% to 41,200; balance = 1,020,000*1.06 - 41,200 = 1,040,000.
+      expect(result.balances[1]).toBe(1040000);
       expect(result.yearLabels).toHaveLength(26);
     });
 
@@ -65,14 +67,14 @@ describe('projectRetirementBalance', () => {
   });
 
   describe('decumulation phase (drawdown after the target year)', () => {
-    it("draws down the balance at retirement by the withdrawal rate in the first year, then grows the withdrawal with inflation each year after (the '4% rule')", () => {
+    it("draws down the balance immediately in the retirement year (Y0, already retired), then grows the withdrawal with inflation each year after (the '4% rule')", () => {
       // $1,000,000 at retirement, 4% initial withdrawal ($40,000), 0% investment return (isolates
       // the withdrawal math from growth) and 10% inflation for an easy-to-verify multiplier.
       const result = projectRetirementBalance(1000000, 0, 0, 0, 25, 4, 10);
-      // Year 1 of retirement: 1,000,000 - 40,000 = 960,000.
-      expect(result.balances[1]).toBe(960000);
-      // Year 2: withdrawal grows 10% to 44,000; balance = 960,000 - 44,000 = 916,000.
-      expect(result.balances[2]).toBe(916000);
+      // Y0, the retirement year itself: 1,000,000 - 40,000 = 960,000.
+      expect(result.balances[0]).toBe(960000);
+      // Y1: withdrawal grows 10% to 44,000; balance = 960,000 - 44,000 = 916,000.
+      expect(result.balances[1]).toBe(916000);
     });
 
     it('grows the remaining balance at the investment return, net of the (inflation-adjusted) withdrawal', () => {
@@ -112,22 +114,23 @@ describe('projectRetirementBalance', () => {
 });
 
 describe('projectHouseholdRetirementIncome', () => {
-  // targetYear=0 so decumulation starts immediately: index 1 is the first year of retirement.
+  // targetYear=0 so decumulation starts immediately: index 0 is already the first year of retirement.
   const roth = () => projectRetirementBalance(500000, 0, 6, 0, 25, 4, 3);
   const traditional = () => projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
 
   it('combines tax-free Roth withdrawal, gross Traditional withdrawal, and gross Social Security, minus tax', () => {
     const series = projectHouseholdRetirementIncome(roth(), traditional(), 2000, 'single', 3);
-    // Year 1: Roth withdrawal 500,000*4%=20,000 (tax-free); Traditional 300,000*4%=12,000 (taxable);
-    // SS $2,000/mo*12=24,000 inflated by 3%^1.
-    const year1 = series[1];
-    expect(year1.rothWithdrawal).toBeCloseTo(20000, 0);
-    expect(year1.traditionalWithdrawal).toBeCloseTo(12000, 0);
-    expect(year1.ssGross).toBeCloseTo(24000 * 1.03, 0);
+    // Year 0 (already retired, so this is the retirement year itself): Roth withdrawal
+    // 500,000*4%=20,000 (tax-free); Traditional 300,000*4%=12,000 (taxable); SS $2,000/mo*12=24,000,
+    // no inflation applied yet (year 0's inflationFactor is 1).
+    const year0 = series[0];
+    expect(year0.rothWithdrawal).toBeCloseTo(20000, 0);
+    expect(year0.traditionalWithdrawal).toBeCloseTo(12000, 0);
+    expect(year0.ssGross).toBeCloseTo(24000, 0);
 
-    const expectedTax = estimateRetirementTax(year1.traditionalWithdrawal, year1.ssGross, 'single', Math.pow(1.03, 1));
-    expect(year1.tax.tax).toBeCloseTo(expectedTax.tax, 6);
-    expect(year1.netAnnual).toBeCloseTo(year1.rothWithdrawal + year1.traditionalWithdrawal + year1.ssGross - expectedTax.tax, 6);
+    const expectedTax = estimateRetirementTax(year0.traditionalWithdrawal, year0.ssGross, 'single', 1);
+    expect(year0.tax.tax).toBeCloseTo(expectedTax.tax, 6);
+    expect(year0.netAnnual).toBeCloseTo(year0.rothWithdrawal + year0.traditionalWithdrawal + year0.ssGross - expectedTax.tax, 6);
   });
 
   it('has no Social Security before the retirement year, and it inflates forward starting then', () => {

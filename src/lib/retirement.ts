@@ -7,12 +7,11 @@ export interface RetirementProjection {
   /** Actual $ withdrawn each year - 0 before retirementYearIndex (accumulation, no withdrawals
    *  yet), the scheduled amount from retirementYearIndex onward while funds last, capped at
    *  whatever's actually left in the balance for the year it depletes, then 0 forever after
-   *  (nothing left to withdraw). Exception: if retirementYearIndex is 0, the first withdrawal is at
-   *  index 1 instead - index 0 always holds the untouched starting balance. */
+   *  (nothing left to withdraw). If retirementYearIndex is 0 (already retired today), that first
+   *  withdrawal is taken immediately, right out of index 0. */
   withdrawals: number[];
   /** Index into yearLabels/balances where retirement begins (== targetYear) - accumulation runs
-   *  through the index before this one; this index and every one after it is a decumulation year
-   *  (see the `withdrawals` doc above for the targetYear === 0 exception). */
+   *  through the index before this one; this index and every one after it is a decumulation year. */
   retirementYearIndex: number;
   /** The first year balance hits $0 during decumulation, or null if it lasts the full projection
    *  window without running out. */
@@ -24,6 +23,23 @@ export interface RetirementProjection {
  *  much drawdown runway to inspect as someone retiring at 65. Keep DEFAULT_BASE_RANGES's
  *  retirementInspectAge.max in Defaults.json in sync with this (a test asserts it). */
 export const MAX_PROJECTION_AGE = 100;
+
+interface DecumulationStep {
+  balance: number;
+  withdrawal: number;
+  depleted: boolean;
+}
+
+/** One year of decumulation: grow the balance at the investment return, then take the smaller of
+ *  the scheduled withdrawal or whatever's actually there (so you can't withdraw more than exists).
+ *  Shared by the immediate-retirement (targetYear === 0) case and the main decumulation loop below,
+ *  so both apply the exact same "4% rule" math. */
+function applyDecumulationStep(balance: number, investmentReturnPct: number, scheduledWithdrawal: number): DecumulationStep {
+  const grown = balance * (1 + investmentReturnPct / 100);
+  const withdrawal = Math.min(scheduledWithdrawal, grown);
+  const remaining = grown - withdrawal;
+  return { balance: Math.max(remaining, 0), withdrawal, depleted: remaining <= 0 };
+}
 
 /** Projects the full retirement arc: accumulation (compound growth + a fixed monthly contribution,
  *  same formula as model.ts's advanceGoalBalances) through targetYear - 1, then decumulation
@@ -41,9 +57,9 @@ export const MAX_PROJECTION_AGE = 100;
  *  targetYear - 1 is the last year with a new contribution; targetYear (retirement year itself) is
  *  the first year with a withdrawal (and the first year retirement income tax applies) - matching
  *  Social Security, which already starts at retirementYearIndex in projectHouseholdRetirementIncome.
- *  The one exception is targetYear === 0 (already retired as of today): Y0 always has to stay exactly
- *  the given starting balance with no growth or withdrawal applied yet, so the first withdrawal there
- *  still lands at Y1, same as it always has. */
+ *  This holds even when targetYear === 0 (already retired today): Y0 immediately reflects that
+ *  first withdrawal rather than showing the raw input untouched for a year, so "the balance today"
+ *  and "the balance at retirement" mean the same thing once you're already retired. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
@@ -67,17 +83,26 @@ export function projectRetirementBalance(
 
   let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
-  const firstDecumulationYear = Math.max(targetYear, 1);
-  for (let year = firstDecumulationYear; year <= finalYear; year++) {
-    const grown = balance * (1 + investmentReturnPct / 100);
-    const actualWithdrawal = Math.min(scheduledWithdrawal, grown);
-    balance = grown - actualWithdrawal;
-    if (balance <= 0 && depletionYear === null) {
-      balance = 0;
+
+  if (targetYear === 0) {
+    const step = applyDecumulationStep(balance, investmentReturnPct, scheduledWithdrawal);
+    balance = step.balance;
+    if (step.depleted) {
+      depletionYear = 0;
+    }
+    balances[0] = Math.round(balance);
+    withdrawals[0] = Math.round(step.withdrawal);
+    scheduledWithdrawal *= 1 + inflationPct / 100;
+  }
+
+  for (let year = Math.max(targetYear, 1); year <= finalYear; year++) {
+    const step = applyDecumulationStep(balance, investmentReturnPct, scheduledWithdrawal);
+    balance = step.balance;
+    if (step.depleted && depletionYear === null) {
       depletionYear = year;
     }
     balances.push(Math.round(balance));
-    withdrawals.push(Math.round(actualWithdrawal));
+    withdrawals.push(Math.round(step.withdrawal));
     yearLabels.push(`Y${year}`);
     scheduledWithdrawal *= 1 + inflationPct / 100;
   }

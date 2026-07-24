@@ -181,6 +181,27 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Federal tax')).toBeInTheDocument();
   });
 
+  it("shows a nonzero Traditional withdrawal and tax immediately when already retired (Current age == Target retirement age), not just starting the year after", () => {
+    renderRetirementPage({
+      baseInputs: {
+        ...BASE_INPUTS,
+        // A large enough Traditional balance that the withdrawal clears the standard deduction -
+        // otherwise a small first-year withdrawal can legitimately owe $0 tax (same reason a
+        // Social-Security-only retiree often does), which would make this assertion ambiguous.
+        retirementTraditionalSavingsTodayK: 2000,
+        retirementCurrentAge: 65,
+        retirementTargetAge: 65,
+        retirementInspectAge: 65,
+      },
+    });
+
+    expect(screen.getByText('Age 65 detail')).toBeInTheDocument();
+    const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
+    expect(traditionalRow).not.toHaveTextContent('$0/yr');
+    const taxRow = screen.getByText('Federal tax').closest('tr');
+    expect(taxRow).not.toHaveTextContent('$0/yr');
+  });
+
   it('explains on hover why the income-tax line climbs even at a fixed withdrawal rate', async () => {
     const user = userEvent.setup();
     renderRetirementPage();
