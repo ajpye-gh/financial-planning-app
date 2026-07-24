@@ -23,15 +23,30 @@ describe('projectRetirementBalance', () => {
       expect(result.retirementYearIndex).toBe(10);
     });
 
-    it('with zero contribution, compounds purely at the investment return', () => {
-      const result = projectRetirementBalance(100000, 0, 10, 2, 30, 4, 3);
+    it('with zero contribution, compounds purely at the investment return through the last pre-retirement year', () => {
+      // targetYear=3 here so both checked indices (1, 2) fall strictly before retirement (index 3)
+      // and stay pure accumulation - no withdrawal mixed in.
+      const result = projectRetirementBalance(100000, 0, 10, 3, 30, 4, 3);
       expect(result.balances[1]).toBe(Math.round(100000 * 1.1));
       expect(result.balances[2]).toBe(Math.round(100000 * 1.1 * 1.1));
     });
 
-    it('with zero investment return, grows by exactly the annual contribution each year', () => {
+    it('with zero investment return, grows by exactly the annual contribution through targetYear - 1, then the retirement year itself takes the first withdrawal instead of a contribution', () => {
       const result = projectRetirementBalance(100000, 1000, 0, 3, 28, 4, 3);
-      expect(result.balances.slice(0, 4)).toEqual([100000, 112000, 124000, 136000]);
+      // Y1 and Y2 each add a $12,000/yr contribution (Y2 = targetYear - 1, the last contribution
+      // year). Y3 (targetYear, retirement itself) gets no new contribution and instead takes the
+      // first withdrawal: 4% of 124,000 = 4,960, so 124,000 - 4,960 = 119,040.
+      expect(result.balances.slice(0, 4)).toEqual([100000, 112000, 124000, 119040]);
+      expect(result.withdrawals.slice(0, 4)).toEqual([0, 0, 0, 4960]);
+    });
+
+    it('the retirement year itself gets no new contribution but does take the first withdrawal - contributions stop the year before', () => {
+      // 0% return isolates the arithmetic: contributions run through Y4 (targetYear - 1); Y5
+      // (targetYear) gets no contribution but takes the first withdrawal instead - 4% of 148,000 =
+      // 5,920.
+      const result = projectRetirementBalance(100000, 1000, 0, 5, 30, 4, 3);
+      expect(result.balances.slice(0, 6)).toEqual([100000, 112000, 124000, 136000, 148000, 142080]);
+      expect(result.withdrawals.slice(0, 6)).toEqual([0, 0, 0, 0, 0, 5920]);
     });
 
     it('with a target year of 0 (already retired), skips accumulation and starts the drawdown immediately from Y0', () => {
@@ -81,10 +96,17 @@ describe('projectRetirementBalance', () => {
       expect(result.depletionYear).toBeNull();
     });
 
-    it('finalYear at or before the target year means no decumulation phase at all - just the accumulation years', () => {
+    it('finalYear before the target year means no decumulation phase at all - just the accumulation years', () => {
+      const result = projectRetirementBalance(100000, 0, 6, 10, 9, 4, 3);
+      expect(result.yearLabels).toHaveLength(10);
+      expect(result.withdrawals.every((withdrawal) => withdrawal === 0)).toBe(true);
+      expect(result.depletionYear).toBeNull();
+    });
+
+    it('finalYear equal to the target year still includes exactly one decumulation year - the retirement year itself', () => {
       const result = projectRetirementBalance(100000, 0, 6, 10, 10, 4, 3);
       expect(result.yearLabels).toHaveLength(11);
-      expect(result.depletionYear).toBeNull();
+      expect(result.withdrawals[10]).toBeGreaterThan(0);
     });
   });
 });

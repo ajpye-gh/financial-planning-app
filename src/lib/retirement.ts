@@ -4,12 +4,15 @@ import type { Verdict } from './model';
 export interface RetirementProjection {
   yearLabels: string[];
   balances: number[];
-  /** Actual $ withdrawn each year - 0 through retirementYearIndex (accumulation, no withdrawals
-   *  yet), the scheduled amount during decumulation while funds last, capped at whatever's actually
-   *  left in the balance for the year it depletes, then 0 forever after (nothing left to withdraw). */
+  /** Actual $ withdrawn each year - 0 before retirementYearIndex (accumulation, no withdrawals
+   *  yet), the scheduled amount from retirementYearIndex onward while funds last, capped at
+   *  whatever's actually left in the balance for the year it depletes, then 0 forever after
+   *  (nothing left to withdraw). Exception: if retirementYearIndex is 0, the first withdrawal is at
+   *  index 1 instead - index 0 always holds the untouched starting balance. */
   withdrawals: number[];
-  /** Index into yearLabels/balances where retirement begins (== targetYear) - the accumulation
-   *  phase runs through this index; every index after it is a decumulation year. */
+  /** Index into yearLabels/balances where retirement begins (== targetYear) - accumulation runs
+   *  through the index before this one; this index and every one after it is a decumulation year
+   *  (see the `withdrawals` doc above for the targetYear === 0 exception). */
   retirementYearIndex: number;
   /** The first year balance hits $0 during decumulation, or null if it lasts the full projection
    *  window without running out. */
@@ -23,16 +26,24 @@ export interface RetirementProjection {
 export const MAX_PROJECTION_AGE = 100;
 
 /** Projects the full retirement arc: accumulation (compound growth + a fixed monthly contribution,
- *  same formula as model.ts's advanceGoalBalances) through the target year, then decumulation
- *  through finalYear (years from today - the caller works out how far that is, RetirementPage
- *  always uses MAX_PROJECTION_AGE - currentAge) - the standard "4% rule" mechanics: the first year's
- *  withdrawal is `withdrawalRatePct` of the balance at retirement, and every year after that the
- *  withdrawal amount itself grows with inflation (to hold its purchasing power) regardless of how
- *  the portfolio performs, while the remaining balance keeps growing at the investment return net of
- *  that withdrawal. Balance floors at $0 - once depleted, it stays depleted; the actual (capped)
- *  amount withdrawn each year is tracked separately (see `withdrawals`) since it can't exceed what's
- *  left. If finalYear <= targetYear there's no decumulation phase to project - falls out naturally
- *  from the loop bounds below, no special-casing needed. */
+ *  same formula as model.ts's advanceGoalBalances) through targetYear - 1, then decumulation
+ *  starting at targetYear itself through finalYear (years from today - the caller works out how far
+ *  that is, RetirementPage always uses MAX_PROJECTION_AGE - currentAge) - the standard "4% rule"
+ *  mechanics: the first year's withdrawal is `withdrawalRatePct` of the balance carried in from the
+ *  accumulation phase, and every year after that the withdrawal amount itself grows with inflation
+ *  (to hold its purchasing power) regardless of how the portfolio performs, while the remaining
+ *  balance keeps growing at the investment return net of that withdrawal. Balance floors at $0 -
+ *  once depleted, it stays depleted; the actual (capped) amount withdrawn each year is tracked
+ *  separately (see `withdrawals`) since it can't exceed what's left. If finalYear < targetYear
+ *  there's no decumulation phase to project - falls out naturally from the loop bounds below, no
+ *  special-casing needed.
+ *
+ *  targetYear - 1 is the last year with a new contribution; targetYear (retirement year itself) is
+ *  the first year with a withdrawal (and the first year retirement income tax applies) - matching
+ *  Social Security, which already starts at retirementYearIndex in projectHouseholdRetirementIncome.
+ *  The one exception is targetYear === 0 (already retired as of today): Y0 always has to stay exactly
+ *  the given starting balance with no growth or withdrawal applied yet, so the first withdrawal there
+ *  still lands at Y1, same as it always has. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
@@ -47,7 +58,7 @@ export function projectRetirementBalance(
   const yearLabels = ['Y0'];
   let balance = startingBalance;
 
-  for (let year = 1; year <= targetYear; year++) {
+  for (let year = 1; year < targetYear; year++) {
     balance = balance * (1 + investmentReturnPct / 100) + monthlyContribution * 12;
     balances.push(Math.round(balance));
     withdrawals.push(0);
@@ -56,7 +67,8 @@ export function projectRetirementBalance(
 
   let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
-  for (let year = targetYear + 1; year <= finalYear; year++) {
+  const firstDecumulationYear = Math.max(targetYear, 1);
+  for (let year = firstDecumulationYear; year <= finalYear; year++) {
     const grown = balance * (1 + investmentReturnPct / 100);
     const actualWithdrawal = Math.min(scheduledWithdrawal, grown);
     balance = grown - actualWithdrawal;
