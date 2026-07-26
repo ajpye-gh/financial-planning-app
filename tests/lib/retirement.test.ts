@@ -1,4 +1,14 @@
-import { buildRetirementVerdict, MAX_PROJECTION_AGE, projectHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
+import {
+  buildEarlyWithdrawalWarning,
+  buildRetirementVerdict,
+  MAX_PROJECTION_AGE,
+  projectHouseholdRetirementIncome,
+  projectRetirementBalance,
+  requiredMinimumDistribution,
+  RMD_START_AGE,
+  SS_MIN_CLAIMING_AGE,
+  TRADITIONAL_EARLY_WITHDRAWAL_AGE,
+} from '@src/lib/retirement';
 import { estimateRetirementTax } from '@src/lib/tax';
 
 describe('projectRetirementBalance', () => {
@@ -111,6 +121,57 @@ describe('projectRetirementBalance', () => {
       expect(result.withdrawals[10]).toBeGreaterThan(0);
     });
   });
+
+  describe('Required Minimum Distributions (the optional rmd argument)', () => {
+    it('forces a withdrawal up to the RMD once age reaches RMD_START_AGE, even above a lower scheduled rate', () => {
+      // Already retired, currentAge=RMD_START_AGE itself - a 2% rate would normally take
+      // $20,000 from $1,000,000, but the RMD (divisor 26.5 at this age) forces ~$37,736 instead.
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 2, 3, { currentAge: RMD_START_AGE });
+      expect(result.withdrawals[0]).toBeCloseTo(1000000 / 26.5, 0);
+    });
+
+    it('does not force anything before RMD_START_AGE, even when the rmd option is passed', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 2, 3, { currentAge: RMD_START_AGE - 1 });
+      expect(result.withdrawals[0]).toBeCloseTo(20000, 0);
+    });
+
+    it('leaves a voluntary withdrawal rate that already exceeds the RMD unaffected', () => {
+      const withRmd = projectRetirementBalance(1000000, 0, 6, 0, 25, 10, 3, { currentAge: RMD_START_AGE });
+      const withoutRmd = projectRetirementBalance(1000000, 0, 6, 0, 25, 10, 3);
+      // 10% of 1,000,000 = 100,000, comfortably above the RMD floor - so the option changes nothing.
+      expect(withRmd.withdrawals[0]).toBe(withoutRmd.withdrawals[0]);
+    });
+
+    it('applies no RMD floor at all when the rmd option is omitted, regardless of how low the rate is', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 0.1, 3);
+      expect(result.withdrawals[0]).toBeCloseTo(1000, 0);
+    });
+  });
+});
+
+describe('requiredMinimumDistribution', () => {
+  it('is $0 for any age before RMD_START_AGE', () => {
+    expect(requiredMinimumDistribution(1000000, RMD_START_AGE - 1)).toBe(0);
+  });
+
+  it('is balance / the Uniform Lifetime Table divisor at RMD_START_AGE', () => {
+    expect(requiredMinimumDistribution(1000000, RMD_START_AGE)).toBeCloseTo(1000000 / 26.5, 6);
+  });
+
+  it('requires a larger fraction of the balance as age increases (the divisor shrinks)', () => {
+    const at73 = requiredMinimumDistribution(1000000, 73);
+    const at90 = requiredMinimumDistribution(1000000, 90);
+    expect(at90).toBeGreaterThan(at73);
+  });
+
+  it('is $0 for a $0 or negative balance regardless of age', () => {
+    expect(requiredMinimumDistribution(0, 90)).toBe(0);
+    expect(requiredMinimumDistribution(-100, 90)).toBe(0);
+  });
+
+  it("reuses the table's last divisor for any age past its top row", () => {
+    expect(requiredMinimumDistribution(1000000, 150)).toBeCloseTo(1000000 / 2.0, 6);
+  });
 });
 
 describe('projectHouseholdRetirementIncome', () => {
@@ -145,6 +206,7 @@ describe('projectHouseholdRetirementIncome', () => {
       ssBenefitAnnual: year0.ssGross,
       afterTaxWithdrawalAnnual: 0,
       afterTaxGainPct: 0,
+      isEarlyTraditionalWithdrawal: false,
       filingStatus: 'single',
       inflationFactor: 1,
     });
@@ -238,6 +300,7 @@ describe('projectHouseholdRetirementIncome', () => {
       ssBenefitAnnual: 0,
       afterTaxWithdrawalAnnual: 0,
       afterTaxGainPct: 0,
+      isEarlyTraditionalWithdrawal: false,
       filingStatus: 'single',
       inflationFactor: Math.pow(1.03, 5),
     });
@@ -269,6 +332,88 @@ describe('projectHouseholdRetirementIncome', () => {
       year0.rothWithdrawal + year0.traditionalWithdrawal + year0.afterTaxWithdrawal - year0.tax.tax,
       6,
     );
+  });
+
+  it('never starts Social Security before SS_MIN_CLAIMING_AGE, even if retired earlier', () => {
+    // currentAge=55, already retired (targetYear=0) - SS_MIN_CLAIMING_AGE=62 means index 0-6 (ages
+    // 55-61) get no Social Security at all, despite already being retired.
+    const series = projectHouseholdRetirementIncome({
+      ...baseIncomeInputs,
+      rothProjection: roth(),
+      traditionalProjection: traditional(),
+      currentAge: 55,
+    });
+
+    for (let year = 0; year < SS_MIN_CLAIMING_AGE - 55; year++) {
+      expect(series[year].ssGross).toBe(0);
+    }
+    expect(series[SS_MIN_CLAIMING_AGE - 55].ssGross).toBeGreaterThan(0);
+  });
+
+  it('starts Social Security immediately (no gap) when already older than SS_MIN_CLAIMING_AGE at retirement', () => {
+    const series = projectHouseholdRetirementIncome({ ...baseIncomeInputs, rothProjection: roth(), traditionalProjection: traditional() });
+    expect(series[0].ssGross).toBeGreaterThan(0);
+  });
+
+  it('flags every Traditional withdrawal before TRADITIONAL_EARLY_WITHDRAWAL_AGE for the 10% penalty, and none at or after it', () => {
+    // currentAge=55, retired now (targetYear=0): ages 55-59 (years 0-4) are early, age 60+ (year 5
+    // on) is not.
+    const earlyTraditional = projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
+    const series = projectHouseholdRetirementIncome({
+      ...baseIncomeInputs,
+      rothProjection: projectRetirementBalance(0, 0, 6, 0, 25, 4, 3),
+      traditionalProjection: earlyTraditional,
+      currentAge: 55,
+    });
+
+    for (let year = 0; year < TRADITIONAL_EARLY_WITHDRAWAL_AGE - 55; year++) {
+      expect(series[year].tax.earlyWithdrawalPenalty).toBeGreaterThan(0);
+    }
+    expect(series[TRADITIONAL_EARLY_WITHDRAWAL_AGE - 55].tax.earlyWithdrawalPenalty).toBe(0);
+  });
+});
+
+describe('buildEarlyWithdrawalWarning', () => {
+  const CURRENT_AGE = 55;
+  const earlyTraditional = () => projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
+  const onTimeTraditional = () => projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
+  const noWithdrawal = () => projectRetirementBalance(0, 0, 6, 0, 25, 4, 3);
+
+  it('returns null when no year in the projection incurs the penalty', () => {
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: noWithdrawal(),
+      traditionalProjection: onTimeTraditional(),
+      afterTaxProjection: noWithdrawal(),
+      afterTaxGainPct: 0,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 0,
+      currentAge: TRADITIONAL_EARLY_WITHDRAWAL_AGE,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
+    expect(buildEarlyWithdrawalWarning(series, TRADITIONAL_EARLY_WITHDRAWAL_AGE)).toBeNull();
+  });
+
+  it('returns a warning verdict naming the affected age range when the penalty applies', () => {
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: noWithdrawal(),
+      traditionalProjection: earlyTraditional(),
+      afterTaxProjection: noWithdrawal(),
+      afterTaxGainPct: 0,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 0,
+      currentAge: CURRENT_AGE,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
+    const warning = buildEarlyWithdrawalWarning(series, CURRENT_AGE);
+    expect(warning).not.toBeNull();
+    expect(warning?.tone).toBe('warning');
+    expect(warning?.headline).toContain(String(CURRENT_AGE));
+    expect(warning?.headline).toContain(String(TRADITIONAL_EARLY_WITHDRAWAL_AGE - 1));
+    expect(warning?.detail).toContain('10%');
   });
 });
 

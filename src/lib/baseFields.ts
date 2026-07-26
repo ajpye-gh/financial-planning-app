@@ -229,7 +229,8 @@ export const RETIREMENT_TRADITIONAL_SAVINGS_FIELD: BaseFieldMeta = {
   id: 'retirementTraditionalSavingsTodayK',
   label: 'Current Traditional savings',
   format: 'k',
-  tooltip: 'Your current Traditional 401(k)/IRA balance(s) today. Withdrawals in retirement are taxed as ordinary income.',
+  tooltip:
+    'Your current Traditional 401(k)/IRA balance(s) today. Withdrawals in retirement are taxed as ordinary income - and if taken before age 60 (the real early-withdrawal age, rounded from 59½), also hit with a 10% IRS penalty. Required Minimum Distributions kick in at age 73 regardless of your withdrawal rate below - see the income breakdown table below the chart.',
 };
 
 export const RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD: BaseFieldMeta = {
@@ -244,7 +245,7 @@ export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
   format: '%',
   tooltip:
-    'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance. Taxed as ordinary income - see the income breakdown table below the chart.',
+    'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - unless a Required Minimum Distribution (starting age 73) would force a bigger withdrawal than this rate produces, in which case the RMD wins. Taxed as ordinary income - see the income breakdown table below the chart.',
 };
 
 export const RETIREMENT_AFTER_TAX_SAVINGS_FIELD: BaseFieldMeta = {
@@ -282,7 +283,7 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
   label: 'Social Security benefit',
   format: '$',
   tooltip:
-    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart.",
+    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Never starts before age 62 (the real earliest claiming age), even if you retire earlier. Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart.",
 };
 
 export const RETIREMENT_PENSION_FIELD: BaseFieldMeta = {

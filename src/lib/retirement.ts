@@ -24,6 +24,45 @@ export interface RetirementProjection {
  *  retirementInspectAge.max in Defaults.json in sync with this (a test asserts it). */
 export const MAX_PROJECTION_AGE = 100;
 
+/** Real earliest Social Security claiming age - benefits never start before this, regardless of
+ *  retirement age (retiring at 55 doesn't mean Social Security starts at 55). Doesn't model delayed
+ *  claiming past this floor for a larger benefit (see full retirement age / age-70 maximum) - this
+ *  app only models "claim as soon as retired, no earlier than this floor." */
+export const SS_MIN_CLAIMING_AGE = 62;
+
+/** Real IRS early-withdrawal age for Traditional 401(k)/IRA accounts - 59½ in law, rounded to a
+ *  whole year here since every other age in this app is a whole number. Withdrawing before this
+ *  incurs EARLY_WITHDRAWAL_PENALTY_PCT (see tax.ts) on top of ordinary income tax. */
+export const TRADITIONAL_EARLY_WITHDRAWAL_AGE = 60;
+
+/** Real age Required Minimum Distributions begin on Traditional (pre-tax) accounts under
+ *  SECURE 2.0 - 73 for 2023-2032 (rising to 75 in 2033, not modeled here, same "point-in-time
+ *  snapshot of current law" scope as tax.ts's 2024 brackets). Roth accounts have no RMDs (Roth
+ *  401(k)s were exempted starting 2024, matching Roth IRAs), and after-tax accounts never had them. */
+export const RMD_START_AGE = 73;
+
+/** IRS Uniform Lifetime Table (effective 2022), age -> distribution period. RMD = account balance /
+ *  divisor for the owner's age that year. Ages past 120 all use the same divisor per the real table. */
+const RMD_DIVISORS: Record<number, number> = {
+  73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1, 80: 20.2,
+  81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4, 88: 13.7, 89: 12.9, 90: 12.2,
+  91: 11.5, 92: 10.8, 93: 10.1, 94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8, 100: 6.4,
+  101: 6.0, 102: 5.6, 103: 5.2, 104: 4.9, 105: 4.6, 106: 4.3, 107: 4.1, 108: 3.9, 109: 3.7, 110: 3.5,
+  111: 3.4, 112: 3.3, 113: 3.1, 114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7, 118: 2.5, 119: 2.3, 120: 2.0,
+};
+const RMD_TABLE_MAX_AGE = 120;
+
+/** The Required Minimum Distribution for a Traditional account: $0 before RMD_START_AGE (or on a
+ *  $0/negative balance), otherwise balance / that age's Uniform Lifetime Table divisor - ages past
+ *  the table's top row all use its last divisor, matching the real table's own convention. */
+export function requiredMinimumDistribution(balance: number, age: number): number {
+  if (age < RMD_START_AGE || balance <= 0) {
+    return 0;
+  }
+  const divisor = RMD_DIVISORS[Math.min(age, RMD_TABLE_MAX_AGE)];
+  return balance / divisor;
+}
+
 interface DecumulationStep {
   balance: number;
   withdrawal: number;
@@ -59,7 +98,12 @@ function applyDecumulationStep(balance: number, investmentReturnPct: number, sch
  *  Social Security, which already starts at retirementYearIndex in projectHouseholdRetirementIncome.
  *  This holds even when targetYear === 0 (already retired today): Y0 immediately reflects that
  *  first withdrawal rather than showing the raw input untouched for a year, so "the balance today"
- *  and "the balance at retirement" mean the same thing once you're already retired. */
+ *  and "the balance at retirement" mean the same thing once you're already retired.
+ *
+ *  rmd, when passed (Traditional pots only - see RetirementPage.tsx), forces each decumulation
+ *  year's actual withdrawal up to at least that year's Required Minimum Distribution once age
+ *  reaches RMD_START_AGE - same as real law: RMDs are a floor on top of whatever you'd otherwise
+ *  withdraw, not a replacement for a higher voluntary withdrawal. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
@@ -68,6 +112,7 @@ export function projectRetirementBalance(
   finalYear: number,
   withdrawalRatePct: number,
   inflationPct: number,
+  rmd?: { currentAge: number },
 ): RetirementProjection {
   const balances = [Math.round(startingBalance)];
   const withdrawals = [0];
@@ -84,8 +129,16 @@ export function projectRetirementBalance(
   let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
 
+  const effectiveWithdrawal = (year: number) => {
+    if (!rmd) {
+      return scheduledWithdrawal;
+    }
+    const rmdAmount = requiredMinimumDistribution(balance, rmd.currentAge + year);
+    return Math.max(scheduledWithdrawal, rmdAmount);
+  };
+
   if (targetYear === 0) {
-    const step = applyDecumulationStep(balance, investmentReturnPct, scheduledWithdrawal);
+    const step = applyDecumulationStep(balance, investmentReturnPct, effectiveWithdrawal(0));
     balance = step.balance;
     if (step.depleted) {
       depletionYear = 0;
@@ -96,7 +149,7 @@ export function projectRetirementBalance(
   }
 
   for (let year = Math.max(targetYear, 1); year <= finalYear; year++) {
-    const step = applyDecumulationStep(balance, investmentReturnPct, scheduledWithdrawal);
+    const step = applyDecumulationStep(balance, investmentReturnPct, effectiveWithdrawal(year));
     balance = step.balance;
     if (step.depleted && depletionYear === null) {
       depletionYear = year;
@@ -151,8 +204,11 @@ export interface HouseholdIncomeProjectionInputs {
  *  so this is the one place that actually calls tax.ts. Uses each projection's actual
  *  (depletion-capped) withdrawals rather than re-deriving them, so income correctly drops once a pot
  *  runs dry instead of assuming the scheduled amount forever. Social Security is assumed to start
- *  the year you retire (index >= retirementYearIndex) and never depletes, unlike the three accounts;
- *  pension income starts at its own independent pensionStartAge instead. */
+ *  the year you retire, but never before SS_MIN_CLAIMING_AGE regardless of retirement age, and never
+ *  depletes, unlike the three accounts; pension income starts at its own independent pensionStartAge
+ *  instead. Traditional withdrawals taken before TRADITIONAL_EARLY_WITHDRAWAL_AGE flag the real 10%
+ *  early-withdrawal penalty (see tax.ts) - RMDs themselves are already baked into the Traditional
+ *  projection's own withdrawals (see projectRetirementBalance's rmd option), not handled here. */
 export function projectHouseholdRetirementIncome({
   rothProjection,
   traditionalProjection,
@@ -167,13 +223,15 @@ export function projectHouseholdRetirementIncome({
 }: HouseholdIncomeProjectionInputs): HouseholdRetirementIncome[] {
   const { retirementYearIndex } = rothProjection;
   const pensionStartYearOffset = Math.max(0, pensionStartAge - currentAge);
+  const ssStartYearOffset = Math.max(retirementYearIndex, SS_MIN_CLAIMING_AGE - currentAge);
   return rothProjection.yearLabels.map((_, year) => {
     const inflationFactor = Math.pow(1 + inflationPct / 100, year);
     const rothWithdrawal = rothProjection.withdrawals[year] ?? 0;
     const traditionalWithdrawal = traditionalProjection.withdrawals[year] ?? 0;
     const afterTaxWithdrawal = afterTaxProjection.withdrawals[year] ?? 0;
-    const ssGross = year >= retirementYearIndex ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
+    const ssGross = year >= ssStartYearOffset ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
     const pensionGross = year >= pensionStartYearOffset ? pensionMonthlyToday * 12 * inflationFactor : 0;
+    const isEarlyTraditionalWithdrawal = traditionalWithdrawal > 0 && currentAge + year < TRADITIONAL_EARLY_WITHDRAWAL_AGE;
 
     const tax = estimateRetirementTax({
       traditionalWithdrawalAnnual: traditionalWithdrawal,
@@ -181,6 +239,7 @@ export function projectHouseholdRetirementIncome({
       ssBenefitAnnual: ssGross,
       afterTaxWithdrawalAnnual: afterTaxWithdrawal,
       afterTaxGainPct,
+      isEarlyTraditionalWithdrawal,
       filingStatus,
       inflationFactor,
     });
@@ -246,5 +305,27 @@ export function buildRetirementVerdict(pots: NamedRetirementPot[], currentAge: n
     tone: 'warning',
     headline: `${namesOf(depleted)} ${verb} out by age ${oldestDepletionAge}.`,
     detail: `${namesOf(depleted)} ${depleted.length === 1 ? 'is' : 'are'} projected to run dry, but ${namesOf(surviving)} ${surviving.length === 1 ? 'continues' : 'continue'}.`,
+  };
+}
+
+/** A clear, explicit callout for whenever the projection includes a year with the real 10% early-
+ *  withdrawal penalty (Traditional withdrawals before TRADITIONAL_EARLY_WITHDRAWAL_AGE) - this is
+ *  extra money leaving the household that isn't obvious from the balance/withdrawal numbers alone,
+ *  so it gets its own banner (see RetirementPage.tsx) rather than being buried in the tax breakdown
+ *  table. Returns null when no such year exists, so the caller can skip rendering it entirely. */
+export function buildEarlyWithdrawalWarning(incomeSeries: HouseholdRetirementIncome[], currentAge: number): Verdict | null {
+  const penalizedYears = incomeSeries.filter((entry) => entry.tax.earlyWithdrawalPenalty > 0).map((entry) => entry.year);
+  if (penalizedYears.length === 0) {
+    return null;
+  }
+
+  const firstAge = currentAge + Math.min(...penalizedYears);
+  const lastAge = currentAge + Math.max(...penalizedYears);
+  const ageRange = firstAge === lastAge ? `age ${firstAge}` : `ages ${firstAge}–${lastAge}`;
+
+  return {
+    tone: 'warning',
+    headline: `10% early-withdrawal penalty applies at ${ageRange}.`,
+    detail: `Traditional withdrawals taken before age ${TRADITIONAL_EARLY_WITHDRAWAL_AGE} (the real IRS early-withdrawal age, rounded from 59½) incur an extra 10% penalty on top of ordinary income tax - already included in the tax totals below.`,
   };
 }

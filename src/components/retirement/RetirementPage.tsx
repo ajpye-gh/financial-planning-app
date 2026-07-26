@@ -31,6 +31,7 @@ import {
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { filingStatus as getFilingStatus, type Answers } from '../../lib/questions';
 import {
+  buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
   MAX_PROJECTION_AGE,
   projectHouseholdRetirementIncome,
@@ -125,6 +126,8 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         finalYearOffset,
         baseInputs.retirementTraditionalWithdrawalRatePct,
         baseInputs.inflationPct,
+        // RMDs only apply to Traditional (pre-tax) accounts - Roth and after-tax never get this.
+        { currentAge },
       ),
     [
       baseInputs.retirementTraditionalSavingsTodayK,
@@ -134,6 +137,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       finalYearOffset,
       baseInputs.retirementTraditionalWithdrawalRatePct,
       baseInputs.inflationPct,
+      currentAge,
     ],
   );
 
@@ -237,6 +241,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     { name: 'After-tax', projection: afterTaxProjection },
   ];
   const verdict = buildRetirementVerdict(pots, currentAge);
+  const earlyWithdrawalWarning = buildEarlyWithdrawalWarning(incomeSeries, currentAge);
 
   return (
     <div className="app-shell">
@@ -263,6 +268,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
 
       <div className="app-shell__main">
         <VerdictBanner verdict={verdict} />
+        {earlyWithdrawalWarning && <VerdictBanner verdict={earlyWithdrawalWarning} />}
         <RetirementChart
           rothProjection={rothProjection}
           traditionalProjection={traditionalProjection}

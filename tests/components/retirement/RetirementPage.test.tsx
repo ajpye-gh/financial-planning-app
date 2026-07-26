@@ -343,4 +343,59 @@ describe('RetirementPage', () => {
     expect(document.querySelector('.verdict-banner--warning')).toBeInTheDocument();
     expect(screen.getByText(/Roth runs out/)).toBeInTheDocument();
   });
+
+  it('shows a clear early-withdrawal-penalty warning banner when retiring before age 60 with a Traditional withdrawal', () => {
+    // BASE_INPUTS retires at 55 (< 60) with a nonzero Traditional balance/rate by default.
+    renderRetirementPage();
+
+    expect(screen.getByText(/10% early-withdrawal penalty applies/)).toBeInTheDocument();
+    expect(screen.getByText(/59½/)).toBeInTheDocument();
+  });
+
+  it('does not show the early-withdrawal-penalty warning when retiring at or after age 60', () => {
+    renderRetirementPage({
+      baseInputs: { ...BASE_INPUTS, retirementCurrentAge: 60, retirementTargetAge: 60, retirementInspectAge: 60 },
+    });
+
+    expect(screen.queryByText(/early-withdrawal penalty/)).not.toBeInTheDocument();
+  });
+
+  it("shows $0 Social Security before age 62 even though already retired, matching the real earliest claiming age", () => {
+    renderRetirementPage({
+      baseInputs: {
+        ...BASE_INPUTS,
+        retirementCurrentAge: 55,
+        retirementTargetAge: 55,
+        retirementInspectAge: 55,
+      },
+    });
+
+    expect(screen.getByText('Age 55 detail')).toBeInTheDocument();
+    const ssRow = screen.getByText('Social Security, gross').closest('tr');
+    expect(ssRow).toHaveTextContent('$0/yr');
+  });
+
+  it('forces a Traditional withdrawal at least as large as the Required Minimum Distribution once age reaches 73', () => {
+    // A 2% withdrawal rate would normally take 2% of the balance; at age 73 the RMD (balance /
+    // 26.5) is much larger and should win instead.
+    renderRetirementPage({
+      baseInputs: {
+        ...BASE_INPUTS,
+        retirementTraditionalSavingsTodayK: 1000,
+        retirementTraditionalContributionMo: 0,
+        retirementTraditionalWithdrawalRatePct: 2,
+        retirementCurrentAge: 73,
+        retirementTargetAge: 73,
+        retirementInspectAge: 73,
+      },
+    });
+
+    expect(screen.getByText('Age 73 detail')).toBeInTheDocument();
+    const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
+    // currentAge=targetAge=73 -> finalYear = MAX_PROJECTION_AGE(100) - 73 = 27.
+    const expected = projectRetirementBalance(1000000, 0, 6, 0, 27, 2, 3, { currentAge: 73 });
+    expect(traditionalRow).toHaveTextContent(formatCurrency(expected.withdrawals[0]));
+    // 2% of $1,000,000 would only be $20,000 - confirms the RMD, not the chosen rate, actually won.
+    expect(expected.withdrawals[0]).toBeGreaterThan(20000);
+  });
 });

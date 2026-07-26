@@ -47,6 +47,9 @@ export function RetirementBreakdownTable({
           <Row label="Taxable income" value={formatCurrency(income.tax.taxableOrdinaryIncome)} muted />
           <Row label="— of which after-tax withdrawal gain" value={formatCurrency(income.tax.taxableGain)} muted />
           <Row label="Capital gains tax" value={formatCurrency(income.tax.capitalGainsTax)} muted />
+          {income.tax.earlyWithdrawalPenalty > 0 && (
+            <Row label="Early-withdrawal penalty (10%)" value={formatCurrency(income.tax.earlyWithdrawalPenalty)} muted />
+          )}
           <Row label="Federal tax, total" value={`${formatCurrency(income.tax.tax)}/yr (${income.tax.effectiveRatePct.toFixed(1)}%)`} />
           <tr className="breakdown-table__divider">
             <td colSpan={2} />
