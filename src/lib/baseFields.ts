@@ -26,6 +26,10 @@ export type BaseFieldId =
   | 'retirementTraditionalSavingsTodayK'
   | 'retirementTraditionalContributionMo'
   | 'retirementTraditionalWithdrawalRatePct'
+  | 'retirementAfterTaxSavingsTodayK'
+  | 'retirementAfterTaxContributionMo'
+  | 'retirementAfterTaxWithdrawalRatePct'
+  | 'retirementAfterTaxGainPct'
   | 'retirementSocialSecurityMo'
   | 'retirementPensionMo'
   | 'retirementPensionStartAge'
@@ -194,6 +198,11 @@ export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
  *  assumptions used in the retirement projection are read straight from BASE_FIELD_GROUPS's
  *  Assumptions group instead of being duplicated here. Split into Roth/Traditional pairs since the
  *  two are taxed differently (see tax.ts) and tracked as independent balances (see retirement.ts). */
+// Shared across the Roth/Traditional/After-tax field trios below - each pot has its own field
+// object (different id/tooltip), but the slider label itself is identical across all three.
+const RETIREMENT_CONTRIBUTION_LABEL = 'Monthly contribution';
+const RETIREMENT_WITHDRAWAL_RATE_LABEL = 'Initial withdrawal rate';
+
 export const RETIREMENT_ROTH_SAVINGS_FIELD: BaseFieldMeta = {
   id: 'retirementRothSavingsTodayK',
   label: 'Current Roth savings',
@@ -203,14 +212,14 @@ export const RETIREMENT_ROTH_SAVINGS_FIELD: BaseFieldMeta = {
 
 export const RETIREMENT_ROTH_CONTRIBUTION_FIELD: BaseFieldMeta = {
   id: 'retirementRothContributionMo',
-  label: 'Monthly contribution',
+  label: RETIREMENT_CONTRIBUTION_LABEL,
   format: '$',
   tooltip: 'How much you contribute to Roth accounts each month.',
 };
 
 export const RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   id: 'retirementRothWithdrawalRatePct',
-  label: 'Initial withdrawal rate',
+  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
   format: '%',
   tooltip:
     'Share of your projected Roth balance withdrawn in your first year of retirement (the "4% rule" is the common default). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - so the withdrawal keeps climbing in nominal terms even at a fixed rate. A rule-of-thumb estimate, not a full drawdown simulation.',
@@ -225,17 +234,47 @@ export const RETIREMENT_TRADITIONAL_SAVINGS_FIELD: BaseFieldMeta = {
 
 export const RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD: BaseFieldMeta = {
   id: 'retirementTraditionalContributionMo',
-  label: 'Monthly contribution',
+  label: RETIREMENT_CONTRIBUTION_LABEL,
   format: '$',
   tooltip: 'How much you contribute to Traditional accounts each month.',
 };
 
 export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
   id: 'retirementTraditionalWithdrawalRatePct',
-  label: 'Initial withdrawal rate',
+  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
   format: '%',
   tooltip:
     'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance. Taxed as ordinary income - see the income breakdown table below the chart.',
+};
+
+export const RETIREMENT_AFTER_TAX_SAVINGS_FIELD: BaseFieldMeta = {
+  id: 'retirementAfterTaxSavingsTodayK',
+  label: 'Current after-tax savings',
+  format: 'k',
+  tooltip: 'Your current taxable brokerage balance(s) today - already-taxed money, unlike Roth/Traditional retirement accounts.',
+};
+
+export const RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD: BaseFieldMeta = {
+  id: 'retirementAfterTaxContributionMo',
+  label: RETIREMENT_CONTRIBUTION_LABEL,
+  format: '$',
+  tooltip: 'How much you contribute to after-tax (brokerage) accounts each month.',
+};
+
+export const RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
+  id: 'retirementAfterTaxWithdrawalRatePct',
+  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
+  format: '%',
+  tooltip:
+    'Share of your projected after-tax balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance.',
+};
+
+export const RETIREMENT_AFTER_TAX_GAIN_FIELD: BaseFieldMeta = {
+  id: 'retirementAfterTaxGainPct',
+  label: 'Taxable gain %',
+  format: '%',
+  tooltip:
+    "Share of every after-tax withdrawal that's investment gain rather than a tax-free return of your original cost basis - e.g. 40% means $4 of every $10 withdrawn is taxable. That gain slice is taxed at a flat long-term capital gains rate, separate from your ordinary-income brackets.",
 };
 
 export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
@@ -299,6 +338,10 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD.id,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_AFTER_TAX_SAVINGS_FIELD.id,
+  RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD.id,
+  RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_AFTER_TAX_GAIN_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
   RETIREMENT_PENSION_FIELD.id,
   RETIREMENT_PENSION_START_AGE_FIELD.id,

@@ -119,6 +119,8 @@ describe('projectHouseholdRetirementIncome', () => {
   const traditional = () => projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
 
   const baseIncomeInputs = {
+    afterTaxProjection: projectRetirementBalance(0, 0, 6, 0, 25, 4, 3),
+    afterTaxGainPct: 0,
     pensionMonthlyToday: 0,
     pensionStartAge: 65,
     ssMonthlyBenefitToday: 2000,
@@ -141,6 +143,8 @@ describe('projectHouseholdRetirementIncome', () => {
       traditionalWithdrawalAnnual: year0.traditionalWithdrawal,
       pensionAnnual: 0,
       ssBenefitAnnual: year0.ssGross,
+      afterTaxWithdrawalAnnual: 0,
+      afterTaxGainPct: 0,
       filingStatus: 'single',
       inflationFactor: 1,
     });
@@ -212,6 +216,8 @@ describe('projectHouseholdRetirementIncome', () => {
     const series = projectHouseholdRetirementIncome({
       rothProjection: roth(),
       traditionalProjection: traditional(),
+      afterTaxProjection: projectRetirementBalance(0, 0, 6, 0, 25, 4, 3),
+      afterTaxGainPct: 0,
       pensionMonthlyToday: 1000,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 0,
@@ -230,10 +236,39 @@ describe('projectHouseholdRetirementIncome', () => {
       traditionalWithdrawalAnnual: withPension.traditionalWithdrawal,
       pensionAnnual: withPension.pensionGross,
       ssBenefitAnnual: 0,
+      afterTaxWithdrawalAnnual: 0,
+      afterTaxGainPct: 0,
       filingStatus: 'single',
       inflationFactor: Math.pow(1.03, 5),
     });
     expect(withPension.tax.tax).toBeCloseTo(expectedTax.tax, 6);
+  });
+
+  it('surfaces the after-tax withdrawal and taxes only its taxable-gain slice at the flat LTCG rate', () => {
+    // targetYear=0 so the after-tax pot's first withdrawal happens immediately, same as roth()/traditional().
+    const afterTax = projectRetirementBalance(200000, 0, 6, 0, 25, 4, 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth(),
+      traditionalProjection: traditional(),
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 40,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 0,
+      currentAge: 65,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
+
+    // 200,000 * 4% = 8,000 withdrawal; 40% of that ($3,200) is taxable gain.
+    const year0 = series[0];
+    expect(year0.afterTaxWithdrawal).toBeCloseTo(8000, 0);
+    expect(year0.tax.taxableGain).toBeCloseTo(3200, 0);
+    expect(year0.tax.capitalGainsTax).toBeCloseTo(3200 * 0.15, 6);
+    expect(year0.netAnnual).toBeCloseTo(
+      year0.rothWithdrawal + year0.traditionalWithdrawal + year0.afterTaxWithdrawal - year0.tax.tax,
+      6,
+    );
   });
 });
 
@@ -242,39 +277,61 @@ describe('buildRetirementVerdict', () => {
   const lastingProjection = () => projectRetirementBalance(2000000, 0, 6, 20, 45, 3, 3);
   const depletingProjection = () => projectRetirementBalance(10000, 0, 0, 5, 30, 50, 0);
 
-  it('reports success when both pots last the full projection window', () => {
-    const verdict = buildRetirementVerdict(lastingProjection(), lastingProjection(), CURRENT_AGE);
+  it('reports success when every pot lasts the full projection window', () => {
+    const pots = [
+      { name: 'Roth', projection: lastingProjection() },
+      { name: 'Traditional', projection: lastingProjection() },
+      { name: 'After-tax', projection: lastingProjection() },
+    ];
+    const verdict = buildRetirementVerdict(pots, CURRENT_AGE);
     expect(verdict.tone).toBe('success');
     expect(verdict.detail).toContain(`${MAX_PROJECTION_AGE}`);
   });
 
-  it('reports danger with both depletion ages when both pots run out', () => {
+  it('reports danger with every depletion age when every pot runs out', () => {
     const roth = depletingProjection();
     const traditional = depletingProjection();
-    const verdict = buildRetirementVerdict(roth, traditional, CURRENT_AGE);
+    const afterTax = depletingProjection();
+    const pots = [
+      { name: 'Roth', projection: roth },
+      { name: 'Traditional', projection: traditional },
+      { name: 'After-tax', projection: afterTax },
+    ];
+    const verdict = buildRetirementVerdict(pots, CURRENT_AGE);
     expect(verdict.tone).toBe('danger');
     expect(roth.depletionYear).not.toBeNull();
-    const lastAge = CURRENT_AGE + Math.max(roth.depletionYear as number, traditional.depletionYear as number);
+    const lastAge =
+      CURRENT_AGE + Math.max(roth.depletionYear as number, traditional.depletionYear as number, afterTax.depletionYear as number);
     expect(verdict.headline).toContain(String(lastAge));
   });
 
-  it('reports a warning naming Roth when only Roth depletes, noting Traditional continues', () => {
+  it('reports a warning naming just Roth when only Roth depletes, noting the other two continue', () => {
     const roth = depletingProjection();
-    const traditional = lastingProjection();
-    const verdict = buildRetirementVerdict(roth, traditional, CURRENT_AGE);
+    const pots = [
+      { name: 'Roth', projection: roth },
+      { name: 'Traditional', projection: lastingProjection() },
+      { name: 'After-tax', projection: lastingProjection() },
+    ];
+    const verdict = buildRetirementVerdict(pots, CURRENT_AGE);
     expect(verdict.tone).toBe('warning');
     expect(verdict.headline).toContain('Roth');
+    expect(verdict.headline).not.toContain('Traditional');
     expect(verdict.headline).toContain(String(CURRENT_AGE + (roth.depletionYear as number)));
-    expect(verdict.detail).toContain('Traditional savings continue');
+    expect(verdict.detail).toContain('Traditional and After-tax');
   });
 
-  it('reports a warning naming Traditional when only Traditional depletes, noting Roth continues', () => {
-    const roth = lastingProjection();
+  it('reports a warning naming both depleted pots when two of three run out, noting the survivor continues', () => {
+    const roth = depletingProjection();
     const traditional = depletingProjection();
-    const verdict = buildRetirementVerdict(roth, traditional, CURRENT_AGE);
+    const pots = [
+      { name: 'Roth', projection: roth },
+      { name: 'Traditional', projection: traditional },
+      { name: 'After-tax', projection: lastingProjection() },
+    ];
+    const verdict = buildRetirementVerdict(pots, CURRENT_AGE);
     expect(verdict.tone).toBe('warning');
-    expect(verdict.headline).toContain('Traditional');
-    expect(verdict.headline).toContain(String(CURRENT_AGE + (traditional.depletionYear as number)));
-    expect(verdict.detail).toContain('Roth savings continue');
+    expect(verdict.headline).toContain('Roth and Traditional');
+    expect(verdict.headline).not.toContain('After-tax');
+    expect(verdict.detail).toContain('After-tax');
   });
 });

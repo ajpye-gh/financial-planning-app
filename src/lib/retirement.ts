@@ -120,6 +120,9 @@ export interface HouseholdRetirementIncome {
    *  necessarily gated on "have you retired"), grows with inflation like Social Security, and never
    *  depletes. */
   pensionGross: number;
+  /** Withdrawal from the after-tax (taxable brokerage) account - only the taxable-gain slice of
+   *  this is actually taxed, see tax.ts's afterTaxGainPct. */
+  afterTaxWithdrawal: number;
   tax: TaxEstimate;
   netAnnual: number;
   netMonthlyNominal: number;
@@ -129,6 +132,10 @@ export interface HouseholdRetirementIncome {
 export interface HouseholdIncomeProjectionInputs {
   rothProjection: RetirementProjection;
   traditionalProjection: RetirementProjection;
+  afterTaxProjection: RetirementProjection;
+  /** Share of each after-tax withdrawal that's taxable gain rather than a tax-free return of cost
+   *  basis - see tax.ts's RetirementTaxInputs.afterTaxGainPct. */
+  afterTaxGainPct: number;
   pensionMonthlyToday: number;
   pensionStartAge: number;
   ssMonthlyBenefitToday: number;
@@ -137,17 +144,20 @@ export interface HouseholdIncomeProjectionInputs {
   inflationPct: number;
 }
 
-/** Combines both pots (plus Social Security and pension income) into one "total estimated income"
- *  figure, year by year across the whole projection - Roth withdrawals are tax-free, Traditional
- *  withdrawals, pension income, and (a taxable share of) Social Security are not, so this is the
- *  one place that actually calls tax.ts. Uses each projection's actual (depletion-capped)
- *  withdrawals rather than re-deriving them, so income correctly drops once a pot runs dry instead
- *  of assuming the scheduled amount forever. Social Security is assumed to start the year you
- *  retire (index >= retirementYearIndex) and never depletes, unlike the two accounts; pension income
- *  starts at its own independent pensionStartAge instead. */
+/** Combines all three pots (plus Social Security and pension income) into one "total estimated
+ *  income" figure, year by year across the whole projection - Roth withdrawals are tax-free,
+ *  Traditional withdrawals and pension income are fully ordinary, the after-tax withdrawal's gain
+ *  slice is taxed at the flat LTCG rate, and (a taxable share of) Social Security is ordinary too -
+ *  so this is the one place that actually calls tax.ts. Uses each projection's actual
+ *  (depletion-capped) withdrawals rather than re-deriving them, so income correctly drops once a pot
+ *  runs dry instead of assuming the scheduled amount forever. Social Security is assumed to start
+ *  the year you retire (index >= retirementYearIndex) and never depletes, unlike the three accounts;
+ *  pension income starts at its own independent pensionStartAge instead. */
 export function projectHouseholdRetirementIncome({
   rothProjection,
   traditionalProjection,
+  afterTaxProjection,
+  afterTaxGainPct,
   pensionMonthlyToday,
   pensionStartAge,
   ssMonthlyBenefitToday,
@@ -161,6 +171,7 @@ export function projectHouseholdRetirementIncome({
     const inflationFactor = Math.pow(1 + inflationPct / 100, year);
     const rothWithdrawal = rothProjection.withdrawals[year] ?? 0;
     const traditionalWithdrawal = traditionalProjection.withdrawals[year] ?? 0;
+    const afterTaxWithdrawal = afterTaxProjection.withdrawals[year] ?? 0;
     const ssGross = year >= retirementYearIndex ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
     const pensionGross = year >= pensionStartYearOffset ? pensionMonthlyToday * 12 * inflationFactor : 0;
 
@@ -168,64 +179,72 @@ export function projectHouseholdRetirementIncome({
       traditionalWithdrawalAnnual: traditionalWithdrawal,
       pensionAnnual: pensionGross,
       ssBenefitAnnual: ssGross,
+      afterTaxWithdrawalAnnual: afterTaxWithdrawal,
+      afterTaxGainPct,
       filingStatus,
       inflationFactor,
     });
 
-    const netAnnual = rothWithdrawal + traditionalWithdrawal + ssGross + pensionGross - tax.tax;
+    const netAnnual = rothWithdrawal + traditionalWithdrawal + ssGross + pensionGross + afterTaxWithdrawal - tax.tax;
     const netMonthlyNominal = netAnnual / 12;
     const netMonthlyReal = netMonthlyNominal / inflationFactor;
 
-    return { year, rothWithdrawal, traditionalWithdrawal, ssGross, pensionGross, tax, netAnnual, netMonthlyNominal, netMonthlyReal };
+    return {
+      year,
+      rothWithdrawal,
+      traditionalWithdrawal,
+      ssGross,
+      pensionGross,
+      afterTaxWithdrawal,
+      tax,
+      netAnnual,
+      netMonthlyNominal,
+      netMonthlyReal,
+    };
   });
 }
 
-/** Same shape/purpose as model.ts's buildVerdict, reusing the same VerdictBanner component - a
- *  prominent, at-a-glance answer to "does this retirement plan actually work". Four states since
- *  there are now two independent pots: either could outlast the other, so "ran out" only really
- *  means something once *both* are gone - as long as either pot still has money, the household still
- *  has some income coming in. Speaks in ages (via currentAge), matching the rest of the retirement
- *  page rather than the projections' internal year-offset indices. */
-export function buildRetirementVerdict(
-  rothProjection: RetirementProjection,
-  traditionalProjection: RetirementProjection,
-  currentAge: number,
-): Verdict {
-  const rothDepletionYear = rothProjection.depletionYear;
-  const traditionalDepletionYear = traditionalProjection.depletionYear;
+export interface NamedRetirementPot {
+  name: string;
+  projection: RetirementProjection;
+}
 
-  if (rothDepletionYear === null && traditionalDepletionYear === null) {
+/** Same shape/purpose as model.ts's buildVerdict, reusing the same VerdictBanner component - a
+ *  prominent, at-a-glance answer to "does this retirement plan actually work". Takes any number of
+ *  independent pots (Roth/Traditional/after-tax today) rather than hard-coding two, since "ran out"
+ *  only really means something once *every* pot is gone - as long as one pot still has money, the
+ *  household still has some income coming in. Speaks in ages (via currentAge), matching the rest of
+ *  the retirement page rather than the projections' internal year-offset indices. */
+export function buildRetirementVerdict(pots: NamedRetirementPot[], currentAge: number): Verdict {
+  const depleted = pots.filter((pot) => pot.projection.depletionYear !== null);
+  const surviving = pots.filter((pot) => pot.projection.depletionYear === null);
+
+  if (depleted.length === 0) {
     return {
       tone: 'success',
       headline: 'Lasts the distance.',
-      detail: `Both your Roth and Traditional savings are projected to last all the way to age ${MAX_PROJECTION_AGE}.`,
+      detail: `All of your retirement savings are projected to last all the way to age ${MAX_PROJECTION_AGE}.`,
     };
   }
 
-  if (rothDepletionYear !== null && traditionalDepletionYear !== null) {
-    const lastAge = currentAge + Math.max(rothDepletionYear, traditionalDepletionYear);
+  const depletionAge = (pot: NamedRetirementPot) => currentAge + (pot.projection.depletionYear as number);
+  const namesOf = (list: NamedRetirementPot[]) => list.map((pot) => pot.name).join(' and ');
+
+  if (surviving.length === 0) {
+    const lastAge = Math.max(...depleted.map(depletionAge));
+    const perPot = depleted.map((pot) => `${pot.name} at age ${depletionAge(pot)}`).join(', ');
     return {
       tone: 'danger',
-      headline: `Both accounts run out by age ${lastAge}.`,
-      detail: `Roth is projected to deplete at age ${currentAge + rothDepletionYear}, Traditional at age ${currentAge + traditionalDepletionYear} - by age ${lastAge} you'd have no more retirement savings income.`,
+      headline: `All accounts run out by age ${lastAge}.`,
+      detail: `${perPot} - by age ${lastAge} you'd have no more retirement savings income.`,
     };
   }
 
-  if (rothDepletionYear !== null) {
-    const depletionAge = currentAge + rothDepletionYear;
-    const yearsIntoRetirement = rothDepletionYear - rothProjection.retirementYearIndex;
-    return {
-      tone: 'warning',
-      headline: `Roth runs out at age ${depletionAge}.`,
-      detail: `Your Roth savings are projected to be depleted ${yearsIntoRetirement} years into retirement (age ${depletionAge}), but Traditional savings continue.`,
-    };
-  }
-
-  const depletionAge = currentAge + (traditionalDepletionYear as number);
-  const yearsIntoRetirement = (traditionalDepletionYear as number) - traditionalProjection.retirementYearIndex;
+  const verb = depleted.length === 1 ? 'runs' : 'run';
+  const oldestDepletionAge = Math.max(...depleted.map(depletionAge));
   return {
     tone: 'warning',
-    headline: `Traditional runs out at age ${depletionAge}.`,
-    detail: `Your Traditional savings are projected to be depleted ${yearsIntoRetirement} years into retirement (age ${depletionAge}), but Roth savings continue.`,
+    headline: `${namesOf(depleted)} ${verb} out by age ${oldestDepletionAge}.`,
+    detail: `${namesOf(depleted)} ${depleted.length === 1 ? 'is' : 'are'} projected to run dry, but ${namesOf(surviving)} ${surviving.length === 1 ? 'continues' : 'continue'}.`,
   };
 }

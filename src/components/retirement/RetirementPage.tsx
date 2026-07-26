@@ -9,6 +9,10 @@ import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
   BASE_FIELD_GROUPS,
+  RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD,
+  RETIREMENT_AFTER_TAX_GAIN_FIELD,
+  RETIREMENT_AFTER_TAX_SAVINGS_FIELD,
+  RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD,
   RETIREMENT_CURRENT_AGE_FIELD,
   RETIREMENT_INSPECT_AGE_FIELD,
   RETIREMENT_PENSION_FIELD,
@@ -31,6 +35,7 @@ import {
   MAX_PROJECTION_AGE,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
+  type NamedRetirementPot,
 } from '../../lib/retirement';
 
 const AGE_GROUP: BaseFieldGroup = {
@@ -46,6 +51,16 @@ const ROTH_GROUP: BaseFieldGroup = {
 const TRADITIONAL_GROUP: BaseFieldGroup = {
   title: 'Traditional',
   fields: [RETIREMENT_TRADITIONAL_SAVINGS_FIELD, RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD, RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD],
+};
+
+const AFTER_TAX_GROUP: BaseFieldGroup = {
+  title: 'After-tax',
+  fields: [
+    RETIREMENT_AFTER_TAX_SAVINGS_FIELD,
+    RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD,
+    RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD,
+    RETIREMENT_AFTER_TAX_GAIN_FIELD,
+  ],
 };
 
 const INCOME_GROUP: BaseFieldGroup = {
@@ -122,6 +137,28 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     ],
   );
 
+  const afterTaxProjection = useMemo(
+    () =>
+      projectRetirementBalance(
+        baseInputs.retirementAfterTaxSavingsTodayK * 1000,
+        baseInputs.retirementAfterTaxContributionMo,
+        baseInputs.investmentReturnPct,
+        targetYearOffset,
+        finalYearOffset,
+        baseInputs.retirementAfterTaxWithdrawalRatePct,
+        baseInputs.inflationPct,
+      ),
+    [
+      baseInputs.retirementAfterTaxSavingsTodayK,
+      baseInputs.retirementAfterTaxContributionMo,
+      baseInputs.investmentReturnPct,
+      targetYearOffset,
+      finalYearOffset,
+      baseInputs.retirementAfterTaxWithdrawalRatePct,
+      baseInputs.inflationPct,
+    ],
+  );
+
   const status = getFilingStatus(answers);
 
   const incomeSeries = useMemo(
@@ -129,6 +166,8 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       projectHouseholdRetirementIncome({
         rothProjection,
         traditionalProjection,
+        afterTaxProjection,
+        afterTaxGainPct: baseInputs.retirementAfterTaxGainPct,
         pensionMonthlyToday: baseInputs.retirementPensionMo,
         pensionStartAge: baseInputs.retirementPensionStartAge,
         ssMonthlyBenefitToday: baseInputs.retirementSocialSecurityMo,
@@ -139,6 +178,8 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     [
       rothProjection,
       traditionalProjection,
+      afterTaxProjection,
+      baseInputs.retirementAfterTaxGainPct,
       baseInputs.retirementPensionMo,
       baseInputs.retirementPensionStartAge,
       baseInputs.retirementSocialSecurityMo,
@@ -165,12 +206,13 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const inspectedIncome = incomeSeries[inspectIndex];
   const rothBalanceAtInspectYear = rothProjection.balances[inspectIndex] ?? 0;
   const traditionalBalanceAtInspectYear = traditionalProjection.balances[inspectIndex] ?? 0;
+  const afterTaxBalanceAtInspectYear = afterTaxProjection.balances[inspectIndex] ?? 0;
 
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
       label: 'Total balance, inspect age',
-      value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear),
+      value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear + afterTaxBalanceAtInspectYear),
     },
     {
       id: 'retirement-income',
@@ -189,7 +231,12 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     },
   ];
 
-  const verdict = buildRetirementVerdict(rothProjection, traditionalProjection, currentAge);
+  const pots: NamedRetirementPot[] = [
+    { name: 'Roth', projection: rothProjection },
+    { name: 'Traditional', projection: traditionalProjection },
+    { name: 'After-tax', projection: afterTaxProjection },
+  ];
+  const verdict = buildRetirementVerdict(pots, currentAge);
 
   return (
     <div className="app-shell">
@@ -198,6 +245,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
           <ControlGroup group={AGE_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup group={ROTH_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup group={TRADITIONAL_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
+          <ControlGroup group={AFTER_TAX_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup
             group={INCOME_GROUP}
             ranges={ranges}
@@ -218,6 +266,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         <RetirementChart
           rothProjection={rothProjection}
           traditionalProjection={traditionalProjection}
+          afterTaxProjection={afterTaxProjection}
           taxSeries={taxSeries}
           currentAge={currentAge}
         />
@@ -234,6 +283,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
           age={inspectedAge}
           rothBalance={rothBalanceAtInspectYear}
           traditionalBalance={traditionalBalanceAtInspectYear}
+          afterTaxBalance={afterTaxBalanceAtInspectYear}
           income={inspectedIncome}
         />
       </div>

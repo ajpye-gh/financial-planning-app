@@ -986,6 +986,12 @@ input[type='range']::-moz-range-thumb {
   stroke-dasharray: 5 4;
 }
 
+/* Same solid weight as --primary/--unallocated, since a third balance line (after-tax) is a real
+   data series, not a thin dashed reference line like --target below. */
+.cashflow-chart__line--tertiary {
+  stroke: var(--text-secondary);
+}
+
 .cashflow-chart__line--target {
   stroke: var(--text-secondary);
   stroke-width: 1;
@@ -1057,6 +1063,10 @@ input[type='range']::-moz-range-thumb {
   fill: var(--warning);
 }
 
+.cashflow-chart__point--tertiary {
+  fill: var(--text-secondary);
+}
+
 .cashflow-chart__tooltip-box {
   fill: var(--surface-2);
   stroke: var(--border);
@@ -1086,6 +1096,10 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__tooltip-row--cash {
   fill: var(--warning);
+}
+
+.cashflow-chart__tooltip-row--tertiary {
+  fill: var(--text-secondary);
 }
 
 .cashflow-chart__legend {
@@ -1135,6 +1149,10 @@ input[type='range']::-moz-range-thumb {
 }
 
 .cashflow-chart__swatch--target {
+  background: var(--text-secondary);
+}
+
+.cashflow-chart__swatch--tertiary {
   background: var(--text-secondary);
 }
 

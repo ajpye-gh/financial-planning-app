@@ -36,15 +36,18 @@ function renderRetirementPage(overrides: Partial<Parameters<typeof RetirementPag
 }
 
 describe('RetirementPage', () => {
-  it('renders separate Roth and Traditional groups, each with their own savings/contribution/withdrawal-rate sliders', () => {
+  it('renders separate Roth, Traditional, and after-tax groups, each with their own savings/contribution/withdrawal-rate sliders', () => {
     renderRetirementPage();
 
-    expect(screen.getByRole('button', { name: /Roth/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Traditional/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Roth$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Traditional$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^After-tax$/ })).toBeInTheDocument();
     expect(screen.getByText('Current Roth savings')).toBeInTheDocument();
     expect(screen.getByText('Current Traditional savings')).toBeInTheDocument();
-    expect(screen.getAllByText('Monthly contribution')).toHaveLength(2);
-    expect(screen.getAllByText('Initial withdrawal rate')).toHaveLength(2);
+    expect(screen.getByText('Current after-tax savings')).toBeInTheDocument();
+    expect(screen.getAllByText('Monthly contribution')).toHaveLength(3);
+    expect(screen.getAllByText('Initial withdrawal rate')).toHaveLength(3);
+    expect(screen.getByText('Taxable gain %')).toBeInTheDocument();
     expect(screen.getByText('Target retirement age')).toBeInTheDocument();
   });
 
@@ -130,13 +133,14 @@ describe('RetirementPage', () => {
     expect(onChange).toHaveBeenCalledWith('retirementCurrentAge', 40);
   });
 
-  it('shows the combined Roth+Traditional balance at the inspected age, matching projectRetirementBalance for each pot', () => {
+  it('shows the combined Roth+Traditional+after-tax balance at the inspected age, matching projectRetirementBalance for each pot', () => {
     const { container } = renderRetirementPage();
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const combined = roth.balances[20] + traditional.balances[20];
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, 4, 3);
+    const combined = roth.balances[20] + traditional.balances[20] + afterTax.balances[20];
 
     expect(screen.getByText('Total balance, inspect age')).toBeInTheDocument();
     expect(container.querySelector('.metric-card__value')).toHaveTextContent(formatCurrencyCompact(combined));
@@ -148,9 +152,13 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
+    // Matches BASE_INPUTS's default after-tax savings ($50k, contribution $0, 4% rate).
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, 4, 3);
     const income = projectHouseholdRetirementIncome({
       rothProjection: roth,
       traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
@@ -172,9 +180,12 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, 4, 3);
     const series = projectHouseholdRetirementIncome({
       rothProjection: roth,
       traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
@@ -196,7 +207,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Traditional withdrawal, gross')).toBeInTheDocument();
     expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
     expect(screen.getByText('Standard deduction')).toBeInTheDocument();
-    expect(screen.getByText('Federal tax')).toBeInTheDocument();
+    expect(screen.getByText('Federal tax, total')).toBeInTheDocument();
   });
 
   it("shows a nonzero Traditional withdrawal and tax immediately when already retired (Current age == Target retirement age), not just starting the year after", () => {
@@ -216,7 +227,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Age 65 detail')).toBeInTheDocument();
     const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
     expect(traditionalRow).not.toHaveTextContent('$0/yr');
-    const taxRow = screen.getByText('Federal tax').closest('tr');
+    const taxRow = screen.getByText('Federal tax, total').closest('tr');
     expect(taxRow).not.toHaveTextContent('$0/yr');
   });
 
@@ -263,9 +274,12 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, 4, 3);
     const income = projectHouseholdRetirementIncome({
       rothProjection: roth,
       traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
@@ -283,13 +297,21 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const verdict = buildRetirementVerdict(roth, traditional, BASE_INPUTS.retirementCurrentAge);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, 4, 3);
+    const verdict = buildRetirementVerdict(
+      [
+        { name: 'Roth', projection: roth },
+        { name: 'Traditional', projection: traditional },
+        { name: 'After-tax', projection: afterTax },
+      ],
+      BASE_INPUTS.retirementCurrentAge,
+    );
 
     expect(screen.getByText(verdict.headline)).toBeInTheDocument();
     expect(document.querySelector(`.verdict-banner--${verdict.tone}`)).toBeInTheDocument();
   });
 
-  it('shows a danger verdict when both pots are drained to depletion', () => {
+  it('shows a danger verdict when every pot is drained to depletion', () => {
     renderRetirementPage({
       baseInputs: {
         ...BASE_INPUTS,
@@ -299,6 +321,9 @@ describe('RetirementPage', () => {
         retirementTraditionalSavingsTodayK: 10,
         retirementTraditionalContributionMo: 0,
         retirementTraditionalWithdrawalRatePct: 8,
+        retirementAfterTaxSavingsTodayK: 10,
+        retirementAfterTaxContributionMo: 0,
+        retirementAfterTaxWithdrawalRatePct: 8,
       },
     });
 
