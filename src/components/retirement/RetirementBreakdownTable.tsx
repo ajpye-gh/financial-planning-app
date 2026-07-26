@@ -13,7 +13,7 @@ interface RetirementBreakdownTableProps {
  *  "estimated income" tooltip had gotten too dense for a hover bubble, so this replaces it with a
  *  proper line-item breakdown at the inspected age. */
 export function RetirementBreakdownTable({ age, rothBalance, traditionalBalance, income }: Readonly<RetirementBreakdownTableProps>) {
-  const grossIncome = income.rothWithdrawal + income.traditionalWithdrawal + income.ssGross;
+  const grossIncome = income.rothWithdrawal + income.traditionalWithdrawal + income.ssGross + income.pensionGross;
 
   return (
     <div className="breakdown-table-wrap">
@@ -28,6 +28,7 @@ export function RetirementBreakdownTable({ age, rothBalance, traditionalBalance,
           <Row label="Roth withdrawal" value={`${formatCurrency(income.rothWithdrawal)}/yr`} muted />
           <Row label="Traditional withdrawal, gross" value={`${formatCurrency(income.traditionalWithdrawal)}/yr`} muted />
           <Row label="Social Security, gross" value={`${formatCurrency(income.ssGross)}/yr`} muted />
+          <Row label="Pension/other income, gross" value={`${formatCurrency(income.pensionGross)}/yr`} muted />
           <Row label="Gross income" value={`${formatCurrency(grossIncome)}/yr`} />
           <tr className="breakdown-table__divider">
             <td colSpan={2} />

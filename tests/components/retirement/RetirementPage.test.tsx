@@ -148,7 +148,16 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3)[20];
+    const income = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'single',
+      inflationPct: 3,
+    })[20];
 
     expect(screen.getByText('Estimated income, inspect age')).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
@@ -163,7 +172,16 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const series = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
     const totalTaxPaid = series.reduce((sum, entry) => sum + entry.tax.tax, 0);
 
     expect(screen.getByText('Total taxes paid')).toBeInTheDocument();
@@ -245,7 +263,16 @@ describe('RetirementPage', () => {
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
     const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
     const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'marriedJoint', 3)[20];
+    const income = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'marriedJoint',
+      inflationPct: 3,
+    })[20];
 
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
   });

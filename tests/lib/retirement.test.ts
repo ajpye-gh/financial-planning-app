@@ -118,8 +118,17 @@ describe('projectHouseholdRetirementIncome', () => {
   const roth = () => projectRetirementBalance(500000, 0, 6, 0, 25, 4, 3);
   const traditional = () => projectRetirementBalance(300000, 0, 6, 0, 25, 4, 3);
 
+  const baseIncomeInputs = {
+    pensionMonthlyToday: 0,
+    pensionStartAge: 65,
+    ssMonthlyBenefitToday: 2000,
+    currentAge: 65,
+    filingStatus: 'single' as const,
+    inflationPct: 3,
+  };
+
   it('combines tax-free Roth withdrawal, gross Traditional withdrawal, and gross Social Security, minus tax', () => {
-    const series = projectHouseholdRetirementIncome(roth(), traditional(), 2000, 'single', 3);
+    const series = projectHouseholdRetirementIncome({ rothProjection: roth(), traditionalProjection: traditional(), ...baseIncomeInputs });
     // Year 0 (already retired, so this is the retirement year itself): Roth withdrawal
     // 500,000*4%=20,000 (tax-free); Traditional 300,000*4%=12,000 (taxable); SS $2,000/mo*12=24,000,
     // no inflation applied yet (year 0's inflationFactor is 1).
@@ -128,7 +137,13 @@ describe('projectHouseholdRetirementIncome', () => {
     expect(year0.traditionalWithdrawal).toBeCloseTo(12000, 0);
     expect(year0.ssGross).toBeCloseTo(24000, 0);
 
-    const expectedTax = estimateRetirementTax(year0.traditionalWithdrawal, year0.ssGross, 'single', 1);
+    const expectedTax = estimateRetirementTax({
+      traditionalWithdrawalAnnual: year0.traditionalWithdrawal,
+      pensionAnnual: 0,
+      ssBenefitAnnual: year0.ssGross,
+      filingStatus: 'single',
+      inflationFactor: 1,
+    });
     expect(year0.tax.tax).toBeCloseTo(expectedTax.tax, 6);
     expect(year0.netAnnual).toBeCloseTo(year0.rothWithdrawal + year0.traditionalWithdrawal + year0.ssGross - expectedTax.tax, 6);
   });
@@ -137,7 +152,11 @@ describe('projectHouseholdRetirementIncome', () => {
     // targetYear=10 this time, so there's a real accumulation phase to check SS is $0 through.
     const rothLater = projectRetirementBalance(500000, 0, 6, 10, 35, 4, 3);
     const traditionalLater = projectRetirementBalance(300000, 0, 6, 10, 35, 4, 3);
-    const series = projectHouseholdRetirementIncome(rothLater, traditionalLater, 2000, 'single', 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: rothLater,
+      traditionalProjection: traditionalLater,
+      ...baseIncomeInputs,
+    });
 
     for (let year = 0; year < 10; year++) {
       expect(series[year].ssGross).toBe(0);
@@ -150,7 +169,12 @@ describe('projectHouseholdRetirementIncome', () => {
     // Small Traditional balance, large withdrawal rate, no growth - depletes almost immediately.
     const smallTraditional = projectRetirementBalance(10000, 0, 0, 0, 25, 50, 0);
     const bigRoth = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3);
-    const series = projectHouseholdRetirementIncome(bigRoth, smallTraditional, 0, 'single', 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: bigRoth,
+      traditionalProjection: smallTraditional,
+      ...baseIncomeInputs,
+      ssMonthlyBenefitToday: 0,
+    });
 
     expect(smallTraditional.depletionYear).not.toBeNull();
     const depletionIndex = smallTraditional.depletionYear as number;
@@ -162,7 +186,12 @@ describe('projectHouseholdRetirementIncome', () => {
 
   it('a Roth-only household (no Traditional, no Social Security) owes no tax in any year', () => {
     const noTraditional = projectRetirementBalance(0, 0, 6, 0, 25, 4, 3);
-    const series = projectHouseholdRetirementIncome(roth(), noTraditional, 0, 'single', 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth(),
+      traditionalProjection: noTraditional,
+      ...baseIncomeInputs,
+      ssMonthlyBenefitToday: 0,
+    });
 
     for (const entry of series) {
       expect(entry.tax.tax).toBe(0);
@@ -171,10 +200,40 @@ describe('projectHouseholdRetirementIncome', () => {
   });
 
   it("deflates net income back to today's dollars using that year's inflation factor", () => {
-    const series = projectHouseholdRetirementIncome(roth(), traditional(), 2000, 'single', 3);
+    const series = projectHouseholdRetirementIncome({ rothProjection: roth(), traditionalProjection: traditional(), ...baseIncomeInputs });
     const year5 = series[5];
     const inflationFactor = Math.pow(1.03, 5);
     expect(year5.netMonthlyReal).toBeCloseTo(year5.netMonthlyNominal / inflationFactor, 6);
+  });
+
+  it('pension income starts at pensionStartAge independent of retirementYearIndex, and is fully taxed as ordinary income', () => {
+    // currentAge=60, pension starts at 65 -> pensionStartYearOffset=5. Already retired (targetYear=0
+    // for both pots), so this isolates the pension-specific gating from the retirement gating.
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth(),
+      traditionalProjection: traditional(),
+      pensionMonthlyToday: 1000,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 0,
+      currentAge: 60,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
+
+    for (let year = 0; year < 5; year++) {
+      expect(series[year].pensionGross).toBe(0);
+    }
+    expect(series[5].pensionGross).toBeCloseTo(12000 * Math.pow(1.03, 5), 0);
+
+    const withPension = series[5];
+    const expectedTax = estimateRetirementTax({
+      traditionalWithdrawalAnnual: withPension.traditionalWithdrawal,
+      pensionAnnual: withPension.pensionGross,
+      ssBenefitAnnual: 0,
+      filingStatus: 'single',
+      inflationFactor: Math.pow(1.03, 5),
+    });
+    expect(withPension.tax.tax).toBeCloseTo(expectedTax.tax, 6);
   });
 });
 

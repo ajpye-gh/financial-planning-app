@@ -11,6 +11,8 @@ import {
   BASE_FIELD_GROUPS,
   RETIREMENT_CURRENT_AGE_FIELD,
   RETIREMENT_INSPECT_AGE_FIELD,
+  RETIREMENT_PENSION_FIELD,
+  RETIREMENT_PENSION_START_AGE_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
   RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
@@ -48,7 +50,7 @@ const TRADITIONAL_GROUP: BaseFieldGroup = {
 
 const INCOME_GROUP: BaseFieldGroup = {
   title: 'Income in retirement',
-  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD],
+  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD, RETIREMENT_PENSION_FIELD, RETIREMENT_PENSION_START_AGE_FIELD],
 };
 
 // Same "Assumptions" group (inflation, investment return) the primary page's sidebar renders -
@@ -124,14 +126,26 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
 
   const incomeSeries = useMemo(
     () =>
-      projectHouseholdRetirementIncome(
+      projectHouseholdRetirementIncome({
         rothProjection,
         traditionalProjection,
-        baseInputs.retirementSocialSecurityMo,
-        status,
-        baseInputs.inflationPct,
-      ),
-    [rothProjection, traditionalProjection, baseInputs.retirementSocialSecurityMo, status, baseInputs.inflationPct],
+        pensionMonthlyToday: baseInputs.retirementPensionMo,
+        pensionStartAge: baseInputs.retirementPensionStartAge,
+        ssMonthlyBenefitToday: baseInputs.retirementSocialSecurityMo,
+        currentAge,
+        filingStatus: status,
+        inflationPct: baseInputs.inflationPct,
+      }),
+    [
+      rothProjection,
+      traditionalProjection,
+      baseInputs.retirementPensionMo,
+      baseInputs.retirementPensionStartAge,
+      baseInputs.retirementSocialSecurityMo,
+      currentAge,
+      status,
+      baseInputs.inflationPct,
+    ],
   );
   const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
   // Nominal-dollar sum across the whole projection - pre-retirement years are already $0 (no

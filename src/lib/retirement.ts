@@ -115,40 +115,68 @@ export interface HouseholdRetirementIncome {
   rothWithdrawal: number;
   traditionalWithdrawal: number;
   ssGross: number;
+  /** Pension, annuity, or other fully-taxable ordinary income not tied to any of the three
+   *  accounts - starts at pensionStartAge regardless of retirementYearIndex (real pensions aren't
+   *  necessarily gated on "have you retired"), grows with inflation like Social Security, and never
+   *  depletes. */
+  pensionGross: number;
   tax: TaxEstimate;
   netAnnual: number;
   netMonthlyNominal: number;
   netMonthlyReal: number;
 }
 
-/** Combines both pots (plus Social Security) into one "total estimated income" figure, year by
- *  year across the whole projection - Roth withdrawals are tax-free, Traditional withdrawals and (a
- *  taxable share of) Social Security are not, so this is the one place that actually calls tax.ts.
- *  Uses each projection's actual (depletion-capped) withdrawals rather than re-deriving them, so
- *  income correctly drops once a pot runs dry instead of assuming the scheduled amount forever.
- *  Social Security is assumed to start the year you retire (index >= retirementYearIndex) and never
- *  depletes, unlike the two accounts. */
-export function projectHouseholdRetirementIncome(
-  rothProjection: RetirementProjection,
-  traditionalProjection: RetirementProjection,
-  ssMonthlyBenefitToday: number,
-  filingStatus: FilingStatus,
-  inflationPct: number,
-): HouseholdRetirementIncome[] {
+export interface HouseholdIncomeProjectionInputs {
+  rothProjection: RetirementProjection;
+  traditionalProjection: RetirementProjection;
+  pensionMonthlyToday: number;
+  pensionStartAge: number;
+  ssMonthlyBenefitToday: number;
+  currentAge: number;
+  filingStatus: FilingStatus;
+  inflationPct: number;
+}
+
+/** Combines both pots (plus Social Security and pension income) into one "total estimated income"
+ *  figure, year by year across the whole projection - Roth withdrawals are tax-free, Traditional
+ *  withdrawals, pension income, and (a taxable share of) Social Security are not, so this is the
+ *  one place that actually calls tax.ts. Uses each projection's actual (depletion-capped)
+ *  withdrawals rather than re-deriving them, so income correctly drops once a pot runs dry instead
+ *  of assuming the scheduled amount forever. Social Security is assumed to start the year you
+ *  retire (index >= retirementYearIndex) and never depletes, unlike the two accounts; pension income
+ *  starts at its own independent pensionStartAge instead. */
+export function projectHouseholdRetirementIncome({
+  rothProjection,
+  traditionalProjection,
+  pensionMonthlyToday,
+  pensionStartAge,
+  ssMonthlyBenefitToday,
+  currentAge,
+  filingStatus,
+  inflationPct,
+}: HouseholdIncomeProjectionInputs): HouseholdRetirementIncome[] {
   const { retirementYearIndex } = rothProjection;
+  const pensionStartYearOffset = Math.max(0, pensionStartAge - currentAge);
   return rothProjection.yearLabels.map((_, year) => {
     const inflationFactor = Math.pow(1 + inflationPct / 100, year);
     const rothWithdrawal = rothProjection.withdrawals[year] ?? 0;
     const traditionalWithdrawal = traditionalProjection.withdrawals[year] ?? 0;
     const ssGross = year >= retirementYearIndex ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
+    const pensionGross = year >= pensionStartYearOffset ? pensionMonthlyToday * 12 * inflationFactor : 0;
 
-    const tax = estimateRetirementTax(traditionalWithdrawal, ssGross, filingStatus, inflationFactor);
+    const tax = estimateRetirementTax({
+      traditionalWithdrawalAnnual: traditionalWithdrawal,
+      pensionAnnual: pensionGross,
+      ssBenefitAnnual: ssGross,
+      filingStatus,
+      inflationFactor,
+    });
 
-    const netAnnual = rothWithdrawal + traditionalWithdrawal + ssGross - tax.tax;
+    const netAnnual = rothWithdrawal + traditionalWithdrawal + ssGross + pensionGross - tax.tax;
     const netMonthlyNominal = netAnnual / 12;
     const netMonthlyReal = netMonthlyNominal / inflationFactor;
 
-    return { year, rothWithdrawal, traditionalWithdrawal, ssGross, tax, netAnnual, netMonthlyNominal, netMonthlyReal };
+    return { year, rothWithdrawal, traditionalWithdrawal, ssGross, pensionGross, tax, netAnnual, netMonthlyNominal, netMonthlyReal };
   });
 }
 

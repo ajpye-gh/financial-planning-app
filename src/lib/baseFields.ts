@@ -27,6 +27,8 @@ export type BaseFieldId =
   | 'retirementTraditionalContributionMo'
   | 'retirementTraditionalWithdrawalRatePct'
   | 'retirementSocialSecurityMo'
+  | 'retirementPensionMo'
+  | 'retirementPensionStartAge'
   | 'retirementCurrentAge'
   | 'retirementTargetAge'
   | 'retirementInspectAge';
@@ -244,6 +246,21 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
     "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart.",
 };
 
+export const RETIREMENT_PENSION_FIELD: BaseFieldMeta = {
+  id: 'retirementPensionMo',
+  label: 'Pension/other income',
+  format: '$',
+  tooltip:
+    "A pension, annuity, or other fully-taxable income source, in today's dollars (grows with inflation like Social Security). Starts at the age set below, independent of your retirement age. Taxed as ordinary income alongside Traditional withdrawals. Leave at $0 if this doesn't apply.",
+};
+
+export const RETIREMENT_PENSION_START_AGE_FIELD: BaseFieldMeta = {
+  id: 'retirementPensionStartAge',
+  label: 'Pension start age',
+  format: 'n',
+  tooltip: 'Age this income source begins - not necessarily the same as your retirement age.',
+};
+
 /** Rendered on the Retirement page's own sidebar - ages, rather than a raw year offset, are what
  *  the rest of the retirement fields (and the chart's x-axis) are expressed in terms of. */
 export const RETIREMENT_CURRENT_AGE_FIELD: BaseFieldMeta = {
@@ -283,6 +300,8 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
   RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
+  RETIREMENT_PENSION_FIELD.id,
+  RETIREMENT_PENSION_START_AGE_FIELD.id,
   RETIREMENT_CURRENT_AGE_FIELD.id,
   RETIREMENT_TARGET_AGE_FIELD.id,
   RETIREMENT_INSPECT_AGE_FIELD.id,

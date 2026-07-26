@@ -86,28 +86,42 @@ export function estimateFederalTax(taxableIncome: number, filingStatus: FilingSt
 export interface TaxEstimate {
   taxableSS: number;
   standardDeduction: number;
-  /** Traditional withdrawal + taxable Social Security, minus the standard deduction, floored at 0. */
+  /** Traditional withdrawal + pension + taxable Social Security, minus the standard deduction,
+   *  floored at 0. */
   taxableOrdinaryIncome: number;
   tax: number;
-  /** tax / (traditional withdrawal + gross Social Security) - 0 if there's no income to divide by. */
+  /** tax / (traditional withdrawal + pension + gross Social Security) - 0 if there's no income to
+   *  divide by. */
   effectiveRatePct: number;
 }
 
-/** Federal tax on a retiree's taxable income sources: Traditional withdrawals (fully ordinary
- *  income) plus whatever share of Social Security is taxable. Not a full simulation - a point-in-
- *  time estimate for a single year's income, same scope as the rest of the retirement page's
- *  metrics. */
-export function estimateRetirementTax(
-  traditionalWithdrawalAnnual: number,
-  ssBenefitAnnual: number,
-  filingStatus: FilingStatus,
-  inflationFactor: number,
-): TaxEstimate {
-  const taxableSS = taxableSocialSecurity(ssBenefitAnnual, traditionalWithdrawalAnnual, filingStatus);
+export interface RetirementTaxInputs {
+  traditionalWithdrawalAnnual: number;
+  /** Pension, annuity, or other fully-taxable ordinary income - combined with the Traditional
+   *  withdrawal for both bracket purposes and Social Security's provisional-income test. */
+  pensionAnnual: number;
+  ssBenefitAnnual: number;
+  filingStatus: FilingStatus;
+  inflationFactor: number;
+}
+
+/** Federal tax on a retiree's taxable income sources: Traditional withdrawals and pension income
+ *  (both fully ordinary income) plus whatever share of Social Security is taxable. Not a full
+ *  simulation - a point-in-time estimate for a single year's income, same scope as the rest of the
+ *  retirement page's metrics. */
+export function estimateRetirementTax({
+  traditionalWithdrawalAnnual,
+  pensionAnnual,
+  ssBenefitAnnual,
+  filingStatus,
+  inflationFactor,
+}: RetirementTaxInputs): TaxEstimate {
+  const ordinaryIncomeBeforeSS = traditionalWithdrawalAnnual + pensionAnnual;
+  const taxableSS = taxableSocialSecurity(ssBenefitAnnual, ordinaryIncomeBeforeSS, filingStatus);
   const standardDeduction = STANDARD_DEDUCTION_2024[filingStatus] * inflationFactor;
-  const taxableOrdinaryIncome = Math.max(0, traditionalWithdrawalAnnual + taxableSS - standardDeduction);
+  const taxableOrdinaryIncome = Math.max(0, ordinaryIncomeBeforeSS + taxableSS - standardDeduction);
   const tax = estimateFederalTax(taxableOrdinaryIncome, filingStatus, inflationFactor);
-  const grossIncome = traditionalWithdrawalAnnual + ssBenefitAnnual;
+  const grossIncome = ordinaryIncomeBeforeSS + ssBenefitAnnual;
   const effectiveRatePct = grossIncome > 0 ? (tax / grossIncome) * 100 : 0;
   return { taxableSS, standardDeduction, taxableOrdinaryIncome, tax, effectiveRatePct };
 }

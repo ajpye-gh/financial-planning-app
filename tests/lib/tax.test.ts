@@ -73,30 +73,30 @@ describe('taxableSocialSecurity', () => {
 
 describe('estimateRetirementTax', () => {
   it('combines taxable Social Security and Traditional withdrawal, minus the standard deduction, through the brackets', () => {
-    const result = estimateRetirementTax(20000, 24000, 'single', 1);
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 20000, pensionAnnual: 0, ssBenefitAnnual: 24000, filingStatus: 'single', inflationFactor: 1 });
     expect(result.taxableSS).toBeCloseTo(3500, 0);
     expect(result.taxableOrdinaryIncome).toBeCloseTo(Math.max(0, 20000 + 3500 - 14600), 0);
     expect(result.tax).toBeCloseTo(estimateFederalTax(result.taxableOrdinaryIncome, 'single', 1), 6);
   });
 
   it('floors taxable ordinary income at $0 when the standard deduction exceeds the taxable sources', () => {
-    const result = estimateRetirementTax(5000, 0, 'single', 1);
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 5000, pensionAnnual: 0, ssBenefitAnnual: 0, filingStatus: 'single', inflationFactor: 1 });
     expect(result.taxableOrdinaryIncome).toBe(0);
     expect(result.tax).toBe(0);
   });
 
   it('computes an effective rate against total gross income (Traditional + Social Security)', () => {
-    const result = estimateRetirementTax(40000, 20000, 'single', 1);
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 40000, pensionAnnual: 0, ssBenefitAnnual: 20000, filingStatus: 'single', inflationFactor: 1 });
     expect(result.effectiveRatePct).toBeCloseTo((result.tax / 60000) * 100, 6);
   });
 
   it('is a 0% effective rate when there is no income at all', () => {
-    const result = estimateRetirementTax(0, 0, 'single', 1);
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 0, pensionAnnual: 0, ssBenefitAnnual: 0, filingStatus: 'single', inflationFactor: 1 });
     expect(result.effectiveRatePct).toBe(0);
   });
 
   it('scales the standard deduction with the inflation factor, same as the brackets', () => {
-    const result = estimateRetirementTax(20000, 0, 'single', 2);
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 20000, pensionAnnual: 0, ssBenefitAnnual: 0, filingStatus: 'single', inflationFactor: 2 });
     expect(result.standardDeduction).toBeCloseTo(14600 * 2, 6);
   });
 
@@ -105,9 +105,25 @@ describe('estimateRetirementTax', () => {
     // inflationFactor (as if this were decades out): the standard deduction/brackets shift with it
     // (changing taxableOrdinaryIncome/tax), but taxableSS - which depends only on the fixed,
     // non-inflating thresholds - stays exactly the same.
-    const nearTerm = estimateRetirementTax(20000, 24000, 'single', 1);
-    const farOut = estimateRetirementTax(20000, 24000, 'single', 3);
+    const nearTerm = estimateRetirementTax({ traditionalWithdrawalAnnual: 20000, pensionAnnual: 0, ssBenefitAnnual: 24000, filingStatus: 'single', inflationFactor: 1 });
+    const farOut = estimateRetirementTax({ traditionalWithdrawalAnnual: 20000, pensionAnnual: 0, ssBenefitAnnual: 24000, filingStatus: 'single', inflationFactor: 3 });
     expect(farOut.taxableSS).toBe(nearTerm.taxableSS);
     expect(farOut.standardDeduction).not.toBe(nearTerm.standardDeduction);
+  });
+
+  it('treats pension income as fully ordinary, combined with Traditional withdrawal for both brackets and Social Security provisional income', () => {
+    // Same total ordinary income ($20,000) split two different ways between Traditional and
+    // pension should produce an identical result either way.
+    const allTraditional = estimateRetirementTax({ traditionalWithdrawalAnnual: 20000, pensionAnnual: 0, ssBenefitAnnual: 24000, filingStatus: 'single', inflationFactor: 1 });
+    const splitWithPension = estimateRetirementTax({ traditionalWithdrawalAnnual: 12000, pensionAnnual: 8000, ssBenefitAnnual: 24000, filingStatus: 'single', inflationFactor: 1 });
+    expect(splitWithPension.taxableSS).toBeCloseTo(allTraditional.taxableSS, 6);
+    expect(splitWithPension.taxableOrdinaryIncome).toBeCloseTo(allTraditional.taxableOrdinaryIncome, 6);
+    expect(splitWithPension.tax).toBeCloseTo(allTraditional.tax, 6);
+  });
+
+  it('a pension-only household (no Traditional withdrawal) is still taxed as ordinary income', () => {
+    const result = estimateRetirementTax({ traditionalWithdrawalAnnual: 0, pensionAnnual: 40000, ssBenefitAnnual: 0, filingStatus: 'single', inflationFactor: 1 });
+    expect(result.taxableOrdinaryIncome).toBeCloseTo(40000 - 14600, 0);
+    expect(result.tax).toBeGreaterThan(0);
   });
 });

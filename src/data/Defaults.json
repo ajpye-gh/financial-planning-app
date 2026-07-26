@@ -24,6 +24,8 @@
   "retirementTraditionalContributionMo": { "min": 0, "max": 5000, "step": 50, "default": 500 },
   "retirementTraditionalWithdrawalRatePct": { "min": 2, "max": 8, "step": 0.25, "default": 4 },
   "retirementSocialSecurityMo": { "min": 0, "max": 5000, "step": 50, "default": 2000 },
+  "retirementPensionMo": { "min": 0, "max": 5000, "step": 50, "default": 0 },
+  "retirementPensionStartAge": { "min": 18, "max": 100, "step": 1, "default": 65 },
   "retirementCurrentAge": { "min": 18, "max": 100, "step": 1, "default": 35 },
   "retirementTargetAge": { "min": 18, "max": 100, "step": 1, "default": 65 },
   "retirementInspectAge": { "min": 18, "max": 100, "step": 1, "default": 66 }
