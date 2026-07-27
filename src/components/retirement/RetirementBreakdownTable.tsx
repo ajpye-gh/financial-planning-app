@@ -1,5 +1,5 @@
 import { Row } from '../results/BreakdownTable';
-import { formatCurrency } from '../../lib/format';
+import { formatCurrency, formatSliderValue } from '../../lib/format';
 import type { HouseholdRetirementIncome } from '../../lib/retirement';
 
 interface RetirementBreakdownTableProps {
@@ -7,6 +7,14 @@ interface RetirementBreakdownTableProps {
   rothBalance: number;
   traditionalBalance: number;
   afterTaxBalance: number;
+  /** This year's actual withdrawal as a % of the balance entering it, one per pot - see
+   *  RetirementProjection.effectiveWithdrawalRatePct. Shown alongside each withdrawal figure since
+   *  it drifts away from the "Initial withdrawal rate" input over time (the withdrawal itself grows
+   *  with inflation every year after the first, while the balance follows investment performance
+   *  instead), so this is what the rate actually was this year, not the fixed input. */
+  rothWithdrawalRatePct: number;
+  traditionalWithdrawalRatePct: number;
+  afterTaxWithdrawalRatePct: number;
   income: HouseholdRetirementIncome;
 }
 
@@ -18,6 +26,9 @@ export function RetirementBreakdownTable({
   rothBalance,
   traditionalBalance,
   afterTaxBalance,
+  rothWithdrawalRatePct,
+  traditionalWithdrawalRatePct,
+  afterTaxWithdrawalRatePct,
   income,
 }: Readonly<RetirementBreakdownTableProps>) {
   const grossIncome = income.rothWithdrawal + income.traditionalWithdrawal + income.ssGross + income.pensionGross + income.afterTaxWithdrawal;
@@ -33,9 +44,21 @@ export function RetirementBreakdownTable({
           <tr className="breakdown-table__divider">
             <td colSpan={2} />
           </tr>
-          <Row label="Roth withdrawal" value={`${formatCurrency(income.rothWithdrawal)}/yr`} muted />
-          <Row label="Traditional withdrawal, gross" value={`${formatCurrency(income.traditionalWithdrawal)}/yr`} muted />
-          <Row label="After-tax withdrawal, gross" value={`${formatCurrency(income.afterTaxWithdrawal)}/yr`} muted />
+          <Row
+            label="Roth withdrawal"
+            value={`${formatCurrency(income.rothWithdrawal)}/yr (${formatSliderValue(rothWithdrawalRatePct, '%')})`}
+            muted
+          />
+          <Row
+            label="Traditional withdrawal, gross"
+            value={`${formatCurrency(income.traditionalWithdrawal)}/yr (${formatSliderValue(traditionalWithdrawalRatePct, '%')})`}
+            muted
+          />
+          <Row
+            label="After-tax withdrawal, gross"
+            value={`${formatCurrency(income.afterTaxWithdrawal)}/yr (${formatSliderValue(afterTaxWithdrawalRatePct, '%')})`}
+            muted
+          />
           <Row label="Social Security, gross" value={`${formatCurrency(income.ssGross)}/yr`} muted />
           <Row label="Pension/other income, gross" value={`${formatCurrency(income.pensionGross)}/yr`} muted />
           <Row label="Gross income" value={`${formatCurrency(grossIncome)}/yr`} />

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { RetirementPage } from '@src/components/retirement/RetirementPage';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '@src/lib/baseData';
 import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
-import { formatCurrency, formatCurrencyCompact } from '@src/lib/format';
+import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '@src/lib/format';
 import type { Answers } from '@src/lib/questions';
 
 const BASE_INPUTS: BaseInputs = {
@@ -208,6 +208,28 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
     expect(screen.getByText('Standard deduction')).toBeInTheDocument();
     expect(screen.getByText('Federal tax, total')).toBeInTheDocument();
+  });
+
+  it("shows each pot's current-year withdrawal as a % of its balance alongside the dollar figure, matching effectiveWithdrawalRatePct", () => {
+    renderRetirementPage();
+
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65. Inspect index 20 = age 55.
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3, { currentAge: 35 });
+
+    const rothRow = screen.getByText('Roth withdrawal').closest('tr');
+    expect(rothRow).toHaveTextContent(formatSliderValue(roth.effectiveWithdrawalRatePct[20], '%'));
+    const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
+    expect(traditionalRow).toHaveTextContent(formatSliderValue(traditional.effectiveWithdrawalRatePct[20], '%'));
+  });
+
+  it('the displayed withdrawal-rate % drifts away from the Initial withdrawal rate input over time, since the withdrawal grows with inflation but the balance follows investment return instead', () => {
+    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectAge: 90 } });
+
+    // Age 90 is deep into decumulation - the fixed 4% initial rate should no longer be what's
+    // shown, since the withdrawal itself has compounded with inflation for 35 years by then.
+    const rothRow = screen.getByText('Roth withdrawal').closest('tr');
+    expect(rothRow).not.toHaveTextContent(formatSliderValue(4, '%'));
   });
 
   it("shows a nonzero Traditional withdrawal and tax immediately when already retired (Current age == Target retirement age), not just starting the year after", () => {

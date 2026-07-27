@@ -122,6 +122,42 @@ describe('projectRetirementBalance', () => {
     });
   });
 
+  describe('effectiveWithdrawalRatePct', () => {
+    it('is 0 for every accumulation year (no withdrawal yet)', () => {
+      const result = projectRetirementBalance(100000, 500, 6, 10, 20, 4, 3);
+      expect(result.effectiveWithdrawalRatePct.slice(0, 10).every((rate) => rate === 0)).toBe(true);
+    });
+
+    it('matches the withdrawalRatePct input exactly in the first withdrawal year', () => {
+      // First withdrawal is always exactly withdrawalRatePct% of the balance carried into
+      // retirement, whichever model computed it later.
+      const result = projectRetirementBalance(1000000, 0, 0, 0, 25, 4, 3);
+      expect(result.effectiveWithdrawalRatePct[0]).toBeCloseTo(4, 6);
+    });
+
+    it('drifts away from the input rate in later years, since the withdrawal grows with inflation while the balance follows investment return instead', () => {
+      // 3% inflation vs 0% return: the withdrawal keeps growing 3%/yr off a balance that's instead
+      // shrinking (grown 0%, minus the withdrawal itself) - so the effective rate should climb well
+      // past the original 4%.
+      const result = projectRetirementBalance(1000000, 0, 0, 0, 10, 4, 3);
+      expect(result.effectiveWithdrawalRatePct[5]).toBeGreaterThan(result.effectiveWithdrawalRatePct[0]);
+    });
+
+    it('is ~100% in the depletion year itself (takes what remains), then 0 forever after, once the balance is $0', () => {
+      const result = projectRetirementBalance(10000, 0, 0, 0, 25, 50, 0);
+      const depletionIndex = result.depletionYear as number;
+      expect(result.effectiveWithdrawalRatePct[depletionIndex]).toBeCloseTo(100, 0);
+      expect(result.effectiveWithdrawalRatePct.at(-1)).toBe(0);
+    });
+
+    it('reflects the RMD-forced rate, not the lower voluntary rate, once an RMD applies', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 2, 3, { currentAge: RMD_START_AGE });
+      // RMD divisor 26.5 at this age -> ~3.77%, well above the chosen 2% rate.
+      expect(result.effectiveWithdrawalRatePct[0]).toBeGreaterThan(2);
+      expect(result.effectiveWithdrawalRatePct[0]).toBeCloseTo(100 / 26.5, 1);
+    });
+  });
+
   describe('Required Minimum Distributions (the optional rmd argument)', () => {
     it('forces a withdrawal up to the RMD once age reaches RMD_START_AGE, even above a lower scheduled rate', () => {
       // Already retired, currentAge=RMD_START_AGE itself - a 2% rate would normally take

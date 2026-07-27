@@ -10,6 +10,12 @@ export interface RetirementProjection {
    *  (nothing left to withdraw). If retirementYearIndex is 0 (already retired today), that first
    *  withdrawal is taken immediately, right out of index 0. */
   withdrawals: number[];
+  /** Actual withdrawal for that year as a percentage of the balance entering it (before that
+   *  year's growth) - 0 during accumulation and whenever the entering balance was $0. Drifts away
+   *  from the withdrawalRatePct input over time: the withdrawal amount itself grows with inflation
+   *  every year after the first, while the balance follows investment performance instead, so this
+   *  is what the withdrawal rate actually was that year, not the fixed input. */
+  effectiveWithdrawalRatePct: number[];
   /** Index into yearLabels/balances where retirement begins (== targetYear) - accumulation runs
    *  through the index before this one; this index and every one after it is a decumulation year. */
   retirementYearIndex: number;
@@ -116,6 +122,7 @@ export function projectRetirementBalance(
 ): RetirementProjection {
   const balances = [Math.round(startingBalance)];
   const withdrawals = [0];
+  const effectiveWithdrawalRatePct = [0];
   const yearLabels = ['Y0'];
   let balance = startingBalance;
 
@@ -123,6 +130,7 @@ export function projectRetirementBalance(
     balance = balance * (1 + investmentReturnPct / 100) + monthlyContribution * 12;
     balances.push(Math.round(balance));
     withdrawals.push(0);
+    effectiveWithdrawalRatePct.push(0);
     yearLabels.push(`Y${year}`);
   }
 
@@ -138,6 +146,7 @@ export function projectRetirementBalance(
   };
 
   if (targetYear === 0) {
+    const balanceEnteringYear = balance;
     const step = applyDecumulationStep(balance, investmentReturnPct, effectiveWithdrawal(0));
     balance = step.balance;
     if (step.depleted) {
@@ -145,10 +154,12 @@ export function projectRetirementBalance(
     }
     balances[0] = Math.round(balance);
     withdrawals[0] = Math.round(step.withdrawal);
+    effectiveWithdrawalRatePct[0] = balanceEnteringYear > 0 ? (step.withdrawal / balanceEnteringYear) * 100 : 0;
     scheduledWithdrawal *= 1 + inflationPct / 100;
   }
 
   for (let year = Math.max(targetYear, 1); year <= finalYear; year++) {
+    const balanceEnteringYear = balance;
     const step = applyDecumulationStep(balance, investmentReturnPct, effectiveWithdrawal(year));
     balance = step.balance;
     if (step.depleted && depletionYear === null) {
@@ -156,11 +167,12 @@ export function projectRetirementBalance(
     }
     balances.push(Math.round(balance));
     withdrawals.push(Math.round(step.withdrawal));
+    effectiveWithdrawalRatePct.push(balanceEnteringYear > 0 ? (step.withdrawal / balanceEnteringYear) * 100 : 0);
     yearLabels.push(`Y${year}`);
     scheduledWithdrawal *= 1 + inflationPct / 100;
   }
 
-  return { yearLabels, balances, withdrawals, retirementYearIndex: targetYear, depletionYear };
+  return { yearLabels, balances, withdrawals, effectiveWithdrawalRatePct, retirementYearIndex: targetYear, depletionYear };
 }
 
 export interface HouseholdRetirementIncome {

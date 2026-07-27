@@ -211,6 +211,9 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const rothBalanceAtInspectYear = rothProjection.balances[inspectIndex] ?? 0;
   const traditionalBalanceAtInspectYear = traditionalProjection.balances[inspectIndex] ?? 0;
   const afterTaxBalanceAtInspectYear = afterTaxProjection.balances[inspectIndex] ?? 0;
+  const rothWithdrawalRateAtInspectYear = rothProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
+  const traditionalWithdrawalRateAtInspectYear = traditionalProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
+  const afterTaxWithdrawalRateAtInspectYear = afterTaxProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
 
   const metrics: Metric[] = [
     {
@@ -290,6 +293,9 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
           rothBalance={rothBalanceAtInspectYear}
           traditionalBalance={traditionalBalanceAtInspectYear}
           afterTaxBalance={afterTaxBalanceAtInspectYear}
+          rothWithdrawalRatePct={rothWithdrawalRateAtInspectYear}
+          traditionalWithdrawalRatePct={traditionalWithdrawalRateAtInspectYear}
+          afterTaxWithdrawalRatePct={afterTaxWithdrawalRateAtInspectYear}
           income={inspectedIncome}
         />
       </div>
