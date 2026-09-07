@@ -231,18 +231,16 @@ export interface HomeEquityProjection {
  *  stand-in for appreciation, consistent with how inflation already drives other costs); the mortgage
  *  balance pays down via standard amortization at its own rate (currentMortgageRatePct - a separate,
  *  per-loan assumption, since your existing mortgage's rate isn't a future purchase's rate) against
- *  the fixed P&I payment you're already paying (housingPrincipalInterestMo). */
+ *  the required P&I payment, now computed from balance/rate/term (see the Mortgage tab) instead of a
+ *  manually-entered figure. Deliberately excludes any voluntary extra principal (mortgageExtraPrincipalMo)
+ *  - that only speeds up the Mortgage tab's own schedule/payoff date, not this roll-up projection. */
 export function projectHomeEquity(base: BaseInputs, ownsHome: boolean, year: number): HomeEquityProjection {
   if (!ownsHome) {
     return { year, homeValue: 0, mortgageBalance: 0, equity: 0 };
   }
   const homeValue = base.homeValueK * 1000 * Math.pow(1 + base.inflationPct / 100, year);
-  const mortgageBalance = remainingLoanBalance(
-    base.mortgageBalanceK * 1000,
-    base.currentMortgageRatePct,
-    base.housingPrincipalInterestMo,
-    year * 12,
-  );
+  const monthlyPI = monthlyMortgagePayment(base.mortgageBalanceK * 1000, base.currentMortgageRatePct, base.mortgageTermYears);
+  const mortgageBalance = remainingLoanBalance(base.mortgageBalanceK * 1000, base.currentMortgageRatePct, monthlyPI, year * 12);
   return { year, homeValue, mortgageBalance, equity: Math.max(0, homeValue - mortgageBalance) };
 }
 
@@ -416,8 +414,12 @@ export function runModel(inputs: ModelInputs): ModelResult {
 
   const nonHousingLiving = base.expensesMo - base.housingPaymentMo;
   // Owning: P&I is fixed forever, the rest (escrow) inflates. Renting: the whole payment inflates.
-  const fixedHousing = ownsHome ? base.housingPrincipalInterestMo : 0;
-  const inflatingHousingBase = ownsHome ? base.housingPaymentMo - base.housingPrincipalInterestMo : base.housingPaymentMo;
+  // P&I is computed from the standard mortgage inputs (balance/rate/term - see the Mortgage tab)
+  // instead of being a manually-entered slider. Mortgage insurance and any voluntary extra principal
+  // are scoped to the Mortgage tab's own schedule/payoff date and deliberately don't feed into this
+  // household cashflow figure.
+  const fixedHousing = ownsHome ? monthlyMortgagePayment(base.mortgageBalanceK * 1000, base.currentMortgageRatePct, base.mortgageTermYears) : 0;
+  const inflatingHousingBase = ownsHome ? base.housingPaymentMo - fixedHousing : base.housingPaymentMo;
 
   // Cash/brokerage allocated to a goal (see goals.ts's cashAllocated/brokerageAllocated) leaves the
   // shared pool and becomes that goal's starting balance instead.
