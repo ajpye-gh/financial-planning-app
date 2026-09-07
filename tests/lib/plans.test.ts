@@ -1,4 +1,5 @@
 import { freshPlan, isValidJobLossYear, isValidPlan, listSavedPlans, loadSavedPlan, savePlan, type Plan } from '@src/lib/plans';
+import { DEFAULT_BASE_RANGES } from '@src/lib/baseData';
 
 beforeEach(() => {
   localStorage.clear();
@@ -75,6 +76,11 @@ describe('isValidPlan', () => {
     };
     expect(isValidPlan({ ...valid, goals: [oldPropertyGoal] })).toBe(true);
   });
+
+  it('rejects a plan whose salaryRaises use the pre-migration delta shape (raiseK, no incomeK)', () => {
+    const legacy = { ...valid, salaryRaises: [{ id: 'r1', year: 1, raiseK: 5 }] };
+    expect(isValidPlan(legacy)).toBe(false);
+  });
 });
 
 describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () => {
@@ -115,5 +121,18 @@ describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () =
     );
 
     expect(listSavedPlans()).toEqual(['Good']);
+  });
+
+  it('backfills baseInputs fields missing from an older saved plan (e.g. annualBonusK, added in a later release) with current defaults on load', () => {
+    const plan = freshPlan();
+    const { annualBonusK: _bonus, partnerAnnualBonusK: _partnerBonus, ...legacyBaseInputs } = plan.baseInputs;
+    const legacyPlan = { ...plan, baseInputs: legacyBaseInputs };
+    localStorage.setItem('financial-planning-app:plans', JSON.stringify({ Legacy: legacyPlan }));
+
+    const loaded = loadSavedPlan('Legacy');
+    expect(loaded?.baseInputs.annualBonusK).toBe(DEFAULT_BASE_RANGES.annualBonusK.default);
+    expect(loaded?.baseInputs.partnerAnnualBonusK).toBe(DEFAULT_BASE_RANGES.partnerAnnualBonusK.default);
+    // Every other field is untouched.
+    expect(loaded?.baseInputs.salaryY0K).toBe(plan.baseInputs.salaryY0K);
   });
 });

@@ -37,11 +37,13 @@ const BASE: BaseInputs = {
 
 const NO_CHILDREN: Child[] = [];
 
+// Absolute-income breakpoints (see salaryRaises.ts) equivalent to the old +5/+20/+30/+50 deltas
+// above a $70k salaryY0K: $75k by yr1, $90k by yr4, $100k by yr6, $120k by yr10.
 const SALARY_RAISES: SalaryRaiseBreakpoint[] = [
-  { id: 'r1', year: 1, raiseK: 5 },
-  { id: 'r4', year: 4, raiseK: 20 },
-  { id: 'r6', year: 6, raiseK: 30 },
-  { id: 'r10', year: 10, raiseK: 50 },
+  { id: 'r1', year: 1, incomeK: 75 },
+  { id: 'r4', year: 4, incomeK: 90 },
+  { id: 'r6', year: 6, incomeK: 100 },
+  { id: 'r10', year: 10, incomeK: 120 },
 ];
 
 const PRIMARY_INCOME: IncomeStreamInputs = {
@@ -49,6 +51,7 @@ const PRIMARY_INCOME: IncomeStreamInputs = {
   growthAfterLastRaisePct: 2,
   netKeepRatePct: 65,
   raises: SALARY_RAISES,
+  annualBonusK: 0,
 };
 
 // $0 salary is a genuine no-op through the income formula (gross stays 0 regardless of raises/growth),
@@ -58,6 +61,7 @@ const NO_PARTNER_INCOME: IncomeStreamInputs = {
   growthAfterLastRaisePct: 0,
   netKeepRatePct: 0,
   raises: [],
+  annualBonusK: 0,
 };
 
 /** Runs the model with the fixtures above, overridable per-test. */
@@ -587,7 +591,7 @@ describe('runModel', () => {
     it('applies "growth after last raise" starting from the final breakpoint, not a fixed year 10', () => {
       const oneBreakpoint = run({
         goals: [],
-        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 3, raiseK: 15 }], growthAfterLastRaisePct: 5 },
+        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 3, incomeK: 85 }], growthAfterLastRaisePct: 5 },
       });
 
       // Year 3 is the last (only) breakpoint: gross salary = 85k there, then compounds at 5%/yr.
@@ -598,15 +602,29 @@ describe('runModel', () => {
     });
 
     it('raising salaryY0K alone never decreases free cash in any year', () => {
-      // Raises are relative to Y0 (raiseK above it), and income is a flat share of gross salary, so
-      // bumping Y0 shifts the whole gross-salary curve - and therefore income - up in every year,
-      // never down. (This is the property the earlier Y0/raise-milestone bug fix was chasing.)
+      // Breakpoints are absolute income targets now, so on their own they wouldn't guarantee this -
+      // buildStreamContext (model.ts) defensively floors every milestone at salaryY0K, so raising Y0
+      // above the whole breakpoint curve just makes the curve flat at the new (higher) Y0 until growth
+      // kicks in after the last breakpoint, never lower than the unmodified curve in any year. (This is
+      // the property the earlier Y0/raise-milestone bug fix was chasing, preserved under the new
+      // absolute semantics.)
       const base = run({ goals: [] });
       const higherY0 = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, salaryY0K: 150 } });
 
       for (let year = 1; year <= 18; year++) {
         expect(higherY0.chart.freeCash[year]).toBeGreaterThanOrEqual(base.chart.freeCash[year]);
       }
+    });
+
+    it('floors a breakpoint at salaryY0K even if its raw value sits below it (defensive, e.g. stale/malformed data)', () => {
+      const result = run({
+        goals: [],
+        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 5, incomeK: 10 }], growthAfterLastRaisePct: 0 },
+      });
+
+      // A $10k breakpoint is far below the $70k salaryY0K - it should never model a pay cut, so gross
+      // salary stays flat at $70k through year 5 (and beyond, since growth is 0%).
+      expect(result.snapshot.grossSalary).toBe(70000);
     });
   });
 
@@ -638,6 +656,7 @@ describe('runModel', () => {
       growthAfterLastRaisePct: 0,
       netKeepRatePct,
       raises: [],
+      annualBonusK: 0,
       jobLossYear,
     });
 
@@ -664,6 +683,71 @@ describe('runModel', () => {
       for (let year = 1; year <= 18; year++) {
         expect(higher.chart.freeCash[year]).toBeGreaterThanOrEqual(lower.chart.freeCash[year]);
       }
+    });
+  });
+
+  describe('annual bonus', () => {
+    it('adds the bonus, net of the keep rate, to monthly income - same treatment as salary', () => {
+      const withoutBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 0 } });
+      const withBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12 } });
+
+      // $12k bonus * 65% keep rate / 12mo = $650/mo, every year (flat, no inflation growth).
+      for (let year = 0; year <= 18; year++) {
+        expect(withBonus.chart.freeCash[year] - withoutBonus.chart.freeCash[year]).toBeCloseTo(650, 6);
+      }
+    });
+
+    it('does not add the bonus to grossSalary - that figure is salary only', () => {
+      const withBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12 } });
+      const withoutBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 0 } });
+
+      expect(withBonus.snapshot.grossSalary).toBe(withoutBonus.snapshot.grossSalary);
+    });
+
+    it('stays flat (no inflation growth) across the horizon, like salary/raise breakpoints', () => {
+      // With no raises/growth, gross salary is flat at $70k every year, so the bonus's $650/mo net
+      // contribution should be identical year over year too (no CPI-style compounding applied to it).
+      const bonusContribution = (year: number) => {
+        const withBonus = run({
+          goals: [],
+          primaryIncome: { ...PRIMARY_INCOME, raises: [], growthAfterLastRaisePct: 0, annualBonusK: 12 },
+          base: { ...BASE, inspectYear: year },
+        }).snapshot.freeCash;
+        const withoutBonus = run({
+          goals: [],
+          primaryIncome: { ...PRIMARY_INCOME, raises: [], growthAfterLastRaisePct: 0, annualBonusK: 0 },
+          base: { ...BASE, inspectYear: year },
+        }).snapshot.freeCash;
+        return withBonus - withoutBonus;
+      };
+
+      expect(bonusContribution(1)).toBeCloseTo(bonusContribution(15), 6);
+    });
+
+    it('is zeroed out from the job-loss year on, same as salary', () => {
+      const result = run({
+        goals: [],
+        primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12, jobLossYear: 3 },
+        base: { ...BASE, inspectYear: 5 },
+      });
+
+      expect(result.snapshot.netIncome).toBe(0);
+    });
+
+    it('applies to the partner stream the same way', () => {
+      const partnerStream = (annualBonusK: number): IncomeStreamInputs => ({
+        salaryY0K: 40,
+        growthAfterLastRaisePct: 0,
+        netKeepRatePct: 60,
+        raises: [],
+        annualBonusK,
+        jobLossYear: 10,
+      });
+      const noBonus = run({ goals: [], partnerIncome: partnerStream(0) });
+      const withBonus = run({ goals: [], partnerIncome: partnerStream(20) });
+
+      // $20k bonus * 60% keep rate / 12mo = $1000/mo.
+      expect(withBonus.chart.freeCash[5] - noBonus.chart.freeCash[5]).toBeCloseTo(1000, 6);
     });
   });
 });

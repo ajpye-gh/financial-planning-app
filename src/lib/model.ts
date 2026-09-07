@@ -3,16 +3,21 @@ import type { Child } from './children';
 import { isPurchaseGoal, type RecurringGoal } from './goals';
 import type { SalaryRaiseBreakpoint } from './salaryRaises';
 
-/** A single wage earner's salary trajectory: today's gross salary, cumulative raises above it, a flat
- *  keep rate converting gross to net, and an optional permanent job loss. Primary and partner both use
- *  this exact shape, computed the exact same way (see `streamIncomeAndGross`). */
+/** A single wage earner's salary trajectory: today's gross salary, a curve of absolute-income
+ *  breakpoints it grows into, a flat keep rate converting gross to net, an optional yearly bonus, and
+ *  an optional permanent job loss. Primary and partner both use this exact shape, computed the exact
+ *  same way (see `streamIncomeAndGross`). */
 export interface IncomeStreamInputs {
   salaryY0K: number;
   growthAfterLastRaisePct: number;
   netKeepRatePct: number;
   raises: SalaryRaiseBreakpoint[];
-  /** From this year on (inclusive), this stream's gross salary is $0 - permanent, and overrides any
-   *  raise breakpoints scheduled after it. */
+  /** Yearly bonus, in today's dollars - stays flat over the horizon (no automatic inflation growth),
+   *  same treatment as salaryY0K/raises: an explicit nominal figure the user updates themselves
+   *  rather than one this model grows on its own. Taxed at `netKeepRatePct`, same as salary. */
+  annualBonusK: number;
+  /** From this year on (inclusive), this stream's gross salary AND bonus are $0 - permanent, and
+   *  overrides any raise breakpoints scheduled after it. */
   jobLossYear?: number;
 }
 
@@ -69,11 +74,12 @@ export interface ModelResult {
 
 export const HORIZON_YEARS = 18;
 
-/** `raiseMilestones` are cumulative raises above `salaryY0` (e.g. year 4 => $20k more than today),
- *  not absolute targets - so this curve shifts entirely with `salaryY0` instead of being squeezed or
- *  inverted by it. */
-function raiseAtYear(year: number, raiseMilestones: [number, number][]): number {
-  const milestones: [number, number][] = [[0, 0], ...raiseMilestones];
+/** `incomeMilestones` are ABSOLUTE gross income targets (e.g. year 4 => $105k total, not "$5k more
+ *  than today"), anchored at `(0, salaryY0)`. Already floored to be non-decreasing from `salaryY0`
+ *  onward by the time this runs (see `buildStreamContext`), so this is a plain interpolation with no
+ *  extra clamping of its own. */
+function incomeAtYear(year: number, salaryY0: number, incomeMilestones: [number, number][]): number {
+  const milestones: [number, number][] = [[0, salaryY0], ...incomeMilestones];
   const last = milestones[milestones.length - 1];
   for (let i = 1; i < milestones.length; i++) {
     const [ay, av] = milestones[i - 1];
@@ -85,43 +91,65 @@ function raiseAtYear(year: number, raiseMilestones: [number, number][]): number 
   return last[1];
 }
 
-/** `raiseMilestones` must be sorted ascending by year. Growth compounds after the last breakpoint
+/** `incomeMilestones` must be sorted ascending by year. Growth compounds after the last breakpoint
  *  (year 0, i.e. immediately, if there are none). */
-function salaryAtYear(year: number, salaryY0: number, raiseMilestones: [number, number][], growthAfterLastRaisePct: number): number {
-  const lastYear = raiseMilestones.length > 0 ? raiseMilestones[raiseMilestones.length - 1][0] : 0;
+function salaryAtYear(year: number, salaryY0: number, incomeMilestones: [number, number][], growthAfterLastRaisePct: number): number {
+  const lastYear = incomeMilestones.length > 0 ? incomeMilestones[incomeMilestones.length - 1][0] : 0;
   if (year >= lastYear) {
-    const salaryAtLastRaise = salaryY0 + raiseAtYear(lastYear, raiseMilestones);
+    const salaryAtLastRaise = incomeAtYear(lastYear, salaryY0, incomeMilestones);
     return salaryAtLastRaise * Math.pow(1 + growthAfterLastRaisePct / 100, year - lastYear);
   }
-  return salaryY0 + raiseAtYear(year, raiseMilestones);
+  return incomeAtYear(year, salaryY0, incomeMilestones);
 }
 
 interface IncomeStreamContext {
   salaryY0: number;
-  raiseMilestones: [number, number][];
+  incomeMilestones: [number, number][];
   growthAfterLastRaise: number;
   netKeepRate: number;
+  annualBonus: number;
   jobLossYear?: number;
 }
 
 function buildStreamContext(stream: IncomeStreamInputs): IncomeStreamContext {
+  const salaryY0 = stream.salaryY0K * 1000;
+  // Floor each breakpoint (sorted ascending by year) at the running max, starting from salaryY0 - so
+  // the curve is guaranteed non-decreasing even if salaryY0K is raised/lowered independently of the
+  // breakpoints (applyRaiseUpdate in salaryRaises.ts only enforces monotonicity among the breakpoints
+  // themselves at edit time - it has no visibility into salaryY0K), or a breakpoint from before this
+  // absolute-income semantics change sits below the current salary. Without this, an out-of-order edit
+  // could silently model a pay cut partway through the timeline.
+  let floor = salaryY0;
+  const incomeMilestones: [number, number][] = [...stream.raises]
+    .sort((a, b) => a.year - b.year)
+    .map((breakpoint) => {
+      const incomeAtBreakpoint = Math.max(breakpoint.incomeK * 1000, floor);
+      floor = incomeAtBreakpoint;
+      return [breakpoint.year, incomeAtBreakpoint];
+    });
   return {
-    salaryY0: stream.salaryY0K * 1000,
-    raiseMilestones: [...stream.raises].sort((a, b) => a.year - b.year).map((breakpoint) => [breakpoint.year, breakpoint.raiseK * 1000]),
+    salaryY0,
+    incomeMilestones,
     growthAfterLastRaise: stream.growthAfterLastRaisePct,
     netKeepRate: stream.netKeepRatePct / 100,
+    annualBonus: stream.annualBonusK * 1000,
     jobLossYear: stream.jobLossYear,
   };
 }
 
-/** A permanent job loss zeroes gross salary (and therefore income) from that year on, regardless of
- *  any raise breakpoints scheduled after it. */
+/** A permanent job loss zeroes gross salary, bonus, and therefore income from that year on,
+ *  regardless of any raise breakpoints scheduled after it. */
 function streamIncomeAndGross(year: number, stream: IncomeStreamContext): { gross: number; income: number } {
   if (stream.jobLossYear !== undefined && year >= stream.jobLossYear) {
     return { gross: 0, income: 0 };
   }
-  const gross = salaryAtYear(year, stream.salaryY0, stream.raiseMilestones, stream.growthAfterLastRaise);
-  return { gross, income: (gross * stream.netKeepRate) / 12 };
+  const gross = salaryAtYear(year, stream.salaryY0, stream.incomeMilestones, stream.growthAfterLastRaise);
+  // Bonus is taxed/reduced the same way salary is (netKeepRate applies to both), then folded straight
+  // into monthly net income alongside it. It's deliberately NOT added to `gross` - the breakdown
+  // table's "salary, gross" row (see YearSnapshot.grossSalary) is specifically salary, and a bonus
+  // line isn't broken out there separately; it still flows through freeCash via `income` either way.
+  const income = (gross * stream.netKeepRate) / 12 + (stream.annualBonus * stream.netKeepRate) / 12;
+  return { gross, income };
 }
 
 interface UnallocatedPool {

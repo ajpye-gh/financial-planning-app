@@ -1,3 +1,6 @@
+# Local Claude Code worktrees (agent isolation, not project config)
+.claude/worktrees/
+
 # Dependencies
 node_modules/
 

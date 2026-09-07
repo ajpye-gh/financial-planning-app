@@ -43,6 +43,16 @@ describe('visibleBaseFieldGroups', () => {
       'partnerSalaryY0K',
       'partnerSalaryGrowthAfterY10Pct',
       'partnerNetKeepRatePct',
+      'partnerAnnualBonusK',
+    ]);
+  });
+
+  it('includes the annual bonus field under Income', () => {
+    expect(fieldIdsIn('Income', visibleBaseFieldGroups({}))).toEqual([
+      'salaryY0K',
+      'salaryGrowthAfterY10Pct',
+      'netKeepRatePct',
+      'annualBonusK',
     ]);
   });
 

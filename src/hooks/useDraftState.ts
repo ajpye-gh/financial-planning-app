@@ -145,7 +145,10 @@ export function useDraftState(): UseDraftStateResult {
   const addSalaryRaise = useCallback(() => {
     setDraft((prev) => ({
       ...prev,
-      salaryRaises: [...prev.salaryRaises, { id: generateBreakpointId(), ...nextBreakpoint(prev.salaryRaises) }],
+      salaryRaises: [
+        ...prev.salaryRaises,
+        { id: generateBreakpointId(), ...nextBreakpoint(prev.salaryRaises, prev.baseInputs.salaryY0K) },
+      ],
     }));
   }, []);
 
@@ -170,7 +173,7 @@ export function useDraftState(): UseDraftStateResult {
       ...prev,
       partnerSalaryRaises: [
         ...prev.partnerSalaryRaises,
-        { id: generateBreakpointId(), ...nextBreakpoint(prev.partnerSalaryRaises) },
+        { id: generateBreakpointId(), ...nextBreakpoint(prev.partnerSalaryRaises, prev.baseInputs.partnerSalaryY0K) },
       ],
     }));
   }, []);
