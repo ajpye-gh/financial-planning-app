@@ -4,10 +4,12 @@ import type { SliderFormat } from './format';
 export type BaseFieldId =
   | 'expensesMo'
   | 'housingPaymentMo'
-  | 'housingPrincipalInterestMo'
   | 'homeValueK'
   | 'mortgageBalanceK'
   | 'currentMortgageRatePct'
+  | 'mortgageTermYears'
+  | 'mortgageInsuranceMo'
+  | 'mortgageExtraPrincipalMo'
   | 'cashTodayK'
   | 'brokerageTodayK'
   | 'salaryY0K'
@@ -53,6 +55,57 @@ export interface BaseFieldGroup {
   title: string;
   fields: BaseFieldMeta[];
 }
+
+/** Exported (not just inlined below) so the Mortgage page can reuse the exact same field - same
+ *  balance either way, just relevant on both pages (roll-down of the existing loan vs. this page's
+ *  sidebar summary). */
+export const HOME_VALUE_FIELD: BaseFieldMeta = {
+  id: 'homeValueK',
+  label: 'Home value (current)',
+  format: 'k',
+  tooltip: 'Current market value of your home. Reflects your current home only, not a future purchase.',
+  visibleIf: ownsHome,
+};
+
+export const MORTGAGE_BALANCE_FIELD: BaseFieldMeta = {
+  id: 'mortgageBalanceK',
+  label: 'Mortgage balance (current)',
+  format: 'k',
+  tooltip: 'Remaining principal owed on your current mortgage. Reflects your current home only, not a future purchase.',
+  visibleIf: ownsHome,
+};
+
+export const MORTGAGE_RATE_FIELD: BaseFieldMeta = {
+  id: 'currentMortgageRatePct',
+  label: 'Mortgage rate (current)',
+  format: '%',
+  tooltip:
+    "Your current mortgage's interest rate - drives both the Mortgage tab's amortization schedule and how much of it you'll have paid off (home equity) by the time you roll it into a future purchase.",
+  visibleIf: ownsHome,
+};
+
+export const INFLATION_FIELD: BaseFieldMeta = {
+  id: 'inflationPct',
+  label: 'Inflation',
+  format: '%',
+  tooltip:
+    'Applied to living costs, taxes, insurance/maintenance escrow, and home appreciation. Not applied to fixed mortgage principal & interest.',
+};
+
+export const CASH_GROWTH_FIELD: BaseFieldMeta = {
+  id: 'cashGrowthPct',
+  label: 'Cash growth',
+  format: '%',
+  tooltip:
+    "Annual growth on your Emergency fund balance - kept low and separate from Investment return since emergency savings sit in cash/savings accounts, not the market.",
+};
+
+export const INVESTMENT_RETURN_FIELD: BaseFieldMeta = {
+  id: 'investmentReturnPct',
+  label: 'Investment return',
+  format: '%',
+  tooltip: 'Nominal annual return on invested assets and every accumulating goal.',
+};
 
 export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   {
@@ -126,14 +179,7 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         label: 'Housing payment (current)',
         format: '$',
         tooltip:
-          'Your current all-in monthly housing payment — rent, or mortgage P&I plus escrow. Automatically replaced by the estimated mortgage payment once a property-purchase goal completes.',
-      },
-      {
-        id: 'housingPrincipalInterestMo',
-        label: '— of which P&I (current)',
-        format: '$',
-        tooltip: 'The principal and interest slice of your mortgage payment. Fixed forever; the remainder is escrow, which inflates.',
-        visibleIf: ownsHome,
+          "Your current all-in monthly housing payment — rent, or mortgage payment plus escrow. If you own, the principal & interest slice is now computed from the Mortgage tab's rate/term/balance instead of set here; the remainder is escrow, which inflates. Automatically replaced by the estimated mortgage payment once a property-purchase goal completes.",
       },
       {
         id: 'costPerKidMo',
@@ -147,28 +193,9 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   {
     title: 'Assets',
     fields: [
-      {
-        id: 'homeValueK',
-        label: 'Home value (current)',
-        format: 'k',
-        tooltip: 'Current market value of your home. Reflects your current home only, not a future purchase.',
-        visibleIf: ownsHome,
-      },
-      {
-        id: 'mortgageBalanceK',
-        label: 'Mortgage balance (current)',
-        format: 'k',
-        tooltip: 'Remaining principal owed on your current mortgage. Reflects your current home only, not a future purchase.',
-        visibleIf: ownsHome,
-      },
-      {
-        id: 'currentMortgageRatePct',
-        label: 'Mortgage rate (current)',
-        format: '%',
-        tooltip:
-          "Your current mortgage's interest rate - used to project how much of it you'll have paid off (and how much home equity you'll have) by the time you roll it into a future purchase.",
-        visibleIf: ownsHome,
-      },
+      HOME_VALUE_FIELD,
+      MORTGAGE_BALANCE_FIELD,
+      MORTGAGE_RATE_FIELD,
       {
         id: 'brokerageTodayK',
         label: 'Brokerage today',
@@ -185,27 +212,7 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
   },
   {
     title: 'Assumptions',
-    fields: [
-      {
-        id: 'inflationPct',
-        label: 'Inflation',
-        format: '%',
-        tooltip: 'Applied to living costs, taxes, insurance and maintenance. Not applied to fixed mortgage P&I.',
-      },
-      {
-        id: 'cashGrowthPct',
-        label: 'Cash growth',
-        format: '%',
-        tooltip:
-          "Annual growth on your Emergency fund balance - kept low and separate from Investment return since emergency savings sit in cash/savings accounts, not the market.",
-      },
-      {
-        id: 'investmentReturnPct',
-        label: 'Investment return',
-        format: '%',
-        tooltip: 'Nominal annual return on invested assets and every accumulating goal.',
-      },
-    ],
+    fields: [INFLATION_FIELD, CASH_GROWTH_FIELD, INVESTMENT_RETURN_FIELD],
   },
 ];
 
@@ -215,6 +222,36 @@ export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
   label: 'Inspect year',
   format: 'yr',
   tooltip: 'Which year the detail table below shows.',
+};
+
+/** Rendered on the Mortgage page's own sidebar, not the primary page's ControlsPanel - same
+ *  reasoning as the retirement fields below, just a different page. Home value/balance/rate are
+ *  reused as-is from the Assets group above (HOME_VALUE_FIELD etc.) rather than duplicated here. */
+export const MORTGAGE_TERM_FIELD: BaseFieldMeta = {
+  id: 'mortgageTermYears',
+  label: 'Loan term',
+  format: 'yr',
+  tooltip:
+    "Length of your mortgage, in years (e.g. 30 or 15). Combined with the balance and rate above, this determines your required principal & interest payment - it's no longer a number you set directly.",
+  visibleIf: ownsHome,
+};
+
+export const MORTGAGE_INSURANCE_FIELD: BaseFieldMeta = {
+  id: 'mortgageInsuranceMo',
+  label: 'Mortgage insurance',
+  format: '$',
+  tooltip:
+    "Monthly PMI/MIP, in today's dollars. Automatically drops off the payment once your projected home equity reaches 20% - lenders no longer require it past that point - so this only affects the payment before then.",
+  visibleIf: ownsHome,
+};
+
+export const MORTGAGE_EXTRA_PRINCIPAL_FIELD: BaseFieldMeta = {
+  id: 'mortgageExtraPrincipalMo',
+  label: 'Extra principal /mo',
+  format: '$',
+  tooltip:
+    'Optional additional amount applied straight to principal every month, on top of your required payment - shortens the loan and moves your payoff date earlier. Shown on the chart as a second line against the original schedule.',
+  visibleIf: ownsHome,
 };
 
 /** Rendered on the Retirement page's own sidebar/chart, not the primary page's ControlsPanel -
@@ -357,6 +394,9 @@ export const RETIREMENT_INSPECT_AGE_FIELD: BaseFieldMeta = {
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
+  MORTGAGE_TERM_FIELD.id,
+  MORTGAGE_INSURANCE_FIELD.id,
+  MORTGAGE_EXTRA_PRINCIPAL_FIELD.id,
   RETIREMENT_ROTH_SAVINGS_FIELD.id,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
   RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD.id,

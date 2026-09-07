@@ -25,7 +25,7 @@ describe('visibleBaseFieldGroups', () => {
 
     expect(fieldIds).not.toContain('homeValueK');
     expect(fieldIds).not.toContain('mortgageBalanceK');
-    expect(fieldIds).not.toContain('housingPrincipalInterestMo');
+    expect(fieldIds).not.toContain('currentMortgageRatePct');
     expect(fieldIds).toContain('housingPaymentMo');
   });
 
@@ -33,9 +33,13 @@ describe('visibleBaseFieldGroups', () => {
     const groups = visibleBaseFieldGroups({ housing: 'own' });
 
     expect(fieldIdsIn('Assets', groups)).toEqual(
-      expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'brokerageTodayK', 'cashTodayK']),
+      expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'currentMortgageRatePct', 'brokerageTodayK', 'cashTodayK']),
     );
-    expect(fieldIdsIn('Expenses', groups)).toContain('housingPrincipalInterestMo');
+  });
+
+  it('no longer renders a manual "of which is P&I" slider - it is computed from the Mortgage tab inputs instead', () => {
+    const fieldIds = visibleBaseFieldGroups({ housing: 'own' }).flatMap((group) => group.fields.map((field) => field.id));
+    expect(fieldIds).not.toContain('housingPrincipalInterestMo');
   });
 
   it('mirrors Income as its own always-visible Partner income group - no questionnaire gating it anymore', () => {

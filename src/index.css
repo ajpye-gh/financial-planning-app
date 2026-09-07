@@ -1022,6 +1022,19 @@ input[type='range']::-moz-range-thumb {
   font-size: 11px;
 }
 
+.cashflow-chart__marker {
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.cashflow-chart__marker--primary {
+  stroke: var(--accent);
+}
+
+.cashflow-chart__marker--unallocated {
+  stroke: var(--success);
+}
+
 .cashflow-chart__line--zero-cash {
   stroke: var(--danger);
   stroke-width: 1;
@@ -1221,4 +1234,42 @@ input[type='range']::-moz-range-thumb {
 
 .breakdown-table__value--success {
   color: var(--success);
+}
+
+/* Mortgage */
+
+.mortgage-page__empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+  max-width: 480px;
+}
+
+.mortgage-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface-1);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 13px;
+}
+
+.mortgage-summary__title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mortgage-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.mortgage-summary__value {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }

@@ -11,15 +11,33 @@ import type { Child } from '@src/lib/children';
 import type { RecurringGoal } from '@src/lib/goals';
 import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
 
+// P&I is now computed from balance/rate/term (see monthlyMortgagePayment) instead of being a
+// manually-entered fixture field. Solving for the balance that reproduces exactly the same $1200/mo
+// figure the old fixture hardcoded keeps every hand-derived expected value below (which assumed a
+// fixed $1200 P&I) still correct, without having to redo all that arithmetic by hand.
+const BASE_MORTGAGE_RATE_PCT = 6;
+const BASE_MORTGAGE_TERM_YEARS = 30;
+const BASE_PI_TARGET = 1200;
+
+function loanAmountForPayment(targetPayment: number, annualRatePct: number, termYears: number): number {
+  const monthlyRate = annualRatePct / 100 / 12;
+  const numPayments = termYears * 12;
+  return (targetPayment * (1 - Math.pow(1 + monthlyRate, -numPayments))) / monthlyRate;
+}
+
+const BASE_MORTGAGE_BALANCE = loanAmountForPayment(BASE_PI_TARGET, BASE_MORTGAGE_RATE_PCT, BASE_MORTGAGE_TERM_YEARS);
+
 // A fixed fixture, independent of Defaults.json, so this test stays stable regardless of what the
 // committed defaults happen to contain.
 const BASE: BaseInputs = {
   expensesMo: 4000,
   housingPaymentMo: 1800,
-  housingPrincipalInterestMo: 1200,
   homeValueK: 350,
-  mortgageBalanceK: 250,
-  currentMortgageRatePct: 6,
+  mortgageBalanceK: BASE_MORTGAGE_BALANCE / 1000,
+  currentMortgageRatePct: BASE_MORTGAGE_RATE_PCT,
+  mortgageTermYears: BASE_MORTGAGE_TERM_YEARS,
+  mortgageInsuranceMo: 0,
+  mortgageExtraPrincipalMo: 0,
   brokerageTodayK: 50,
   cashTodayK: 20,
   salaryY0K: 70,
@@ -358,7 +376,7 @@ describe('runModel', () => {
 
       expect(result.homeValue).toBeCloseTo(350000 * Math.pow(1.03, 3), 6);
       expect(result.mortgageBalance).toBeGreaterThan(0);
-      expect(result.mortgageBalance).toBeLessThan(250000);
+      expect(result.mortgageBalance).toBeLessThan(OWNED_BASE.mortgageBalanceK * 1000);
       expect(result.equity).toBeCloseTo(result.homeValue - result.mortgageBalance, 6);
     });
 
@@ -373,8 +391,10 @@ describe('runModel', () => {
     });
 
     it('floors the mortgage balance at $0 once the loan would be fully paid off', () => {
-      // $1200/mo at 3% pays off $250k in ~25yr - well past 18, so check further out than the app's
-      // own 18yr horizon ever would, just to confirm the flooring behavior itself is correct.
+      // The level payment is calibrated (by definition of the standard amortization formula) to
+      // fully pay off the balance in exactly mortgageTermYears (30) at the OWNED_BASE rate - so year
+      // 40 is well past payoff regardless of the exact balance/rate, past the app's own 18yr horizon
+      // too, just to confirm the flooring behavior itself is correct.
       const result = projectHomeEquity(OWNED_BASE, true, 40);
       expect(result.mortgageBalance).toBe(0);
     });
@@ -411,7 +431,11 @@ describe('runModel', () => {
       const withoutEquity = run({ goals: [{ ...funded, equityAllocated: false }], base }).chart.goalBalances.property[3];
 
       expect(withEquity).toBeGreaterThan(withoutEquity);
-      expect(withEquity - withoutEquity).toBeCloseTo(projectHomeEquity(base, true, 3).equity, 0);
+      // Precision -1 (nearest $10), not 0: withEquity and withoutEquity are each independently
+      // Math.round()'ed to whole dollars in their own goalBalances series, so their difference can be
+      // off by up to ~$1 from the raw unrounded equity figure - unrelated to this fixture's mortgage
+      // numbers specifically, just a rounding-boundary margin that needs a little more slack.
+      expect(withEquity - withoutEquity).toBeCloseTo(projectHomeEquity(base, true, 3).equity, -1);
     });
 
     it("doesn't seed equity for a renter, even if allocated", () => {

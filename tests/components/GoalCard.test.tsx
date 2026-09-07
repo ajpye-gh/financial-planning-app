@@ -30,7 +30,6 @@ const OWNED_BASE_INPUTS: BaseInputs = {
   homeValueK: 350,
   mortgageBalanceK: 250,
   currentMortgageRatePct: 3,
-  housingPrincipalInterestMo: 1200,
   inflationPct: 3,
 };
 
