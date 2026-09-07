@@ -28,6 +28,7 @@ function App() {
 
   const primaryIncomeControls: SalaryRaiseBreakpointsProps = {
     breakpoints: draft.salaryRaises,
+    salaryY0K: draft.baseInputs.salaryY0K,
     onAdd: draft.addSalaryRaise,
     onRemove: draft.removeSalaryRaise,
     onUpdate: draft.updateSalaryRaise,
@@ -37,6 +38,7 @@ function App() {
   };
   const partnerIncomeControls: SalaryRaiseBreakpointsProps = {
     breakpoints: draft.partnerSalaryRaises,
+    salaryY0K: draft.baseInputs.partnerSalaryY0K,
     onAdd: draft.addPartnerSalaryRaise,
     onRemove: draft.removePartnerSalaryRaise,
     onUpdate: draft.updatePartnerSalaryRaise,
@@ -57,6 +59,7 @@ function App() {
       growthAfterLastRaisePct: draft.baseInputs.salaryGrowthAfterY10Pct,
       netKeepRatePct: draft.baseInputs.netKeepRatePct,
       raises: draft.salaryRaises,
+      annualBonusK: draft.baseInputs.annualBonusK,
       jobLossYear: draft.jobLossYear,
     };
     const partnerIncome: IncomeStreamInputs = {
@@ -64,6 +67,7 @@ function App() {
       growthAfterLastRaisePct: draft.baseInputs.partnerSalaryGrowthAfterY10Pct,
       netKeepRatePct: draft.baseInputs.partnerNetKeepRatePct,
       raises: draft.partnerSalaryRaises,
+      annualBonusK: draft.baseInputs.partnerAnnualBonusK,
       jobLossYear: draft.partnerJobLossYear,
     };
     return runModel({

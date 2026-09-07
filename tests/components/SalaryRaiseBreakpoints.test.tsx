@@ -4,14 +4,15 @@ import { SalaryRaiseBreakpoints } from '@src/components/controls/SalaryRaiseBrea
 import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
 
 const BREAKPOINTS: SalaryRaiseBreakpoint[] = [
-  { id: 'r1', year: 1, raiseK: 5 },
-  { id: 'r4', year: 4, raiseK: 20 },
+  { id: 'r1', year: 1, incomeK: 75 },
+  { id: 'r4', year: 4, incomeK: 90 },
 ];
 
 function renderComponent(overrides: Partial<Parameters<typeof SalaryRaiseBreakpoints>[0]> = {}) {
   return render(
     <SalaryRaiseBreakpoints
       breakpoints={BREAKPOINTS}
+      salaryY0K={70}
       onAdd={jest.fn()}
       onRemove={jest.fn()}
       onUpdate={jest.fn()}
@@ -30,12 +31,12 @@ describe('SalaryRaiseBreakpoints raises', () => {
     expect(yearInputs.map((input) => input.value)).toEqual(['1', '4']);
   });
 
-  it('calls onAdd when the add-raise button is clicked', async () => {
+  it('calls onAdd when the add-income-milestone button is clicked', async () => {
     const user = userEvent.setup();
     const onAdd = jest.fn();
     renderComponent({ onAdd });
 
-    await user.click(screen.getByRole('button', { name: '+ Add raise' }));
+    await user.click(screen.getByRole('button', { name: '+ Add income milestone' }));
     expect(onAdd).toHaveBeenCalledTimes(1);
   });
 
@@ -44,7 +45,7 @@ describe('SalaryRaiseBreakpoints raises', () => {
     const onRemove = jest.fn();
     renderComponent({ onRemove });
 
-    await user.click(screen.getByRole('button', { name: 'Remove raise at year 4' }));
+    await user.click(screen.getByRole('button', { name: 'Remove income milestone at year 4' }));
     expect(onRemove).toHaveBeenCalledWith('r4');
   });
 
@@ -63,13 +64,20 @@ describe('SalaryRaiseBreakpoints raises', () => {
     expect(lastCall?.[1].year).toBe(18);
   });
 
-  it('calls onUpdate with the raise amount when the slider changes', () => {
+  it('calls onUpdate with the new income when the slider changes', () => {
     const onUpdate = jest.fn();
     renderComponent({ onUpdate });
 
     const sliders = screen.getAllByRole('slider') as HTMLInputElement[];
-    fireEventChange(sliders[0], '40');
-    expect(onUpdate).toHaveBeenCalledWith('r1', { raiseK: 40 });
+    fireEventChange(sliders[0], '80');
+    expect(onUpdate).toHaveBeenCalledWith('r1', { incomeK: 80 });
+  });
+
+  it("floors the first milestone's slider at the current starting salary", () => {
+    renderComponent({ salaryY0K: 70 });
+
+    const sliders = screen.getAllByRole('slider') as HTMLInputElement[];
+    expect(sliders[0].min).toBe('70');
   });
 });
 
