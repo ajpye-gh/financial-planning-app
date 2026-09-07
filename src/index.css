@@ -446,6 +446,29 @@ input[type='range']::-moz-range-thumb {
   min-width: 58px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.slider-field__bound {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider-field__bound:hover {
+  color: var(--text-primary);
+}
+
+.slider-field__bound-input,
+.slider-field__value-input {
+  flex: none;
+  width: 64px;
+  padding: 0.2rem 0.35rem;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Salary raises */
@@ -489,19 +512,8 @@ input[type='range']::-moz-range-thumb {
   font-size: 12px;
 }
 
-.salary-raise-row__control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.salary-raise-row__value {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  min-width: 40px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.salary-raise-row .slider-field {
+  margin-bottom: 0;
 }
 
 .salary-raise-row__remove {

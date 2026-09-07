@@ -10,6 +10,7 @@ import {
 import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
 import { EditIcon, SaveIcon } from '../icons';
 import { Tooltip } from '../Tooltip';
+import { Slider } from '../controls/Slider';
 import { canAllocateBrokerage, canAllocateCash, canAllocateEquity, type Goal } from '../../lib/goals';
 import type { BaseInputs } from '../../lib/baseData';
 
@@ -154,75 +155,46 @@ export function GoalCard({
             {goal.mode === 'accumulate' ? 'saving' : 'spending'}
           </span>
 
-          <div className="slider-field">
-            <span className="slider-field__label">Monthly amount</span>
-            <div className="slider-field__control">
-              <input
-                type="range"
-                min={goal.monthlyAmountRange.min}
-                max={goal.monthlyAmountRange.max}
-                step={goal.monthlyAmountRange.step}
-                value={goal.monthlyAmount}
-                onChange={(event) => onUpdate(goal.id, { monthlyAmount: Number(event.target.value) })}
-              />
-              <span className="slider-field__value">{formatCurrency(goal.monthlyAmount)}/mo</span>
-            </div>
-          </div>
+          <Slider
+            id={`${goal.id}-monthly-amount`}
+            label="Monthly amount"
+            range={goal.monthlyAmountRange}
+            value={goal.monthlyAmount}
+            onChange={(value) => onUpdate(goal.id, { monthlyAmount: value })}
+            valueLabel={`${formatCurrency(goal.monthlyAmount)}/mo`}
+          />
 
           {goal.mode === 'accumulate' && !isProperty && (
-            <div className="slider-field">
-              <span className="slider-field__label">Target amount</span>
-              <div className="slider-field__control">
-                <input
-                  type="range"
-                  min={TARGET_AMOUNT_RANGE.min}
-                  max={TARGET_AMOUNT_RANGE.max}
-                  step={TARGET_AMOUNT_RANGE.step}
-                  value={goal.targetAmount ?? 0}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    onUpdate(goal.id, { targetAmount: value > 0 ? value : undefined });
-                  }}
-                />
-                <span className="slider-field__value">
-                  {goal.targetAmount ? formatCurrency(goal.targetAmount) : 'No target'}
-                </span>
-              </div>
-            </div>
+            <Slider
+              id={`${goal.id}-target-amount`}
+              label="Target amount"
+              range={TARGET_AMOUNT_RANGE}
+              value={goal.targetAmount ?? 0}
+              onChange={(value) => onUpdate(goal.id, { targetAmount: value > 0 ? value : undefined })}
+              valueLabel={goal.targetAmount ? formatCurrency(goal.targetAmount) : 'No target'}
+            />
           )}
 
           {canAllocateCash(goal) && (
-            <div className="slider-field">
-              <span className="slider-field__label">From cash today</span>
-              <div className="slider-field__control">
-                <input
-                  type="range"
-                  min={0}
-                  max={cashRemaining + goal.cashAllocated}
-                  step={ALLOCATION_STEP}
-                  value={goal.cashAllocated}
-                  onChange={(event) => onUpdate(goal.id, { cashAllocated: Number(event.target.value) })}
-                />
-                <span className="slider-field__value">{formatCurrency(goal.cashAllocated)}</span>
-              </div>
-            </div>
+            <Slider
+              id={`${goal.id}-cash-allocated`}
+              label="From cash today"
+              range={{ min: 0, max: cashRemaining + goal.cashAllocated, step: ALLOCATION_STEP }}
+              value={goal.cashAllocated}
+              onChange={(value) => onUpdate(goal.id, { cashAllocated: value })}
+              valueLabel={formatCurrency(goal.cashAllocated)}
+            />
           )}
 
           {canAllocateBrokerage(goal) && (
-            <div className="slider-field">
-              <span className="slider-field__label">From brokerage today</span>
-              <div className="slider-field__control">
-                <input
-                  type="range"
-                  min={0}
-                  max={brokerageRemaining + goal.brokerageAllocated}
-                  step={ALLOCATION_STEP}
-                  value={goal.brokerageAllocated}
-                  onChange={(event) => onUpdate(goal.id, { brokerageAllocated: Number(event.target.value) })}
-                />
-                <span className="slider-field__value">{formatCurrency(goal.brokerageAllocated)}</span>
-              </div>
-            </div>
+            <Slider
+              id={`${goal.id}-brokerage-allocated`}
+              label="From brokerage today"
+              range={{ min: 0, max: brokerageRemaining + goal.brokerageAllocated, step: ALLOCATION_STEP }}
+              value={goal.brokerageAllocated}
+              onChange={(value) => onUpdate(goal.id, { brokerageAllocated: value })}
+              valueLabel={formatCurrency(goal.brokerageAllocated)}
+            />
           )}
 
           {equityProjection && equityProjection.equity > 0 && (
@@ -243,34 +215,22 @@ export function GoalCard({
 
           {goal.mode === 'accumulate' && isProperty && (
             <>
-              <div className="slider-field">
-                <span className="slider-field__label">Total property price</span>
-                <div className="slider-field__control">
-                  <input
-                    type="range"
-                    min={PURCHASE_PRICE_RANGE.min}
-                    max={PURCHASE_PRICE_RANGE.max}
-                    step={PURCHASE_PRICE_RANGE.step}
-                    value={goal.purchasePriceK ?? 0}
-                    onChange={(event) => onUpdate(goal.id, { purchasePriceK: Number(event.target.value) })}
-                  />
-                  <span className="slider-field__value">{formatCurrency((goal.purchasePriceK ?? 0) * 1000)}</span>
-                </div>
-              </div>
-              <div className="slider-field">
-                <span className="slider-field__label">Mortgage rate</span>
-                <div className="slider-field__control">
-                  <input
-                    type="range"
-                    min={MORTGAGE_RATE_RANGE.min}
-                    max={MORTGAGE_RATE_RANGE.max}
-                    step={MORTGAGE_RATE_RANGE.step}
-                    value={goal.mortgageRatePct ?? 0}
-                    onChange={(event) => onUpdate(goal.id, { mortgageRatePct: Number(event.target.value) })}
-                  />
-                  <span className="slider-field__value">{(goal.mortgageRatePct ?? 0).toFixed(2)}%</span>
-                </div>
-              </div>
+              <Slider
+                id={`${goal.id}-purchase-price`}
+                label="Total property price"
+                range={PURCHASE_PRICE_RANGE}
+                value={goal.purchasePriceK ?? 0}
+                onChange={(value) => onUpdate(goal.id, { purchasePriceK: value })}
+                valueLabel={formatCurrency((goal.purchasePriceK ?? 0) * 1000)}
+              />
+              <Slider
+                id={`${goal.id}-mortgage-rate`}
+                label="Mortgage rate"
+                range={MORTGAGE_RATE_RANGE}
+                value={goal.mortgageRatePct ?? 0}
+                onChange={(value) => onUpdate(goal.id, { mortgageRatePct: value })}
+                valueLabel={`${(goal.mortgageRatePct ?? 0).toFixed(2)}%`}
+              />
               {mortgageEstimate && mortgageEstimate.purchasePrice > 0 && (
                 <div className="goal-card__mortgage-preview">
                   <Tooltip
@@ -296,20 +256,14 @@ export function GoalCard({
                 This ends in a purchase
               </label>
               {goal.isPurchase && (
-                <div className="slider-field">
-                  <span className="slider-field__label">Post-purchase monthly cost</span>
-                  <div className="slider-field__control">
-                    <input
-                      type="range"
-                      min={POST_PURCHASE_COST_RANGE.min}
-                      max={POST_PURCHASE_COST_RANGE.max}
-                      step={POST_PURCHASE_COST_RANGE.step}
-                      value={goal.postPurchaseMonthlyCost ?? 0}
-                      onChange={(event) => onUpdate(goal.id, { postPurchaseMonthlyCost: Number(event.target.value) })}
-                    />
-                    <span className="slider-field__value">{formatCurrency(goal.postPurchaseMonthlyCost ?? 0)}/mo</span>
-                  </div>
-                </div>
+                <Slider
+                  id={`${goal.id}-post-purchase-cost`}
+                  label="Post-purchase monthly cost"
+                  range={POST_PURCHASE_COST_RANGE}
+                  value={goal.postPurchaseMonthlyCost ?? 0}
+                  onChange={(value) => onUpdate(goal.id, { postPurchaseMonthlyCost: value })}
+                  valueLabel={`${formatCurrency(goal.postPurchaseMonthlyCost ?? 0)}/mo`}
+                />
               )}
             </>
           )}

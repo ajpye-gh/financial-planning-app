@@ -220,6 +220,19 @@ describe('GoalCard asset allocation', () => {
 
     expect(onUpdate).toHaveBeenCalledWith('goal-1', { cashAllocated: 4000 });
   });
+
+  it('double-clicking the cash slider value opens a text input that commits a new amount via onUpdate', async () => {
+    const user = userEvent.setup();
+    const onUpdate = jest.fn();
+    renderCard({ goal: { ...baseGoal, category: 'emergency', cashAllocated: 100 }, cashRemaining: 5000, onUpdate });
+
+    await user.dblClick(screen.getByText('$100'));
+    const input = screen.getByLabelText('From cash today value');
+    await user.clear(input);
+    await user.type(input, '2500{Enter}');
+
+    expect(onUpdate).toHaveBeenCalledWith('goal-1', { cashAllocated: 2500 });
+  });
 });
 
 describe('GoalCard equity allocation', () => {

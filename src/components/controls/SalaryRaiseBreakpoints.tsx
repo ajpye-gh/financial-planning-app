@@ -1,5 +1,6 @@
 import { formatSliderValue } from '../../lib/format';
 import { TrashIcon } from '../icons';
+import { Slider } from './Slider';
 import type { SalaryRaiseBreakpoint } from '../../lib/salaryRaises';
 
 const HORIZON_YEARS = 18;
@@ -58,17 +59,15 @@ export function SalaryRaiseBreakpoints({
                 <TrashIcon />
               </button>
             </div>
-            <div className="salary-raise-row__control">
-              <input
-                type="range"
-                min={floor}
-                max={RAISE_RANGE.max}
-                step={RAISE_RANGE.step}
-                value={breakpoint.raiseK}
-                onChange={(event) => onUpdate(breakpoint.id, { raiseK: Number(event.target.value) })}
-              />
-              <span className="salary-raise-row__value">{formatSliderValue(breakpoint.raiseK, 'k')}</span>
-            </div>
+            <Slider
+              id={`raise-${breakpoint.id}`}
+              ariaLabel={`Raise at year ${breakpoint.year}`}
+              range={{ min: floor, max: RAISE_RANGE.max, step: RAISE_RANGE.step }}
+              value={breakpoint.raiseK}
+              onChange={(value) => onUpdate(breakpoint.id, { raiseK: value })}
+              valueLabel={formatSliderValue(breakpoint.raiseK, 'k')}
+              formatBound={(bound) => formatSliderValue(bound, 'k')}
+            />
           </div>
         );
       })}

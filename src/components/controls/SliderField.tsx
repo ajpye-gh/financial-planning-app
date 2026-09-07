@@ -1,7 +1,7 @@
-import { Tooltip } from '../Tooltip';
 import { formatSliderValue } from '../../lib/format';
 import type { SliderRange } from '../../lib/baseData';
 import type { BaseFieldId, BaseFieldMeta } from '../../lib/baseFields';
+import { Slider } from './Slider';
 
 interface SliderFieldProps {
   meta: BaseFieldMeta;
@@ -13,25 +13,19 @@ interface SliderFieldProps {
   valueLabel?: string;
 }
 
+/** Thin adapter over the reusable `Slider` primitive for the app's base/retirement fields, which
+ *  are described by a `BaseFieldMeta` rather than plain id/label/tooltip props. */
 export function SliderField({ meta, range, value, onChange, valueLabel }: Readonly<SliderFieldProps>) {
   return (
-    <div className="slider-field">
-      <label className="slider-field__label" htmlFor={meta.id}>
-        <Tooltip tip={meta.tooltip}>{meta.label}</Tooltip>
-      </label>
-      <div className="slider-field__control">
-        <input
-          id={meta.id}
-          className="slider-field__input"
-          type="range"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={value}
-          onChange={(event) => onChange(meta.id, Number(event.target.value))}
-        />
-        <span className="slider-field__value">{valueLabel ?? formatSliderValue(value, meta.format)}</span>
-      </div>
-    </div>
+    <Slider
+      id={meta.id}
+      label={meta.label}
+      tooltip={meta.tooltip}
+      range={range}
+      value={value}
+      onChange={(next) => onChange(meta.id, next)}
+      valueLabel={valueLabel ?? formatSliderValue(value, meta.format)}
+      formatBound={(bound) => formatSliderValue(bound, meta.format)}
+    />
   );
 }
