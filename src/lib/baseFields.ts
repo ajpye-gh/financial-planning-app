@@ -195,7 +195,6 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
     fields: [
       HOME_VALUE_FIELD,
       MORTGAGE_BALANCE_FIELD,
-      MORTGAGE_RATE_FIELD,
       {
         id: 'brokerageTodayK',
         label: 'Brokerage today',
@@ -398,6 +397,7 @@ export const RETIREMENT_INSPECT_AGE_FIELD: BaseFieldMeta = {
 export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   ...BASE_FIELD_GROUPS.flatMap((group) => group.fields.map((field) => field.id)),
   INSPECT_YEAR_FIELD.id,
+  MORTGAGE_RATE_FIELD.id,
   MORTGAGE_TERM_FIELD.id,
   MORTGAGE_INSURANCE_FIELD.id,
   MORTGAGE_EXTRA_PRINCIPAL_FIELD.id,

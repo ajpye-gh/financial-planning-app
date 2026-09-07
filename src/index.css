@@ -308,7 +308,8 @@ legend {
 /* Range input */
 
 input[type='range'] {
-  flex: 1;
+  flex: 1 1 80px;
+  min-width: 0;
   appearance: none;
   height: 4px;
   border-radius: 999px;
@@ -441,6 +442,7 @@ input[type='range']::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .slider-field__value {
@@ -466,10 +468,10 @@ input[type='range']::-moz-range-thumb {
   color: var(--text-primary);
 }
 
-.slider-field__bound-input,
-.slider-field__value-input {
+input.slider-field__bound-input,
+input.slider-field__value-input {
   flex: none;
-  width: 64px;
+  width: 76px;
   padding: 0.2rem 0.35rem;
   font-size: 12px;
   font-variant-numeric: tabular-nums;

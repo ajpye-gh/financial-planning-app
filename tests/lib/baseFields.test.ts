@@ -29,12 +29,17 @@ describe('visibleBaseFieldGroups', () => {
     expect(fieldIds).toContain('housingPaymentMo');
   });
 
-  it('shows home value/mortgage fields under Assets for an owner', () => {
+  it('shows home value/mortgage balance under Assets for an owner', () => {
     const groups = visibleBaseFieldGroups({ housing: 'own' });
 
     expect(fieldIdsIn('Assets', groups)).toEqual(
-      expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'currentMortgageRatePct', 'brokerageTodayK', 'cashTodayK']),
+      expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'brokerageTodayK', 'cashTodayK']),
     );
+  });
+
+  it('does not show the mortgage rate under Assets - it is edited on the Mortgage tab instead', () => {
+    const fieldIds = fieldIdsIn('Assets', visibleBaseFieldGroups({ housing: 'own' }));
+    expect(fieldIds).not.toContain('currentMortgageRatePct');
   });
 
   it('no longer renders a manual "of which is P&I" slider - it is computed from the Mortgage tab inputs instead', () => {
