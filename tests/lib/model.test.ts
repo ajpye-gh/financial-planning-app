@@ -31,6 +31,7 @@ const BASE: BaseInputs = {
   costPerKidMo: 500,
   inflationPct: 3,
   investmentReturnPct: 6,
+  cashGrowthPct: 1,
   inspectYear: 5,
 };
 
@@ -121,6 +122,22 @@ const PROPERTY_GOAL: RecurringGoal = {
   isPurchase: true,
   purchasePriceK: 400,
   mortgageRatePct: 6,
+};
+
+const EMERGENCY_GOAL: RecurringGoal = {
+  kind: 'recurring',
+  id: 'emergency',
+  name: 'Emergency fund',
+  mode: 'accumulate',
+  category: 'emergency',
+  monthlyAmount: 200,
+  monthlyAmountRange: { min: 0, max: 2000, step: 25 },
+  startYear: 1,
+  endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
+  equityAllocated: false,
+  isPurchase: false,
 };
 
 const BOAT_GOAL: RecurringGoal = {
@@ -287,6 +304,45 @@ describe('runModel', () => {
 
       expect(result.chart.goalBalances.college[0]).toBe(0);
       expect(result.chart.unallocatedSavings[0]).toBe(70000);
+    });
+  });
+
+  describe('emergency fund growth (cashGrowthPct, not investmentReturnPct)', () => {
+    it("compounds a 'category: emergency' goal balance at cashGrowthPct, not investmentReturnPct", () => {
+      const noContribution: RecurringGoal = { ...EMERGENCY_GOAL, monthlyAmount: 0, cashAllocated: 10000 };
+      const result = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 2, investmentReturnPct: 6 },
+      });
+
+      // Y0 balance is the cash seed (10000); year 1 should grow at cashGrowthPct (2%), not
+      // investmentReturnPct (6%): 10000 * 1.02 = 10200.
+      expect(result.chart.goalBalances.emergency[0]).toBe(10000);
+      expect(result.chart.goalBalances.emergency[1]).toBe(10200);
+    });
+
+    it('a higher investmentReturnPct has no effect on the emergency fund balance when cashGrowthPct is unchanged', () => {
+      const noContribution: RecurringGoal = { ...EMERGENCY_GOAL, monthlyAmount: 0, cashAllocated: 10000 };
+      const lowReturn = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 1.5, investmentReturnPct: 3 },
+      });
+      const highReturn = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 1.5, investmentReturnPct: 11 },
+      });
+
+      expect(highReturn.chart.goalBalances.emergency).toEqual(lowReturn.chart.goalBalances.emergency);
+    });
+
+    it('a non-emergency accumulate goal still compounds at investmentReturnPct, unaffected by cashGrowthPct', () => {
+      const funded: RecurringGoal = { ...COLLEGE_GOAL, monthlyAmount: 0, brokerageAllocated: 10000 };
+      const lowCashGrowth = run({ goals: [funded], base: { ...BASE, cashGrowthPct: 0, investmentReturnPct: 6 } });
+      const highCashGrowth = run({ goals: [funded], base: { ...BASE, cashGrowthPct: 5, investmentReturnPct: 6 } });
+
+      expect(highCashGrowth.chart.goalBalances.college).toEqual(lowCashGrowth.chart.goalBalances.college);
+      // Still grows at investmentReturnPct (6%): 10000 * 1.06 = 10600.
+      expect(lowCashGrowth.chart.goalBalances.college[1]).toBe(10600);
     });
   });
 

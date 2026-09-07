@@ -95,4 +95,9 @@ describe('visibleBaseFieldGroups', () => {
   it("Inspect age's slider max stays in sync with retirement.ts's MAX_PROJECTION_AGE - both should always cap the projection/inspection window at the same age", () => {
     expect(DEFAULT_BASE_RANGES.retirementInspectAge.max).toBe(MAX_PROJECTION_AGE);
   });
+
+  it('renders cashGrowthPct in the Assumptions group, right next to inflationPct', () => {
+    const assumptionsIds = fieldIdsIn('Assumptions', visibleBaseFieldGroups({}));
+    expect(assumptionsIds).toEqual(['inflationPct', 'cashGrowthPct', 'investmentReturnPct']);
+  });
 });
