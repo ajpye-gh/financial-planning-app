@@ -308,7 +308,7 @@ legend {
 /* Range input */
 
 input[type='range'] {
-  flex: 1 1 80px;
+  flex: 1 1 40px;
   min-width: 0;
   appearance: none;
   height: 4px;
@@ -357,7 +357,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 .app-shell__sidebar {
-  flex: 0 0 300px;
+  flex: 0 0 360px;
   position: sticky;
   top: 24px;
   max-height: calc(100svh - 48px);
@@ -441,7 +441,7 @@ input[type='range']::-moz-range-thumb {
 .slider-field__control {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1250,32 +1250,3 @@ input.slider-field__value-input {
   max-width: 480px;
 }
 
-.mortgage-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: var(--surface-1);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-  font-size: 13px;
-}
-
-.mortgage-summary__title {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.mortgage-summary__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--text-secondary);
-}
-
-.mortgage-summary__value {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}

@@ -4,8 +4,7 @@ import { ControlGroup } from './ControlGroup';
 import { HousingToggle } from './HousingToggle';
 import { SalaryRaiseBreakpoints, type SalaryRaiseBreakpointsProps } from './SalaryRaiseBreakpoints';
 import { visibleBaseFieldGroups, type BaseFieldId } from '../../lib/baseFields';
-import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '../../lib/format';
-import { currentMonthlyPayment } from '../../lib/mortgage';
+import { formatCurrency, formatSliderValue } from '../../lib/format';
 import { ownsHome, type Answers } from '../../lib/questions';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 
@@ -47,34 +46,8 @@ export function ControlsPanel({
     },
   ];
 
-  const owns = ownsHome(answers);
-  const monthlyPayment = owns
-    ? currentMonthlyPayment({
-        loanAmount: values.mortgageBalanceK * 1000,
-        annualRatePct: values.currentMortgageRatePct,
-        termYears: values.mortgageTermYears,
-        homeValue: values.homeValueK * 1000,
-        appreciationPct: values.inflationPct,
-        monthlyInsurance: values.mortgageInsuranceMo,
-        extraMonthlyPrincipal: values.mortgageExtraPrincipalMo,
-      })
-    : 0;
-
   return (
     <div className="controls-panel">
-      {owns && (
-        <div className="mortgage-summary">
-          <div className="mortgage-summary__title">Mortgage</div>
-          <div className="mortgage-summary__row">
-            <span>Monthly payment</span>
-            <span className="mortgage-summary__value">{formatCurrency(monthlyPayment)}/mo</span>
-          </div>
-          <div className="mortgage-summary__row">
-            <span>Remaining principal</span>
-            <span className="mortgage-summary__value">{formatCurrencyCompact(values.mortgageBalanceK * 1000)}</span>
-          </div>
-        </div>
-      )}
       {visibleBaseFieldGroups(answers).map((group) => {
         const incomeGroup = incomeGroups.find((candidate) => candidate.title === group.title);
         const isExpenses = group.title === 'Expenses';
