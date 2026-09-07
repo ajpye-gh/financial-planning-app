@@ -17,6 +17,14 @@ export interface RecurringGoal {
   name: string;
   mode: 'accumulate' | 'consume';
   category: GoalCategory;
+  /** Set once at creation, `true` only for the "First home purchase" catalog entry - never edited
+   *  afterward, same as `category` (see the comment above `GoalCategory`). Distinguishes it from the
+   *  "Move-up purchase" catalog entry, which shares `category: 'property'` but - unlike a first
+   *  purchase - legitimately can roll over equity from a home the household already owns (see
+   *  `canAllocateEquity`). Optional so an older saved plan predating this field still validates
+   *  (`isValidGoal`) and loads; treated as `false` (permissive - equity stays allowed) when absent,
+   *  since we can't positively identify a pre-existing goal as a first purchase from missing data. */
+  isFirstPurchase?: boolean;
   monthlyAmount: number;
   monthlyAmountRange: { min: number; max: number; step: number };
   /** Inclusive 1-indexed year range this goal is active. Outside it, the goal contributes $0 - an
@@ -83,9 +91,12 @@ export function canAllocateBrokerage(goal: Pick<RecurringGoal, 'mode' | 'categor
 }
 
 /** Home equity can only seed a property goal - it's the one asset class actually tied to owning a
- *  home, so it doesn't make sense to offer it anywhere else. */
-export function canAllocateEquity(goal: Pick<RecurringGoal, 'mode' | 'category'>): boolean {
-  return goal.mode === 'accumulate' && goal.category === 'property';
+ *  home, so it doesn't make sense to offer it anywhere else. Further excludes a first-purchase goal
+ *  even though it shares `category: 'property'` with a move-up purchase: equity can only be rolled
+ *  over from a home you already own, and a first purchase is by definition for someone who doesn't
+ *  own one yet. */
+export function canAllocateEquity(goal: Pick<RecurringGoal, 'mode' | 'category' | 'isFirstPurchase'>): boolean {
+  return goal.mode === 'accumulate' && goal.category === 'property' && !goal.isFirstPurchase;
 }
 
 /** Zeroes out any allocation, or purchase field, a goal's mode/category doesn't permit - e.g.
@@ -100,6 +111,7 @@ export function sanitizeGoal(goal: RecurringGoal): RecurringGoal {
   return {
     ...goal,
     targetAmount: isProperty ? undefined : goal.targetAmount,
+    isFirstPurchase: isProperty ? goal.isFirstPurchase === true : false,
     cashAllocated: canAllocateCash(goal) ? goal.cashAllocated : 0,
     brokerageAllocated: canAllocateBrokerage(goal) ? goal.brokerageAllocated : 0,
     equityAllocated: canAllocateEquity(goal) ? goal.equityAllocated : false,
@@ -155,7 +167,7 @@ export interface GoalCatalogEntry {
 
 const DEFAULT_RANGE = { min: 0, max: 5000, step: 100 };
 const FULL_HORIZON = { startYear: 1, endYear: DEFAULT_END_YEAR };
-const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false, isPurchase: false };
+const NO_ALLOCATION = { cashAllocated: 0, brokerageAllocated: 0, equityAllocated: false, isPurchase: false, isFirstPurchase: false };
 // Property goals default to a realistic near-term purchase year instead of the full 18-year
 // horizon other catalog entries use - buying in "year 18" wouldn't exercise the post-purchase
 // housing-cost replacement in any reasonable demo/testing.
@@ -195,6 +207,7 @@ export const GOAL_CATALOG: GoalCatalogEntry[] = [
       ...PROPERTY_HORIZON,
       ...NO_ALLOCATION,
       isPurchase: true,
+      isFirstPurchase: true,
     }),
   },
   {
@@ -293,9 +306,14 @@ function isValidAllocationFields(goal: Record<string, unknown>): boolean {
   );
 }
 
-/** isPurchase and its optional property/manual-cost fields - see the RecurringGoal doc comments. */
+/** isPurchase, its optional property/manual-cost fields, and isFirstPurchase - see the RecurringGoal
+ *  doc comments. isFirstPurchase is optional (unlike isPurchase) so a goal saved before the field
+ *  existed still validates - see its doc comment on RecurringGoal. */
 function isValidPurchaseFields(goal: Record<string, unknown>): boolean {
   if (typeof goal.isPurchase !== 'boolean') {
+    return false;
+  }
+  if (goal.isFirstPurchase !== undefined && typeof goal.isFirstPurchase !== 'boolean') {
     return false;
   }
   if (goal.purchasePriceK !== undefined && !isFiniteNumber(goal.purchasePriceK)) {

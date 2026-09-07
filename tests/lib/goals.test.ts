@@ -51,6 +51,16 @@ describe('GOAL_CATALOG', () => {
       expect(goal?.purchasePriceK).toBeGreaterThan(0);
       expect(goal?.mortgageRatePct).toBeGreaterThan(0);
     }
+
+    expect(firstHome?.create(generateGoalId()).isFirstPurchase).toBe(true);
+    expect(moveUp?.create(generateGoalId()).isFirstPurchase).toBe(false);
+  });
+
+  it('sets isFirstPurchase only on the "First home purchase" entry, false everywhere else', () => {
+    for (const entry of GOAL_CATALOG) {
+      const goal = entry.create(generateGoalId());
+      expect(goal.isFirstPurchase).toBe(entry.label === 'First home purchase');
+    }
   });
 
   it('tags Emergency fund as "emergency", both property entries as "property", everything else "other"', () => {
@@ -104,8 +114,14 @@ describe('isValidGoal', () => {
     ['non-finite purchasePriceK', { ...valid, purchasePriceK: 'lots' }],
     ['non-finite mortgageRatePct', { ...valid, mortgageRatePct: 'lots' }],
     ['non-finite postPurchaseMonthlyCost', { ...valid, postPurchaseMonthlyCost: 'lots' }],
+    ['non-boolean isFirstPurchase', { ...valid, isFirstPurchase: 'yes' }],
   ])('rejects %s', (_label, candidate) => {
     expect(isValidGoal(candidate)).toBe(false);
+  });
+
+  it('accepts a goal missing isFirstPurchase entirely - older saved plans predate the field', () => {
+    const { isFirstPurchase, ...withoutField } = valid;
+    expect(isValidGoal(withoutField)).toBe(true);
   });
 });
 
@@ -132,6 +148,22 @@ describe('canAllocateEquity', () => {
     expect(canAllocateEquity({ mode: 'accumulate', category: 'property' })).toBe(true);
     expect(canAllocateEquity({ mode: 'accumulate', category: 'other' })).toBe(false);
     expect(canAllocateEquity({ mode: 'consume', category: 'property' })).toBe(false);
+  });
+
+  it('excludes a first-purchase property goal - equity can only roll over from a home already owned', () => {
+    expect(canAllocateEquity({ mode: 'accumulate', category: 'property', isFirstPurchase: true })).toBe(false);
+  });
+
+  it('allows a non-first-purchase property goal, including when isFirstPurchase is absent (older saved plans)', () => {
+    expect(canAllocateEquity({ mode: 'accumulate', category: 'property', isFirstPurchase: false })).toBe(true);
+    expect(canAllocateEquity({ mode: 'accumulate', category: 'property' })).toBe(true);
+  });
+
+  it('is false for the "First home purchase" catalog goal and true for "Move-up purchase"', () => {
+    const firstHome = GOAL_CATALOG.find((entry) => entry.label === 'First home purchase')?.create(generateGoalId());
+    const moveUp = GOAL_CATALOG.find((entry) => entry.label === 'Move-up purchase (equity rollover)')?.create(generateGoalId());
+    expect(firstHome && canAllocateEquity(firstHome)).toBe(false);
+    expect(moveUp && canAllocateEquity(moveUp)).toBe(true);
   });
 });
 
@@ -232,6 +264,21 @@ describe('sanitizeGoal', () => {
   it('leaves postPurchaseMonthlyCost untouched on a non-property purchase goal', () => {
     const goal = sanitizeGoal({ ...base, isPurchase: true, postPurchaseMonthlyCost: 200 });
     expect(goal.postPurchaseMonthlyCost).toBe(200);
+  });
+
+  it('clears isFirstPurchase on any non-property goal, even if the input says otherwise', () => {
+    const goal = sanitizeGoal({ ...base, category: 'other', isFirstPurchase: true });
+    expect(goal.isFirstPurchase).toBe(false);
+  });
+
+  it('leaves isFirstPurchase untouched on a property goal', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', isFirstPurchase: true });
+    expect(goal.isFirstPurchase).toBe(true);
+  });
+
+  it('zeroes equityAllocated on a first-purchase property goal even though category is property', () => {
+    const goal = sanitizeGoal({ ...base, category: 'property', isFirstPurchase: true, equityAllocated: true });
+    expect(goal.equityAllocated).toBe(false);
   });
 });
 
