@@ -19,6 +19,7 @@ export type BaseFieldId =
   | 'costPerKidMo'
   | 'inflationPct'
   | 'investmentReturnPct'
+  | 'cashGrowthPct'
   | 'inspectYear'
   | 'retirementRothSavingsTodayK'
   | 'retirementRothContributionMo'
@@ -174,6 +175,13 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         label: 'Inflation',
         format: '%',
         tooltip: 'Applied to living costs, taxes, insurance and maintenance. Not applied to fixed mortgage P&I.',
+      },
+      {
+        id: 'cashGrowthPct',
+        label: 'Cash growth',
+        format: '%',
+        tooltip:
+          "Annual growth on your Emergency fund balance - kept low and separate from Investment return since emergency savings sit in cash/savings accounts, not the market.",
       },
       {
         id: 'investmentReturnPct',

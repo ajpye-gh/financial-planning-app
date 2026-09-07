@@ -38,6 +38,17 @@ describe('parseBaseRanges', () => {
   });
 });
 
+describe('cashGrowthPct range', () => {
+  it('spans 0-5% in 0.1% increments, per the emergency-fund growth spec', () => {
+    const range = DEFAULT_BASE_RANGES.cashGrowthPct;
+    expect(range.min).toBe(0);
+    expect(range.max).toBe(5);
+    expect(range.step).toBeCloseTo(0.1, 6);
+    expect(range.default).toBeGreaterThanOrEqual(range.min);
+    expect(range.default).toBeLessThanOrEqual(range.max);
+  });
+});
+
 describe('baseDefaults', () => {
   it('extracts each field default into a flat BaseInputs record', () => {
     const inputs = baseDefaults(DEFAULT_BASE_RANGES);

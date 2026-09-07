@@ -251,12 +251,16 @@ export function projectHomeEquity(base: BaseInputs, ownsHome: boolean, year: num
  *  balance freezes entirely - no more growth, not just no more contribution - the goal is considered
  *  reached/realized at that point, not still sitting invested. A goal that claimed home equity
  *  (equityAllocated) gets it injected exactly once, in its final active year (endYear) - realistically
- *  projected (see projectHomeEquity), not compounded at the investment return like cash/brokerage. */
+ *  projected (see projectHomeEquity), not compounded at the investment return like cash/brokerage.
+ *  `category: 'emergency'` goals (the Emergency fund) compound at `cashGrowthPct` instead of
+ *  `investmentReturnPct` - emergency savings sit in cash/savings accounts, not the market, so they
+ *  shouldn't ride the same (much higher) market-return assumption as every other accumulating goal. */
 function advanceGoalBalances(
   year: number,
   goals: RecurringGoal[],
   balances: Record<string, number>,
   investmentReturnPct: number,
+  cashGrowthPct: number,
   base: BaseInputs,
   ownsHome: boolean,
 ): void {
@@ -266,7 +270,8 @@ function advanceGoalBalances(
     }
     const previous = balances[goal.id] ?? 0;
     const contribution = isGoalActive(goal, year) ? goal.monthlyAmount * 12 : 0;
-    let balance = previous * (1 + investmentReturnPct / 100) + contribution;
+    const growthRate = goal.category === 'emergency' ? cashGrowthPct : investmentReturnPct;
+    let balance = previous * (1 + growthRate / 100) + contribution;
     if (goal.equityAllocated && year === goal.endYear) {
       balance += projectHomeEquity(base, ownsHome, year).equity;
     }
@@ -412,6 +417,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
   const { base, ownsHome, goals, children, primaryIncome, partnerIncome } = inputs;
 
   const investmentReturn = base.investmentReturnPct;
+  const cashGrowth = base.cashGrowthPct;
   const inflation = base.inflationPct;
 
   const nonHousingLiving = base.expensesMo - base.housingPaymentMo;
@@ -493,7 +499,7 @@ export function runModel(inputs: ModelInputs): ModelResult {
       };
     }
 
-    advanceGoalBalances(year, goals, goalBalances, investmentReturn, base, ownsHome);
+    advanceGoalBalances(year, goals, goalBalances, investmentReturn, cashGrowth, base, ownsHome);
     advanceUnallocatedPool(pool, freeCash, investmentReturn);
 
     yearLabels.push(`Y${year}`);
