@@ -254,6 +254,16 @@ describe('GoalCard equity allocation', () => {
     expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
   });
 
+  it('hides the equity checkbox for a first-purchase property goal, even with nonzero projected equity and an owned home', () => {
+    renderCard({
+      goal: { ...baseGoal, category: 'property', isFirstPurchase: true },
+      base: OWNED_BASE_INPUTS,
+      ownsHome: true,
+    });
+    expect(screen.queryByText(/Use home equity/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
   it('calls onUpdate with equityAllocated when the checkbox is toggled', async () => {
     const user = userEvent.setup();
     const onUpdate = jest.fn();

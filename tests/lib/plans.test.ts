@@ -53,6 +53,28 @@ describe('isValidPlan', () => {
   it('accepts an undefined jobLossYear/partnerJobLossYear (no job loss set)', () => {
     expect(isValidPlan({ ...valid, jobLossYear: undefined, partnerJobLossYear: undefined })).toBe(true);
   });
+
+  it('accepts a property goal predating the isFirstPurchase field - older saved plans still load', () => {
+    const oldPropertyGoal = {
+      kind: 'recurring',
+      id: 'g1',
+      name: 'First home purchase',
+      mode: 'accumulate',
+      category: 'property',
+      monthlyAmount: 500,
+      monthlyAmountRange: { min: 0, max: 5000, step: 100 },
+      startYear: 1,
+      endYear: 5,
+      cashAllocated: 0,
+      brokerageAllocated: 0,
+      equityAllocated: false,
+      isPurchase: true,
+      purchasePriceK: 300,
+      mortgageRatePct: 6.5,
+      // No isFirstPurchase field - simulates a plan saved before this field existed.
+    };
+    expect(isValidPlan({ ...valid, goals: [oldPropertyGoal] })).toBe(true);
+  });
 });
 
 describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () => {
