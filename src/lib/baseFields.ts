@@ -13,9 +13,11 @@ export type BaseFieldId =
   | 'salaryY0K'
   | 'salaryGrowthAfterY10Pct'
   | 'netKeepRatePct'
+  | 'annualBonusK'
   | 'partnerSalaryY0K'
   | 'partnerSalaryGrowthAfterY10Pct'
   | 'partnerNetKeepRatePct'
+  | 'partnerAnnualBonusK'
   | 'costPerKidMo'
   | 'inflationPct'
   | 'investmentReturnPct'
@@ -63,6 +65,13 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         tooltip:
           "Share of your gross salary you keep after tax and benefits - applied to your whole salary, today and every future raise. Retirement contributions aren't included here; track them on the Retirement page instead. Your derived net income /mo is shown alongside; adjust the slider until it matches your real take-home pay.",
       },
+      {
+        id: 'annualBonusK',
+        label: 'Annual bonus',
+        format: 'k',
+        tooltip:
+          "Yearly bonus, in today's dollars, on top of salary. Taxed at the same net keep rate as your salary above. Stays flat over the horizon rather than growing automatically - like your salary, it only changes when you change it.",
+      },
     ],
   },
   {
@@ -86,6 +95,13 @@ export const BASE_FIELD_GROUPS: BaseFieldGroup[] = [
         format: '%',
         tooltip:
           "Share of their gross salary they keep after tax and benefits - applied the same way as your own Net keep rate above.",
+      },
+      {
+        id: 'partnerAnnualBonusK',
+        label: 'Annual bonus',
+        format: 'k',
+        tooltip:
+          "Their yearly bonus, in today's dollars, on top of salary. Taxed at the same net keep rate as their salary above. Stays flat over the horizon, same as your own bonus.",
       },
     ],
   },
