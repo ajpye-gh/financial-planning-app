@@ -2,6 +2,7 @@ import {
   buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
   MAX_PROJECTION_AGE,
+  projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
   requiredMinimumDistribution,
@@ -10,6 +11,75 @@ import {
   TRADITIONAL_EARLY_WITHDRAWAL_AGE,
 } from '@src/lib/retirement';
 import { estimateRetirementTax } from '@src/lib/tax';
+
+describe('projectedBalanceAtRetirement', () => {
+  it('matches the balance projectRetirementBalance itself carries into the retirement year (Y{targetYear - 1}\'s ending balance)', () => {
+    const balance = projectedBalanceAtRetirement(100000, 500, 6, 10);
+    const projection = projectRetirementBalance(100000, 500, 6, 10, 10, 0, 3);
+    // 0% withdrawal rate isolates pure accumulation math: balances[9] (Y9, targetYear - 1) should be
+    // what accumulated into the retirement year, before any withdrawal is taken out of it - within
+    // rounding, since the array stores Math.round'd balances while this returns the raw figure.
+    expect(balance).toBeCloseTo(projection.balances[9], 0);
+  });
+
+  it('equals the starting balance untouched when targetYear is 0 (already retired, no accumulation years)', () => {
+    expect(projectedBalanceAtRetirement(250000, 1000, 6, 0)).toBe(250000);
+  });
+
+  it('is unaffected by monthlyContribution or investmentReturnPct once there are no accumulation years to apply them in', () => {
+    expect(projectedBalanceAtRetirement(250000, 999999, 12, 0)).toBe(250000);
+  });
+
+  it('compounds with contributions the same way for any number of accumulation years', () => {
+    const oneYear = projectedBalanceAtRetirement(100000, 500, 6, 1);
+    const tenYears = projectedBalanceAtRetirement(100000, 500, 6, 10);
+    expect(oneYear).toBe(100000);
+    expect(tenYears).toBeGreaterThan(oneYear);
+  });
+
+  describe('dollar <-> rate equivalence (deriving an initial withdrawal rate from a monthly dollar target)', () => {
+    // Mirrors RetirementPage.tsx's own conversion: rate% = (monthlyDollar * 12) / balanceAtRetirement * 100.
+    function impliedRatePct(monthlyDollar: number, balanceAtRetirement: number): number {
+      return balanceAtRetirement > 0 ? ((monthlyDollar * 12) / balanceAtRetirement) * 100 : 0;
+    }
+
+    it('a dollar target converted to a rate and passed through projectRetirementBalance reproduces exactly that dollar amount as the first withdrawal', () => {
+      const startingBalance = 1000000;
+      const monthlyContribution = 0;
+      const investmentReturnPct = 6;
+      const targetYear = 10;
+      const monthlyDollarTarget = 3000;
+
+      const balanceAtRetirement = projectedBalanceAtRetirement(startingBalance, monthlyContribution, investmentReturnPct, targetYear);
+      const ratePct = impliedRatePct(monthlyDollarTarget, balanceAtRetirement);
+      const projection = projectRetirementBalance(startingBalance, monthlyContribution, investmentReturnPct, targetYear, 30, ratePct, 3);
+
+      expect(projection.withdrawals[targetYear]).toBeCloseTo(monthlyDollarTarget * 12, 0);
+    });
+
+    it('produces the exact same projection as the equivalent flat rate, since a dollar target is just another way of setting the same rate', () => {
+      // 4% of the balance at retirement, expressed as a dollar target instead of a rate directly.
+      const balanceAtRetirement = projectedBalanceAtRetirement(500000, 500, 6, 15);
+      const monthlyDollarTarget = (balanceAtRetirement * 0.04) / 12;
+      const ratePct = impliedRatePct(monthlyDollarTarget, balanceAtRetirement);
+
+      const viaRate = projectRetirementBalance(500000, 500, 6, 15, 40, 4, 3);
+      const viaDollar = projectRetirementBalance(500000, 500, 6, 15, 40, ratePct, 3);
+
+      expect(viaDollar.balances).toEqual(viaRate.balances);
+      expect(viaDollar.withdrawals).toEqual(viaRate.withdrawals);
+    });
+
+    it('is $0 (not NaN/Infinity) when there is no balance at retirement to speak of, regardless of the dollar target requested', () => {
+      const ratePct = impliedRatePct(5000, 0);
+      expect(ratePct).toBe(0);
+      expect(Number.isFinite(ratePct)).toBe(true);
+
+      const projection = projectRetirementBalance(0, 0, 6, 10, 30, ratePct, 3);
+      expect(projection.withdrawals.every((withdrawal) => withdrawal === 0)).toBe(true);
+    });
+  });
+});
 
 describe('projectRetirementBalance', () => {
   describe('accumulation phase (Y0 through the target year)', () => {

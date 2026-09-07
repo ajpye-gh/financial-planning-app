@@ -15,6 +15,10 @@ interface RetirementBreakdownTableProps {
   rothWithdrawalRatePct: number;
   traditionalWithdrawalRatePct: number;
   afterTaxWithdrawalRatePct: number;
+  /** Whether Social Security is included in this plan at all (see SocialSecurityToggle.tsx) - when
+   *  false, its income is already $0 in `income`, and this additionally drops its row(s) from the
+   *  table entirely rather than showing a $0 line for a source that was deliberately excluded. */
+  ssEnabled: boolean;
   income: HouseholdRetirementIncome;
 }
 
@@ -29,6 +33,7 @@ export function RetirementBreakdownTable({
   rothWithdrawalRatePct,
   traditionalWithdrawalRatePct,
   afterTaxWithdrawalRatePct,
+  ssEnabled,
   income,
 }: Readonly<RetirementBreakdownTableProps>) {
   const grossIncome = income.rothWithdrawal + income.traditionalWithdrawal + income.ssGross + income.pensionGross + income.afterTaxWithdrawal;
@@ -59,13 +64,13 @@ export function RetirementBreakdownTable({
             value={`${formatCurrency(income.afterTaxWithdrawal)}/yr (${formatSliderValue(afterTaxWithdrawalRatePct, '%')})`}
             muted
           />
-          <Row label="Social Security, gross" value={`${formatCurrency(income.ssGross)}/yr`} muted />
+          {ssEnabled && <Row label="Social Security, gross" value={`${formatCurrency(income.ssGross)}/yr`} muted />}
           <Row label="Pension/other income, gross" value={`${formatCurrency(income.pensionGross)}/yr`} muted />
           <Row label="Gross income" value={`${formatCurrency(grossIncome)}/yr`} />
           <tr className="breakdown-table__divider">
             <td colSpan={2} />
           </tr>
-          <Row label="— of which taxable Social Security" value={formatCurrency(income.tax.taxableSS)} muted />
+          {ssEnabled && <Row label="— of which taxable Social Security" value={formatCurrency(income.tax.taxableSS)} muted />}
           <Row label="Standard deduction" value={`-${formatCurrency(income.tax.standardDeduction)}`} muted />
           <Row label="Taxable income" value={formatCurrency(income.tax.taxableOrdinaryIncome)} muted />
           <Row label="— of which after-tax withdrawal gain" value={formatCurrency(income.tax.taxableGain)} muted />

@@ -16,6 +16,9 @@ interface ControlGroupProps {
   renderAfterField?: (fieldId: BaseFieldId) => ReactNode;
   /** Overrides a specific field's slider value display - e.g. to show a derived figure alongside it. */
   valueLabelForField?: (fieldId: BaseFieldId) => string | undefined;
+  /** Disables a specific field's slider - e.g. Social Security's benefit slider while its toggle is
+   *  off. See SliderField's own `disabled` prop for what that does. */
+  disabledForField?: (fieldId: BaseFieldId) => boolean;
 }
 
 export function ControlGroup({
@@ -26,6 +29,7 @@ export function ControlGroup({
   renderBeforeField,
   renderAfterField,
   valueLabelForField,
+  disabledForField,
 }: Readonly<ControlGroupProps>) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -52,6 +56,7 @@ export function ControlGroup({
               value={values[field.id]}
               onChange={onChange}
               valueLabel={valueLabelForField?.(field.id)}
+              disabled={disabledForField?.(field.id)}
             />
             {renderAfterField?.(field.id)}
           </Fragment>

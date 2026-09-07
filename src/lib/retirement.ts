@@ -69,6 +69,51 @@ export function requiredMinimumDistribution(balance: number, age: number): numbe
   return balance / divisor;
 }
 
+interface AccumulationPhase {
+  balances: number[];
+  yearLabels: string[];
+  /** The balance carried into targetYear itself, before that year's own growth/withdrawal - i.e.
+   *  exactly what projectRetirementBalance applies its withdrawal rate against. Equal to
+   *  startingBalance, unmodified, when targetYear is 0 (no accumulation years to run). */
+  endingBalance: number;
+}
+
+/** The accumulation half of projectRetirementBalance's arc (compound growth + a fixed monthly
+ *  contribution, Y0 through targetYear - 1), factored out so projectedBalanceAtRetirement below can
+ *  reuse the exact same math without duplicating it - see that function's own comment for why a
+ *  caller would want the ending balance in isolation. */
+function accumulatePhase(startingBalance: number, monthlyContribution: number, investmentReturnPct: number, targetYear: number): AccumulationPhase {
+  const balances = [Math.round(startingBalance)];
+  const yearLabels = ['Y0'];
+  let balance = startingBalance;
+
+  for (let year = 1; year < targetYear; year++) {
+    balance = balance * (1 + investmentReturnPct / 100) + monthlyContribution * 12;
+    balances.push(Math.round(balance));
+    yearLabels.push(`Y${year}`);
+  }
+
+  return { balances, yearLabels, endingBalance: balance };
+}
+
+/** The projected balance carried into targetYear itself, before that year's own growth/withdrawal -
+ *  i.e. exactly the figure projectRetirementBalance's withdrawalRatePct is a percentage of. Exposed
+ *  so a caller (see RetirementPage.tsx) can convert a dollar withdrawal target into the equivalent
+ *  rate - `(monthlyDollar * 12) / projectedBalanceAtRetirement(...) * 100` - and pass that rate
+ *  through projectRetirementBalance unchanged, rather than projectRetirementBalance needing to know
+ *  about dollar targets at all. Rate-independent (depends only on the accumulation-phase inputs -
+ *  starting balance, contribution, return, target year - never on the withdrawal rate itself), so
+ *  there's no circularity in deriving a rate from it and feeding that rate back into the same
+ *  projection. */
+export function projectedBalanceAtRetirement(
+  startingBalance: number,
+  monthlyContribution: number,
+  investmentReturnPct: number,
+  targetYear: number,
+): number {
+  return accumulatePhase(startingBalance, monthlyContribution, investmentReturnPct, targetYear).endingBalance;
+}
+
 interface DecumulationStep {
   balance: number;
   withdrawal: number;
@@ -120,19 +165,12 @@ export function projectRetirementBalance(
   inflationPct: number,
   rmd?: { currentAge: number },
 ): RetirementProjection {
-  const balances = [Math.round(startingBalance)];
-  const withdrawals = [0];
-  const effectiveWithdrawalRatePct = [0];
-  const yearLabels = ['Y0'];
-  let balance = startingBalance;
-
-  for (let year = 1; year < targetYear; year++) {
-    balance = balance * (1 + investmentReturnPct / 100) + monthlyContribution * 12;
-    balances.push(Math.round(balance));
-    withdrawals.push(0);
-    effectiveWithdrawalRatePct.push(0);
-    yearLabels.push(`Y${year}`);
-  }
+  const accumulation = accumulatePhase(startingBalance, monthlyContribution, investmentReturnPct, targetYear);
+  const balances = accumulation.balances;
+  const withdrawals = balances.map(() => 0);
+  const effectiveWithdrawalRatePct = balances.map(() => 0);
+  const yearLabels = accumulation.yearLabels;
+  let balance = accumulation.endingBalance;
 
   let scheduledWithdrawal = balance * (withdrawalRatePct / 100);
   let depletionYear: number | null = null;
