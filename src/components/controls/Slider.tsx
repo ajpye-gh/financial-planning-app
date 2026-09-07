@@ -24,6 +24,11 @@ interface SliderProps {
   valueLabel: string;
   /** Formats the min/max bound numbers for display. Defaults to a plain integer/2-decimal string. */
   formatBound?: (value: number) => string;
+  /** Disables the input and dims the field - e.g. Social Security's benefit slider once the
+   *  SocialSecurityToggle above it is switched off (see RetirementPage.tsx). The stored value is
+   *  left untouched so re-enabling restores it; the caller is responsible for not feeding a
+   *  disabled field's value into the model. Bound/value double-click editing is disabled too. */
+  disabled?: boolean;
 }
 
 function defaultFormatBound(value: number): string {
@@ -34,12 +39,91 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function activateOnKey(action: () => void) {
+  return (event: KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      action();
+    }
+  };
+}
+
+interface InlineEditableNumberProps {
+  className: string;
+  isEditing: boolean;
+  draft: string;
+  displayText: string;
+  ariaLabel: string;
+  title: string;
+  disabled?: boolean;
+  onDraftChange: (value: string) => void;
+  onCommit: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  onStartEdit: () => void;
+}
+
+/** Toggles between a plain display span (double-click/Enter/Space to start editing) and a live
+ *  number input (blur/Enter to commit, Escape to cancel) - the shared shape behind the slider's
+ *  min bound, max bound, and value edit affordances. */
+function InlineEditableNumber({
+  className,
+  isEditing,
+  draft,
+  displayText,
+  ariaLabel,
+  title,
+  disabled,
+  onDraftChange,
+  onCommit,
+  onKeyDown,
+  onStartEdit,
+}: Readonly<InlineEditableNumberProps>) {
+  if (isEditing) {
+    return (
+      <input
+        type="number"
+        step="any"
+        className={`${className}-input`}
+        value={draft}
+        autoFocus
+        aria-label={ariaLabel}
+        onChange={(event) => onDraftChange(event.target.value)}
+        onBlur={onCommit}
+        onKeyDown={onKeyDown}
+      />
+    );
+  }
+  return (
+    <span
+      className={className}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      title={title}
+      onDoubleClick={disabled ? undefined : onStartEdit}
+      onKeyDown={disabled ? undefined : activateOnKey(onStartEdit)}
+    >
+      {displayText}
+    </span>
+  );
+}
+
 /** Reusable slider primitive backing every range input in the app. Beyond a plain drag-to-change
  *  range input, it supports double-clicking the min/max bound text to edit the *effective* range
  *  for this slider instance (a local override layered on top of the `range` prop - it never
  *  mutates the caller's range), and double-clicking the value display to type an exact value
  *  instead of dragging to find it. */
-export function Slider({ id, label, tooltip, ariaLabel, range, value, onChange, valueLabel, formatBound = defaultFormatBound }: Readonly<SliderProps>) {
+export function Slider({
+  id,
+  label,
+  tooltip,
+  ariaLabel,
+  range,
+  value,
+  onChange,
+  valueLabel,
+  formatBound = defaultFormatBound,
+  disabled,
+}: Readonly<SliderProps>) {
   const [minOverride, setMinOverride] = useState<number | null>(null);
   const [maxOverride, setMaxOverride] = useState<number | null>(null);
   const [editingBound, setEditingBound] = useState<'min' | 'max' | null>(null);
@@ -116,45 +200,27 @@ export function Slider({ id, label, tooltip, ariaLabel, range, value, onChange, 
     }
   };
 
-  const activateOnKey = (action: () => void) => (event: KeyboardEvent<HTMLSpanElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      action();
-    }
-  };
-
   return (
-    <div className="slider-field">
+    <div className={disabled ? 'slider-field slider-field--disabled' : 'slider-field'}>
       {label && (
         <label className="slider-field__label" htmlFor={id}>
           {tooltip ? <Tooltip tip={tooltip}>{label}</Tooltip> : label}
         </label>
       )}
       <div className="slider-field__control">
-        {editingBound === 'min' ? (
-          <input
-            type="number"
-            step="any"
-            className="slider-field__bound-input"
-            value={boundDraft}
-            autoFocus
-            aria-label={`${accessibleLabel ?? id} minimum`}
-            onChange={(event) => setBoundDraft(event.target.value)}
-            onBlur={commitBound}
-            onKeyDown={handleBoundKeyDown}
-          />
-        ) : (
-          <span
-            className="slider-field__bound"
-            role="button"
-            tabIndex={0}
-            title="Double-click to change the minimum"
-            onDoubleClick={() => startEditBound('min')}
-            onKeyDown={activateOnKey(() => startEditBound('min'))}
-          >
-            {formatBound(effectiveMin)}
-          </span>
-        )}
+        <InlineEditableNumber
+          className="slider-field__bound"
+          isEditing={editingBound === 'min'}
+          draft={boundDraft}
+          displayText={formatBound(effectiveMin)}
+          ariaLabel={`${accessibleLabel ?? id} minimum`}
+          title="Double-click to change the minimum"
+          disabled={disabled}
+          onDraftChange={setBoundDraft}
+          onCommit={commitBound}
+          onKeyDown={handleBoundKeyDown}
+          onStartEdit={() => startEditBound('min')}
+        />
         <input
           id={id}
           className="slider-field__input"
@@ -163,58 +229,37 @@ export function Slider({ id, label, tooltip, ariaLabel, range, value, onChange, 
           max={effectiveMax}
           step={range.step}
           value={value}
+          disabled={disabled}
           aria-label={label ? undefined : accessibleLabel}
           onChange={(event) => onChange(Number(event.target.value))}
-          onDoubleClick={startEditValue}
+          onDoubleClick={disabled ? undefined : startEditValue}
         />
-        {editingBound === 'max' ? (
-          <input
-            type="number"
-            step="any"
-            className="slider-field__bound-input"
-            value={boundDraft}
-            autoFocus
-            aria-label={`${accessibleLabel ?? id} maximum`}
-            onChange={(event) => setBoundDraft(event.target.value)}
-            onBlur={commitBound}
-            onKeyDown={handleBoundKeyDown}
-          />
-        ) : (
-          <span
-            className="slider-field__bound"
-            role="button"
-            tabIndex={0}
-            title="Double-click to change the maximum"
-            onDoubleClick={() => startEditBound('max')}
-            onKeyDown={activateOnKey(() => startEditBound('max'))}
-          >
-            {formatBound(effectiveMax)}
-          </span>
-        )}
-        {isEditingValue ? (
-          <input
-            type="number"
-            step="any"
-            className="slider-field__value-input"
-            value={valueDraft}
-            autoFocus
-            aria-label={`${accessibleLabel ?? id} value`}
-            onChange={(event) => setValueDraft(event.target.value)}
-            onBlur={commitValue}
-            onKeyDown={handleValueKeyDown}
-          />
-        ) : (
-          <span
-            className="slider-field__value"
-            role="button"
-            tabIndex={0}
-            title="Double-click to enter a value"
-            onDoubleClick={startEditValue}
-            onKeyDown={activateOnKey(startEditValue)}
-          >
-            {valueLabel}
-          </span>
-        )}
+        <InlineEditableNumber
+          className="slider-field__bound"
+          isEditing={editingBound === 'max'}
+          draft={boundDraft}
+          displayText={formatBound(effectiveMax)}
+          ariaLabel={`${accessibleLabel ?? id} maximum`}
+          title="Double-click to change the maximum"
+          disabled={disabled}
+          onDraftChange={setBoundDraft}
+          onCommit={commitBound}
+          onKeyDown={handleBoundKeyDown}
+          onStartEdit={() => startEditBound('max')}
+        />
+        <InlineEditableNumber
+          className="slider-field__value"
+          isEditing={isEditingValue}
+          draft={valueDraft}
+          displayText={valueLabel}
+          ariaLabel={`${accessibleLabel ?? id} value`}
+          title="Double-click to enter a value"
+          disabled={disabled}
+          onDraftChange={setValueDraft}
+          onCommit={commitValue}
+          onKeyDown={handleValueKeyDown}
+          onStartEdit={startEditValue}
+        />
       </div>
     </div>
   );

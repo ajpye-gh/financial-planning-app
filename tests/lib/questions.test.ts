@@ -1,4 +1,4 @@
-import { filingStatus, ownsHome } from '@src/lib/questions';
+import { filingStatus, ownsHome, socialSecurityEnabled } from '@src/lib/questions';
 
 describe('ownsHome', () => {
   it('is true only when housing is answered "own"', () => {
@@ -17,5 +17,19 @@ describe('filingStatus', () => {
     expect(filingStatus({})).toBe('single');
     expect(filingStatus({ filingStatus: 'single' })).toBe('single');
     expect(filingStatus({ filingStatus: 'nonsense' })).toBe('single');
+  });
+});
+
+describe('socialSecurityEnabled', () => {
+  it('defaults to true (included) when unset', () => {
+    expect(socialSecurityEnabled({})).toBe(true);
+  });
+
+  it('is false only when explicitly turned off', () => {
+    expect(socialSecurityEnabled({ socialSecurityEnabled: false })).toBe(false);
+  });
+
+  it('is true when explicitly turned on', () => {
+    expect(socialSecurityEnabled({ socialSecurityEnabled: true })).toBe(true);
   });
 });

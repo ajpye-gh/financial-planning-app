@@ -4,12 +4,12 @@ import {
   INSPECT_YEAR_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
-  RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_ROTH_WITHDRAWAL_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
   RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
-  RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD,
   visibleBaseFieldGroups,
 } from '@src/lib/baseFields';
 import { MAX_PROJECTION_AGE } from '@src/lib/retirement';
@@ -86,20 +86,20 @@ describe('visibleBaseFieldGroups', () => {
     const fieldIds = visibleBaseFieldGroups({}).flatMap((group) => group.fields.map((field) => field.id));
     expect(fieldIds).not.toContain('retirementRothSavingsTodayK');
     expect(fieldIds).not.toContain('retirementRothContributionMo');
-    expect(fieldIds).not.toContain('retirementRothWithdrawalRatePct');
+    expect(fieldIds).not.toContain('retirementRothWithdrawalMo');
     expect(fieldIds).not.toContain('retirementTraditionalSavingsTodayK');
     expect(fieldIds).not.toContain('retirementTraditionalContributionMo');
-    expect(fieldIds).not.toContain('retirementTraditionalWithdrawalRatePct');
+    expect(fieldIds).not.toContain('retirementTraditionalWithdrawalMo');
     expect(fieldIds).not.toContain('retirementSocialSecurityMo');
     expect(fieldIds).not.toContain('retirementTargetAge');
     expect(ALL_BASE_FIELD_IDS).toEqual(
       expect.arrayContaining([
         RETIREMENT_ROTH_SAVINGS_FIELD.id,
         RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
-        RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD.id,
+        RETIREMENT_ROTH_WITHDRAWAL_FIELD.id,
         RETIREMENT_TRADITIONAL_SAVINGS_FIELD.id,
         RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
-        RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
+        RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD.id,
         RETIREMENT_SOCIAL_SECURITY_FIELD.id,
         RETIREMENT_TARGET_AGE_FIELD.id,
       ]),

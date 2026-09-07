@@ -428,6 +428,10 @@ input[type='range']::-moz-range-thumb {
   margin-bottom: 0;
 }
 
+.slider-field--disabled {
+  opacity: 0.5;
+}
+
 .slider-field__label {
   font-size: 13px;
   color: var(--text-secondary);

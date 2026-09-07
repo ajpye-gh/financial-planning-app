@@ -27,13 +27,13 @@ export type BaseFieldId =
   | 'inspectYear'
   | 'retirementRothSavingsTodayK'
   | 'retirementRothContributionMo'
-  | 'retirementRothWithdrawalRatePct'
+  | 'retirementRothWithdrawalMo'
   | 'retirementTraditionalSavingsTodayK'
   | 'retirementTraditionalContributionMo'
-  | 'retirementTraditionalWithdrawalRatePct'
+  | 'retirementTraditionalWithdrawalMo'
   | 'retirementAfterTaxSavingsTodayK'
   | 'retirementAfterTaxContributionMo'
-  | 'retirementAfterTaxWithdrawalRatePct'
+  | 'retirementAfterTaxWithdrawalMo'
   | 'retirementAfterTaxGainPct'
   | 'retirementSocialSecurityMo'
   | 'retirementPensionMo'
@@ -262,7 +262,11 @@ export const MORTGAGE_EXTRA_PRINCIPAL_FIELD: BaseFieldMeta = {
 // Shared across the Roth/Traditional/After-tax field trios below - each pot has its own field
 // object (different id/tooltip), but the slider label itself is identical across all three.
 const RETIREMENT_CONTRIBUTION_LABEL = 'Monthly contribution';
-const RETIREMENT_WITHDRAWAL_RATE_LABEL = 'Initial withdrawal rate';
+// Dollar amount is the primary, directly-editable figure (users relate to a monthly income target
+// far more readily than a withdrawal rate) - the equivalent "4% rule"-style rate is still shown, but
+// only as derived, secondary text next to the slider (see RetirementPage.tsx's valueLabelForField),
+// never as its own control.
+const RETIREMENT_WITHDRAWAL_LABEL = 'Initial monthly withdrawal';
 
 export const RETIREMENT_ROTH_SAVINGS_FIELD: BaseFieldMeta = {
   id: 'retirementRothSavingsTodayK',
@@ -278,12 +282,12 @@ export const RETIREMENT_ROTH_CONTRIBUTION_FIELD: BaseFieldMeta = {
   tooltip: 'How much you contribute to Roth accounts each month.',
 };
 
-export const RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
-  id: 'retirementRothWithdrawalRatePct',
-  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
-  format: '%',
+export const RETIREMENT_ROTH_WITHDRAWAL_FIELD: BaseFieldMeta = {
+  id: 'retirementRothWithdrawalMo',
+  label: RETIREMENT_WITHDRAWAL_LABEL,
+  format: '$',
   tooltip:
-    'Share of your projected Roth balance withdrawn in your first year of retirement (the "4% rule" is the common default). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - so the withdrawal keeps climbing in nominal terms even at a fixed rate. A rule-of-thumb estimate, not a full drawdown simulation.',
+    "The monthly income you plan to draw from Roth savings in your first year of retirement, in today's dollars. The equivalent share of your projected balance (the \"4% rule\" is the common default) is shown alongside it. After that first year, the dollar amount grows with inflation each year rather than being re-applied to your balance - so the withdrawal keeps climbing in nominal terms even at a fixed rate. A rule-of-thumb estimate, not a full drawdown simulation.",
 };
 
 export const RETIREMENT_TRADITIONAL_SAVINGS_FIELD: BaseFieldMeta = {
@@ -301,12 +305,12 @@ export const RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD: BaseFieldMeta = {
   tooltip: 'How much you contribute to Traditional accounts each month.',
 };
 
-export const RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
-  id: 'retirementTraditionalWithdrawalRatePct',
-  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
-  format: '%',
+export const RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD: BaseFieldMeta = {
+  id: 'retirementTraditionalWithdrawalMo',
+  label: RETIREMENT_WITHDRAWAL_LABEL,
+  format: '$',
   tooltip:
-    'Share of your projected Traditional balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance - unless a Required Minimum Distribution (starting age 73) would force a bigger withdrawal than this rate produces, in which case the RMD wins. Taxed as ordinary income - see the income breakdown table below the chart.',
+    "The monthly income you plan to draw from Traditional savings in your first year of retirement, in today's dollars. The equivalent share of your projected balance (the \"4% rule\" pattern) is shown alongside it. After that first year, the dollar amount grows with inflation each year rather than being re-applied to your balance - unless a Required Minimum Distribution (starting age 73) would force a bigger withdrawal than this produces, in which case the RMD wins. Taxed as ordinary income - see the income breakdown table below the chart.",
 };
 
 export const RETIREMENT_AFTER_TAX_SAVINGS_FIELD: BaseFieldMeta = {
@@ -323,12 +327,12 @@ export const RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD: BaseFieldMeta = {
   tooltip: 'How much you contribute to after-tax (brokerage) accounts each month.',
 };
 
-export const RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD: BaseFieldMeta = {
-  id: 'retirementAfterTaxWithdrawalRatePct',
-  label: RETIREMENT_WITHDRAWAL_RATE_LABEL,
-  format: '%',
+export const RETIREMENT_AFTER_TAX_WITHDRAWAL_FIELD: BaseFieldMeta = {
+  id: 'retirementAfterTaxWithdrawalMo',
+  label: RETIREMENT_WITHDRAWAL_LABEL,
+  format: '$',
   tooltip:
-    'Share of your projected after-tax balance withdrawn in your first year of retirement (the "4% rule" pattern). After that, the dollar amount grows with inflation each year rather than being re-applied to your balance.',
+    "The monthly income you plan to draw from after-tax (brokerage) savings in your first year of retirement, in today's dollars. The equivalent share of your projected balance (the \"4% rule\" pattern) is shown alongside it. After that first year, the dollar amount grows with inflation each year rather than being re-applied to your balance.",
 };
 
 export const RETIREMENT_AFTER_TAX_GAIN_FIELD: BaseFieldMeta = {
@@ -344,7 +348,7 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
   label: 'Social Security benefit',
   format: '$',
   tooltip:
-    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Never starts before age 62 (the real earliest claiming age), even if you retire earlier. Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart.",
+    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Never starts before age 62 (the real earliest claiming age), even if you retire earlier. Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart. Use the toggle above to exclude Social Security from the plan entirely, rather than dragging this to $0.",
 };
 
 export const RETIREMENT_PENSION_FIELD: BaseFieldMeta = {
@@ -399,13 +403,13 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   MORTGAGE_EXTRA_PRINCIPAL_FIELD.id,
   RETIREMENT_ROTH_SAVINGS_FIELD.id,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
-  RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_ROTH_WITHDRAWAL_FIELD.id,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD.id,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
-  RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD.id,
   RETIREMENT_AFTER_TAX_SAVINGS_FIELD.id,
   RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD.id,
-  RETIREMENT_AFTER_TAX_WITHDRAWAL_RATE_FIELD.id,
+  RETIREMENT_AFTER_TAX_WITHDRAWAL_FIELD.id,
   RETIREMENT_AFTER_TAX_GAIN_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
   RETIREMENT_PENSION_FIELD.id,
