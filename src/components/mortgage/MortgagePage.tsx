@@ -5,6 +5,7 @@ import { Row } from '../results/BreakdownTable';
 import { MortgageChart } from './MortgageChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
+  HOME_INSURANCE_FIELD,
   HOME_VALUE_FIELD,
   INFLATION_FIELD,
   MORTGAGE_BALANCE_FIELD,
@@ -12,6 +13,7 @@ import {
   MORTGAGE_INSURANCE_FIELD,
   MORTGAGE_RATE_FIELD,
   MORTGAGE_TERM_FIELD,
+  PROPERTY_TAX_FIELD,
   type BaseFieldGroup,
   type BaseFieldId,
 } from '../../lib/baseFields';
@@ -24,9 +26,14 @@ const MORTGAGE_DETAILS_GROUP: BaseFieldGroup = {
   fields: [HOME_VALUE_FIELD, MORTGAGE_BALANCE_FIELD, MORTGAGE_RATE_FIELD, MORTGAGE_TERM_FIELD],
 };
 
-const INSURANCE_EXTRA_GROUP: BaseFieldGroup = {
-  title: 'Insurance & extra payments',
-  fields: [MORTGAGE_INSURANCE_FIELD, MORTGAGE_EXTRA_PRINCIPAL_FIELD],
+const TAXES_INSURANCE_GROUP: BaseFieldGroup = {
+  title: 'Taxes & insurance',
+  fields: [PROPERTY_TAX_FIELD, HOME_INSURANCE_FIELD, MORTGAGE_INSURANCE_FIELD],
+};
+
+const EXTRA_PAYMENTS_GROUP: BaseFieldGroup = {
+  title: 'Extra payments',
+  fields: [MORTGAGE_EXTRA_PRINCIPAL_FIELD],
 };
 
 // Same "Assumptions" home-appreciation assumption the rest of the model uses (see model.ts's
@@ -67,6 +74,8 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
   const termYears = baseInputs.mortgageTermYears;
   const appreciationPct = baseInputs.inflationPct;
   const monthlyInsurance = baseInputs.mortgageInsuranceMo;
+  const monthlyHomeInsurance = baseInputs.homeInsuranceMo;
+  const monthlyPropertyTax = baseInputs.propertyTaxMo;
   const extraMonthlyPrincipal = baseInputs.mortgageExtraPrincipalMo;
   const hasExtraPayment = extraMonthlyPrincipal > 0;
 
@@ -93,7 +102,17 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
   const originalPayoffYear = originalSchedule.points.length - 1;
   const withExtraPayoffYear = withExtraSchedule.points.length - 1;
 
-  const monthlyPayment = currentMonthlyPayment({ loanAmount, annualRatePct, termYears, homeValue, appreciationPct, monthlyInsurance, extraMonthlyPrincipal });
+  const monthlyPayment = currentMonthlyPayment({
+    loanAmount,
+    annualRatePct,
+    termYears,
+    homeValue,
+    appreciationPct,
+    monthlyInsurance,
+    monthlyHomeInsurance,
+    monthlyPropertyTax,
+    extraMonthlyPrincipal,
+  });
   const totalInterestOriginal = originalSchedule.points.reduce((sum, point) => sum + point.interestPaid, 0);
   const totalInterestWithExtra = withExtraSchedule.points.reduce((sum, point) => sum + point.interestPaid, 0);
   const interestSaved = Math.max(0, totalInterestOriginal - totalInterestWithExtra);
@@ -125,7 +144,8 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
           <ControlGroup group={MORTGAGE_DETAILS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
-          <ControlGroup group={INSURANCE_EXTRA_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
+          <ControlGroup group={TAXES_INSURANCE_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
+          <ControlGroup group={EXTRA_PAYMENTS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
           <ControlGroup group={APPRECIATION_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
         </div>
       </aside>
@@ -151,6 +171,16 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
                     ? `${formatCurrency(baseInputs.mortgageInsuranceMo)}/mo (drops off at 20% equity)`
                     : 'None'
                 }
+                muted
+              />
+              <Row
+                label="Property tax"
+                value={monthlyPropertyTax > 0 ? `${formatCurrency(monthlyPropertyTax)}/mo` : 'None'}
+                muted
+              />
+              <Row
+                label="Homeowners insurance"
+                value={monthlyHomeInsurance > 0 ? `${formatCurrency(monthlyHomeInsurance)}/mo` : 'None'}
                 muted
               />
               {hasExtraPayment && (

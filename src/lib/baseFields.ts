@@ -9,6 +9,8 @@ export type BaseFieldId =
   | 'currentMortgageRatePct'
   | 'mortgageTermYears'
   | 'mortgageInsuranceMo'
+  | 'homeInsuranceMo'
+  | 'propertyTaxMo'
   | 'mortgageExtraPrincipalMo'
   | 'cashTodayK'
   | 'brokerageTodayK'
@@ -244,6 +246,24 @@ export const MORTGAGE_INSURANCE_FIELD: BaseFieldMeta = {
   visibleIf: ownsHome,
 };
 
+export const PROPERTY_TAX_FIELD: BaseFieldMeta = {
+  id: 'propertyTaxMo',
+  label: 'Property tax',
+  format: '$',
+  tooltip:
+    "Monthly property tax, in today's dollars. Unlike PMI above, this never drops off - it's part of your payment for as long as you own the home.",
+  visibleIf: ownsHome,
+};
+
+export const HOME_INSURANCE_FIELD: BaseFieldMeta = {
+  id: 'homeInsuranceMo',
+  label: 'Homeowners insurance',
+  format: '$',
+  tooltip:
+    "Monthly hazard/homeowners insurance, in today's dollars - not to be confused with PMI above. Also never drops off.",
+  visibleIf: ownsHome,
+};
+
 export const MORTGAGE_EXTRA_PRINCIPAL_FIELD: BaseFieldMeta = {
   id: 'mortgageExtraPrincipalMo',
   label: 'Extra principal /mo',
@@ -400,6 +420,8 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   MORTGAGE_RATE_FIELD.id,
   MORTGAGE_TERM_FIELD.id,
   MORTGAGE_INSURANCE_FIELD.id,
+  PROPERTY_TAX_FIELD.id,
+  HOME_INSURANCE_FIELD.id,
   MORTGAGE_EXTRA_PRINCIPAL_FIELD.id,
   RETIREMENT_ROTH_SAVINGS_FIELD.id,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,

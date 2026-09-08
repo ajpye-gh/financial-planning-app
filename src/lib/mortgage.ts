@@ -18,6 +18,12 @@ export interface MortgageScheduleInputs {
   /** Monthly PMI/MIP in today's dollars. Dropped once projected equity crosses 20% - see
    *  buildAmortizationSchedule. */
   monthlyInsurance: number;
+  /** Monthly homeowners/hazard insurance, in today's dollars. Unlike PMI above, this never drops
+   *  off - it's required for as long as you own the home, not just until 20% equity. Defaults to 0. */
+  monthlyHomeInsurance?: number;
+  /** Monthly property tax, in today's dollars. Same as home insurance - always active, independent
+   *  of equity. Defaults to 0. */
+  monthlyPropertyTax?: number;
   /** Optional extra principal applied every month on top of the required P&I payment - shortens the
    *  loan. Defaults to 0 (no extra payment). */
   extraMonthlyPrincipal?: number;
@@ -117,9 +123,10 @@ export function buildAmortizationSchedule(inputs: MortgageScheduleInputs): Amort
   return { points, payoffMonths: month, monthlyPaymentPI };
 }
 
-/** Today's actual monthly outlay: the required P&I payment, plus insurance if today's projected
- *  equity is still under 20%, plus any voluntary extra principal. Cheaper than running the full
- *  schedule when only this month's figure is needed (e.g. the primary page's sidebar summary). */
+/** Today's actual monthly outlay: the required P&I payment, plus PMI if today's projected equity is
+ *  still under 20%, plus home insurance and property tax (always active - unlike PMI, they don't
+ *  depend on equity), plus any voluntary extra principal. Cheaper than running the full schedule
+ *  when only this month's figure is needed (e.g. the primary page's sidebar summary). */
 export function currentMonthlyPayment(inputs: MortgageScheduleInputs): number {
   const monthlyPaymentPI = monthlyMortgagePayment(inputs.loanAmount, inputs.annualRatePct, inputs.termYears);
   if (monthlyPaymentPI <= 0) {
@@ -127,7 +134,13 @@ export function currentMonthlyPayment(inputs: MortgageScheduleInputs): number {
   }
   const equityPct = inputs.homeValue > 0 ? ((inputs.homeValue - inputs.loanAmount) / inputs.homeValue) * 100 : 0;
   const insurance = equityPct < 20 ? inputs.monthlyInsurance : 0;
-  return monthlyPaymentPI + insurance + (inputs.extraMonthlyPrincipal ?? 0);
+  return (
+    monthlyPaymentPI +
+    insurance +
+    (inputs.monthlyHomeInsurance ?? 0) +
+    (inputs.monthlyPropertyTax ?? 0) +
+    (inputs.extraMonthlyPrincipal ?? 0)
+  );
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

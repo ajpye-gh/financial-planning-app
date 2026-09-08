@@ -15,6 +15,8 @@ const BASE_INPUTS: BaseInputs = {
   currentMortgageRatePct: 6,
   mortgageTermYears: 30,
   mortgageInsuranceMo: 0,
+  propertyTaxMo: 0,
+  homeInsuranceMo: 0,
   mortgageExtraPrincipalMo: 0,
   inflationPct: 3,
 };
@@ -36,11 +38,19 @@ describe('MortgagePage', () => {
     expect(screen.getByText('Loan term')).toBeInTheDocument();
   });
 
-  it('renders insurance and extra-principal sliders in their own group', () => {
+  it('renders property tax, home insurance, and PMI sliders under Taxes & insurance', () => {
     renderMortgagePage();
 
-    expect(screen.getByRole('button', { name: /Insurance & extra payments/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Taxes & insurance/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Property tax')).toBeInTheDocument();
+    expect(screen.getByLabelText('Homeowners insurance')).toBeInTheDocument();
     expect(screen.getByLabelText('Mortgage insurance')).toBeInTheDocument();
+  });
+
+  it('renders the extra-principal slider under its own Extra payments group', () => {
+    renderMortgagePage();
+
+    expect(screen.getByRole('button', { name: /Extra payments/ })).toBeInTheDocument();
     expect(screen.getByText('Extra principal /mo')).toBeInTheDocument();
   });
 
@@ -92,6 +102,46 @@ describe('MortgagePage', () => {
     const metricRow = container.querySelector('.metric-row') as HTMLElement;
     expect(within(metricRow).getByText('Current monthly payment')).toBeInTheDocument();
     expect(within(metricRow).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
+  });
+
+  it('folds property tax and home insurance into the current monthly payment', () => {
+    const { container } = renderMortgagePage({
+      baseInputs: { ...BASE_INPUTS, propertyTaxMo: 300, homeInsuranceMo: 120 },
+    });
+
+    const expectedPayment = currentMonthlyPayment({
+      loanAmount: 300000,
+      annualRatePct: 6,
+      termYears: 30,
+      homeValue: 400000,
+      appreciationPct: 3,
+      monthlyInsurance: 0,
+      monthlyPropertyTax: 300,
+      monthlyHomeInsurance: 120,
+      extraMonthlyPrincipal: 0,
+    });
+
+    const metricRow = container.querySelector('.metric-row') as HTMLElement;
+    expect(within(metricRow).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
+  });
+
+  it('shows property tax and home insurance amounts in the loan summary, and "None" when unset', () => {
+    const { container, rerender } = renderMortgagePage();
+
+    const table = container.querySelector('.breakdown-table-wrap') as HTMLElement;
+    expect(within(table).getByText('Property tax')).toBeInTheDocument();
+    expect(within(table).getByText('Homeowners insurance')).toBeInTheDocument();
+
+    rerender(
+      <MortgagePage
+        baseInputs={{ ...BASE_INPUTS, propertyTaxMo: 300, homeInsuranceMo: 120 }}
+        ranges={DEFAULT_BASE_RANGES}
+        onChange={jest.fn()}
+        answers={OWNS_HOME}
+      />,
+    );
+    expect(within(table).getByText(`${formatCurrency(300)}/mo`)).toBeInTheDocument();
+    expect(within(table).getByText(`${formatCurrency(120)}/mo`)).toBeInTheDocument();
   });
 
   it("shows remaining principal as today's mortgage balance", () => {
@@ -155,7 +205,7 @@ describe('MortgagePage', () => {
     expect(screen.getByText('Loan summary')).toBeInTheDocument();
     expect(within(table).getByText('Principal & interest')).toBeInTheDocument();
     expect(within(table).getByText('Mortgage insurance')).toBeInTheDocument();
-    expect(within(table).getByText('None')).toBeInTheDocument();
+    expect(within(table).getAllByText('None').length).toBeGreaterThan(0);
     expect(within(table).getByText('Total interest, original schedule')).toBeInTheDocument();
   });
 
