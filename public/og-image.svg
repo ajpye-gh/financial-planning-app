@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#ffffff" />
+
+  <svg x="147" y="195" width="240" height="240" viewBox="0 0 24 24" fill="none" stroke="#aa3bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 17l6 -6l4 4l8 -8" />
+    <path d="M17 7h4v4" />
+  </svg>
+
+  <text x="449" y="315" font-family="system-ui, 'Segoe UI', Roboto, sans-serif" font-size="104" font-weight="700" fill="#08060d">Pyenancial</text>
+  <text x="449" y="385" font-family="system-ui, 'Segoe UI', Roboto, sans-serif" font-size="48" font-weight="500" fill="#aa3bff">Financial Planning</text>
+</svg>
