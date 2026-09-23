@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ControlGroup } from '../controls/ControlGroup';
+import { SliderField } from '../controls/SliderField';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { Row } from '../results/BreakdownTable';
 import { MortgageChart } from './MortgageChart';
@@ -10,6 +11,7 @@ import {
   INFLATION_FIELD,
   MORTGAGE_BALANCE_FIELD,
   MORTGAGE_EXTRA_PRINCIPAL_FIELD,
+  MORTGAGE_INSPECT_YEAR_FIELD,
   MORTGAGE_INSURANCE_FIELD,
   MORTGAGE_RATE_FIELD,
   MORTGAGE_TERM_FIELD,
@@ -117,6 +119,30 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
   const totalInterestWithExtra = withExtraSchedule.points.reduce((sum, point) => sum + point.interestPaid, 0);
   const interestSaved = Math.max(0, totalInterestOriginal - totalInterestWithExtra);
 
+  // Whichever schedule reflects what the user is actually paying (with extra principal is
+  // identical to the original when extraMonthlyPrincipal is 0, so this is safe either way) - same
+  // "which year's numbers am I looking at" pattern App.tsx/RetirementPage.tsx use for their own
+  // inspect-year/age controls. Can't inspect past whichever schedule pays off first, so the slider's
+  // ceiling tracks the longer of the two (chartLength) while the lookup itself clamps to whichever
+  // schedule actually ran that long.
+  const inspectRange = { ...ranges.mortgageInspectYear, max: Math.max(0, chartLength - 1) };
+  const inspectYear = Math.min(Math.max(baseInputs.mortgageInspectYear, 0), inspectRange.max);
+  const inspectSchedule = hasExtraPayment ? withExtraSchedule : originalSchedule;
+  const inspectPoint = inspectSchedule.points[Math.min(inspectYear, inspectSchedule.points.length - 1)];
+  // Same growth buildAmortizationSchedule applies internally at each year-end point (month = year *
+  // 12, so appreciationPct^(month/12) reduces to appreciationPct^year here) - recomputed rather than
+  // threaded out of the schedule so the breakdown table can show property tax/home insurance as
+  // their own inflated line items instead of only the combined monthlyPaymentNominal total.
+  const inspectGrowth = Math.pow(1 + appreciationPct / 100, inspectYear);
+  const propertyTaxAtInspect = monthlyPropertyTax * inspectGrowth;
+  const homeInsuranceAtInspect = monthlyHomeInsurance * inspectGrowth;
+  let inspectInsuranceValue = 'None';
+  if (inspectPoint.insuranceActive) {
+    inspectInsuranceValue = `${formatCurrency(baseInputs.mortgageInsuranceMo)}/mo`;
+  } else if (baseInputs.mortgageInsuranceMo > 0) {
+    inspectInsuranceValue = 'Dropped off (20% equity reached)';
+  }
+
   const metrics: Metric[] = [
     { id: 'mortgage-payment', label: 'Current monthly payment', value: `${formatCurrency(monthlyPayment)}/mo` },
     { id: 'mortgage-balance', label: 'Remaining principal', value: formatCurrencyCompact(loanAmount) },
@@ -124,6 +150,7 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
     ...(hasExtraPayment
       ? [{ id: 'mortgage-payoff-extra', label: 'Payoff date, with extra', value: formatPayoffDate(withExtraSchedule.payoffMonths) }]
       : []),
+    { id: 'mortgage-payment-inspect', label: 'Monthly payment, inspect yr', value: `${formatCurrency(inspectPoint.monthlyPaymentNominal)}/mo` },
   ];
 
   if (!owns) {
@@ -158,34 +185,35 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
           originalPayoffYear={originalPayoffYear}
           withExtraPayoffYear={withExtraPayoffYear}
         />
+        <div className="inspect-year-control">
+          <SliderField meta={MORTGAGE_INSPECT_YEAR_FIELD} range={inspectRange} value={inspectYear} onChange={onChange} />
+        </div>
         <MetricCards metrics={metrics} />
         <div className="breakdown-table-wrap">
-          <div className="breakdown-table__title">Loan summary</div>
+          <div className="breakdown-table__title">Year {inspectYear} payment detail</div>
           <table className="breakdown-table">
             <tbody>
+              <Row label="Remaining balance" value={formatCurrency(inspectPoint.closingBalance)} muted />
               <Row label="Principal & interest" value={`${formatCurrency(originalSchedule.monthlyPaymentPI)}/mo`} muted />
+              <Row label="Mortgage insurance" value={inspectInsuranceValue} muted />
               <Row
-                label="Mortgage insurance"
-                value={
-                  baseInputs.mortgageInsuranceMo > 0
-                    ? `${formatCurrency(baseInputs.mortgageInsuranceMo)}/mo (drops off at 20% equity)`
-                    : 'None'
-                }
+                label="Property tax, inflated"
+                value={monthlyPropertyTax > 0 ? `${formatCurrency(propertyTaxAtInspect)}/mo` : 'None'}
                 muted
               />
               <Row
-                label="Property tax"
-                value={monthlyPropertyTax > 0 ? `${formatCurrency(monthlyPropertyTax)}/mo` : 'None'}
-                muted
-              />
-              <Row
-                label="Homeowners insurance"
-                value={monthlyHomeInsurance > 0 ? `${formatCurrency(monthlyHomeInsurance)}/mo` : 'None'}
+                label="Homeowners insurance, inflated"
+                value={monthlyHomeInsurance > 0 ? `${formatCurrency(homeInsuranceAtInspect)}/mo` : 'None'}
                 muted
               />
               {hasExtraPayment && (
                 <Row label="Extra principal" value={`${formatCurrency(baseInputs.mortgageExtraPrincipalMo)}/mo`} muted />
               )}
+              <tr className="breakdown-table__divider">
+                <td colSpan={2} />
+              </tr>
+              <Row label="Total monthly payment, nominal" value={`${formatCurrency(inspectPoint.monthlyPaymentNominal)}/mo`} />
+              <Row label="— vs. today's payment" value={`${formatCurrency(monthlyPayment)}/mo`} muted />
               <tr className="breakdown-table__divider">
                 <td colSpan={2} />
               </tr>

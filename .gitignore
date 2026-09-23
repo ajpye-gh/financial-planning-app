@@ -33,3 +33,6 @@ lerna-debug.log*
 *.sln
 *.sw?
 *.local
+
+# CodeGraph local index (never commit)
+.codegraph/

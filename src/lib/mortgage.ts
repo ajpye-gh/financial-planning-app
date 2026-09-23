@@ -38,6 +38,16 @@ export interface AmortizationYearPoint {
   principalPaid: number;
   interestPaid: number;
   insurancePaid: number;
+  /** Whether PMI is still being charged as of this year-end - unlike `insurancePaid > 0`, this stays
+   *  meaningful for the year-0 baseline point too (which never has any paid amount, insurance
+   *  included, since no payments have happened yet). */
+  insuranceActive: boolean;
+  /** Projected total monthly outlay as of this year-end: the fixed P&I payment, plus PMI if still
+   *  active, plus property tax and homeowners insurance grown by `appreciationPct` (the same
+   *  inflation-driven growth used for home-value appreciation above) from their today's-dollar
+   *  inputs. P&I itself never changes, so this is what shows a user the nominal payment climbing
+   *  over time even on a fixed-rate loan. */
+  monthlyPaymentNominal: number;
 }
 
 export interface AmortizationSchedule {
@@ -53,6 +63,12 @@ export interface AmortizationSchedule {
 
 const EPSILON = 0.005;
 
+/** Home equity as a % of the given (possibly projected) home value - shared by the year-0 snapshot
+ *  and the month-by-month loop below so both use the identical formula. */
+function equityPctFor(homeValue: number, balance: number): number {
+  return homeValue > 0 ? ((homeValue - balance) / homeValue) * 100 : 0;
+}
+
 /** Runs a standard monthly amortization forward from today's balance, applying any extra principal
  *  each month and dropping mortgage insurance once projected home equity crosses 20% (that and every
  *  subsequent month) - then buckets the month-by-month detail into one point per year, matching this
@@ -60,11 +76,31 @@ const EPSILON = 0.005;
  *  underlying simulation is monthly, same as a real mortgage compounds and same as
  *  monthlyMortgagePayment/remainingLoanBalance in model.ts already assume. */
 export function buildAmortizationSchedule(inputs: MortgageScheduleInputs): AmortizationSchedule {
-  const { loanAmount, annualRatePct, termYears, homeValue, appreciationPct, monthlyInsurance, extraMonthlyPrincipal = 0 } = inputs;
+  const {
+    loanAmount,
+    annualRatePct,
+    termYears,
+    homeValue,
+    appreciationPct,
+    monthlyInsurance,
+    monthlyHomeInsurance = 0,
+    monthlyPropertyTax = 0,
+    extraMonthlyPrincipal = 0,
+  } = inputs;
   const monthlyPaymentPI = monthlyMortgagePayment(loanAmount, annualRatePct, termYears);
+  const startsUnderInsuranceThreshold = equityPctFor(homeValue, loanAmount) < 20;
 
   const points: AmortizationYearPoint[] = [
-    { year: 0, openingBalance: loanAmount, closingBalance: loanAmount, principalPaid: 0, interestPaid: 0, insurancePaid: 0 },
+    {
+      year: 0,
+      openingBalance: loanAmount,
+      closingBalance: loanAmount,
+      principalPaid: 0,
+      interestPaid: 0,
+      insurancePaid: 0,
+      insuranceActive: monthlyInsurance > 0 && startsUnderInsuranceThreshold,
+      monthlyPaymentNominal: currentMonthlyPayment(inputs),
+    },
   ];
 
   if (loanAmount <= 0 || monthlyPaymentPI <= 0) {
@@ -92,9 +128,10 @@ export function buildAmortizationSchedule(inputs: MortgageScheduleInputs): Amort
     balance -= principal;
 
     // Equity as of this month's paydown - same appreciation assumption as model.ts's
-    // projectHomeEquity, evaluated at this month's fractional year offset.
-    const projectedHomeValue = homeValue * Math.pow(1 + appreciationPct / 100, month / 12);
-    const equityPct = projectedHomeValue > 0 ? ((projectedHomeValue - balance) / projectedHomeValue) * 100 : 0;
+    // projectHomeEquity, evaluated at this month's fractional year offset. Reused below to grow
+    // property tax/home insurance escrow the same way home value itself appreciates.
+    const growth = Math.pow(1 + appreciationPct / 100, month / 12);
+    const equityPct = equityPctFor(homeValue * growth, balance);
     if (insuranceActive && equityPct >= 20) {
       insuranceActive = false;
     }
@@ -105,6 +142,7 @@ export function buildAmortizationSchedule(inputs: MortgageScheduleInputs): Amort
     yearInsurance += insurance;
 
     if (month % 12 === 0 || balance <= EPSILON) {
+      const monthlyPaymentNominal = monthlyPaymentPI + insurance + monthlyPropertyTax * growth + monthlyHomeInsurance * growth + extraMonthlyPrincipal;
       points.push({
         year: points.length,
         openingBalance: yearOpening,
@@ -112,6 +150,8 @@ export function buildAmortizationSchedule(inputs: MortgageScheduleInputs): Amort
         principalPaid: yearPrincipal,
         interestPaid: yearInterest,
         insurancePaid: yearInsurance,
+        insuranceActive,
+        monthlyPaymentNominal,
       });
       yearOpening = balance;
       yearPrincipal = 0;

@@ -30,6 +30,8 @@ describe('buildAmortizationSchedule', () => {
       principalPaid: 0,
       interestPaid: 0,
       insurancePaid: 0,
+      insuranceActive: false,
+      monthlyPaymentNominal: schedule.monthlyPaymentPI,
     });
   });
 
@@ -45,7 +47,18 @@ describe('buildAmortizationSchedule', () => {
     const schedule = buildAmortizationSchedule({ ...BASE_INPUTS, loanAmount: 0 });
     expect(schedule.monthlyPaymentPI).toBe(0);
     expect(schedule.payoffMonths).toBe(0);
-    expect(schedule.points).toEqual([{ year: 0, openingBalance: 0, closingBalance: 0, principalPaid: 0, interestPaid: 0, insurancePaid: 0 }]);
+    expect(schedule.points).toEqual([
+      {
+        year: 0,
+        openingBalance: 0,
+        closingBalance: 0,
+        principalPaid: 0,
+        interestPaid: 0,
+        insurancePaid: 0,
+        insuranceActive: false,
+        monthlyPaymentNominal: 0,
+      },
+    ]);
   });
 
   it('each year opens where the previous year closed (continuous balance across points)', () => {
@@ -134,6 +147,31 @@ describe('buildAmortizationSchedule', () => {
 
       expect(withInsurance.payoffMonths).toBe(noInsurance.payoffMonths);
       expect(withInsurance.points[1].principalPaid).toBeCloseTo(noInsurance.points[1].principalPaid, 6);
+    });
+  });
+
+  describe('monthlyPaymentNominal', () => {
+    it("matches currentMonthlyPayment at the year-0 baseline", () => {
+      const inputs = { ...BASE_INPUTS, monthlyPropertyTax: 300, monthlyHomeInsurance: 120 };
+      const schedule = buildAmortizationSchedule(inputs);
+      expect(schedule.points[0].monthlyPaymentNominal).toBeCloseTo(currentMonthlyPayment(inputs), 6);
+    });
+
+    it('grows property tax and home insurance by appreciationPct each year, on top of the flat P&I payment', () => {
+      const schedule = buildAmortizationSchedule({ ...BASE_INPUTS, monthlyPropertyTax: 300, monthlyHomeInsurance: 120, appreciationPct: 3 });
+      const yearOnePoint = schedule.points[1];
+      const expectedTaxAndInsurance = (300 + 120) * 1.03;
+      expect(yearOnePoint.monthlyPaymentNominal).toBeCloseTo(schedule.monthlyPaymentPI + expectedTaxAndInsurance, 2);
+    });
+
+    it('marks insurance inactive at year 0 once starting equity is already at/above 20% (not just $0 paid)', () => {
+      const schedule = buildAmortizationSchedule({ ...BASE_INPUTS, monthlyInsurance: 150 });
+      expect(schedule.points[0].insuranceActive).toBe(false);
+    });
+
+    it('marks insurance active at year 0 when starting equity is below 20%', () => {
+      const schedule = buildAmortizationSchedule({ ...BASE_INPUTS, loanAmount: 340000, monthlyInsurance: 150 });
+      expect(schedule.points[0].insuranceActive).toBe(true);
     });
   });
 });

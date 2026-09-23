@@ -35,7 +35,7 @@ describe('MortgagePage', () => {
     expect(screen.getByText('Home value (current)')).toBeInTheDocument();
     expect(screen.getByText('Mortgage balance (current)')).toBeInTheDocument();
     expect(screen.getByText('Mortgage rate (current)')).toBeInTheDocument();
-    expect(screen.getByText('Loan term')).toBeInTheDocument();
+    expect(screen.getByText('Years left on loan')).toBeInTheDocument();
   });
 
   it('renders property tax, home insurance, and PMI sliders under Taxes & insurance', () => {
@@ -78,7 +78,7 @@ describe('MortgagePage', () => {
     const onChange = jest.fn();
     renderMortgagePage({ onChange });
 
-    const slider = screen.getByLabelText('Loan term') as HTMLInputElement;
+    const slider = screen.getByLabelText('Years left on loan') as HTMLInputElement;
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
     setter?.call(slider, '15');
     slider.dispatchEvent(new Event('change', { bubbles: true }));
@@ -87,7 +87,7 @@ describe('MortgagePage', () => {
   });
 
   it('shows the current monthly payment, matching currentMonthlyPayment', () => {
-    const { container } = renderMortgagePage();
+    renderMortgagePage();
 
     const expectedPayment = currentMonthlyPayment({
       loanAmount: 300000,
@@ -99,13 +99,12 @@ describe('MortgagePage', () => {
       extraMonthlyPrincipal: 0,
     });
 
-    const metricRow = container.querySelector('.metric-row') as HTMLElement;
-    expect(within(metricRow).getByText('Current monthly payment')).toBeInTheDocument();
-    expect(within(metricRow).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
+    const card = screen.getByText('Current monthly payment').closest('.metric-card') as HTMLElement;
+    expect(within(card).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
   });
 
   it('folds property tax and home insurance into the current monthly payment', () => {
-    const { container } = renderMortgagePage({
+    renderMortgagePage({
       baseInputs: { ...BASE_INPUTS, propertyTaxMo: 300, homeInsuranceMo: 120 },
     });
 
@@ -121,25 +120,26 @@ describe('MortgagePage', () => {
       extraMonthlyPrincipal: 0,
     });
 
-    const metricRow = container.querySelector('.metric-row') as HTMLElement;
-    expect(within(metricRow).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
+    const card = screen.getByText('Current monthly payment').closest('.metric-card') as HTMLElement;
+    expect(within(card).getByText(`${formatCurrency(expectedPayment)}/mo`)).toBeInTheDocument();
   });
 
-  it('shows property tax and home insurance amounts in the loan summary, and "None" when unset', () => {
-    const { container, rerender } = renderMortgagePage();
+  it('shows property tax and home insurance amounts in the payment detail table, and "None" when unset', () => {
+    const { container, rerender } = renderMortgagePage({ baseInputs: { ...BASE_INPUTS, mortgageInspectYear: 0 } });
 
     const table = container.querySelector('.breakdown-table-wrap') as HTMLElement;
-    expect(within(table).getByText('Property tax')).toBeInTheDocument();
-    expect(within(table).getByText('Homeowners insurance')).toBeInTheDocument();
+    expect(within(table).getByText('Property tax, inflated')).toBeInTheDocument();
+    expect(within(table).getByText('Homeowners insurance, inflated')).toBeInTheDocument();
 
     rerender(
       <MortgagePage
-        baseInputs={{ ...BASE_INPUTS, propertyTaxMo: 300, homeInsuranceMo: 120 }}
+        baseInputs={{ ...BASE_INPUTS, propertyTaxMo: 300, homeInsuranceMo: 120, mortgageInspectYear: 0 }}
         ranges={DEFAULT_BASE_RANGES}
         onChange={jest.fn()}
         answers={OWNS_HOME}
       />,
     );
+    // Inspect year 0 = today's dollars, so no inflation growth has applied yet.
     expect(within(table).getByText(`${formatCurrency(300)}/mo`)).toBeInTheDocument();
     expect(within(table).getByText(`${formatCurrency(120)}/mo`)).toBeInTheDocument();
   });
@@ -198,11 +198,11 @@ describe('MortgagePage', () => {
     expect(withExtra.payoffMonths).toBeLessThan(original.payoffMonths);
   });
 
-  it('renders a loan summary table with P&I, insurance, and total interest figures', () => {
+  it('renders a payment detail table with P&I, insurance, and total interest figures', () => {
     const { container } = renderMortgagePage();
 
     const table = container.querySelector('.breakdown-table-wrap') as HTMLElement;
-    expect(screen.getByText('Loan summary')).toBeInTheDocument();
+    expect(screen.getByText('Year 5 payment detail')).toBeInTheDocument();
     expect(within(table).getByText('Principal & interest')).toBeInTheDocument();
     expect(within(table).getByText('Mortgage insurance')).toBeInTheDocument();
     expect(within(table).getAllByText('None').length).toBeGreaterThan(0);

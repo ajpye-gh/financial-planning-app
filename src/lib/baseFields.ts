@@ -12,6 +12,7 @@ export type BaseFieldId =
   | 'homeInsuranceMo'
   | 'propertyTaxMo'
   | 'mortgageExtraPrincipalMo'
+  | 'mortgageInspectYear'
   | 'cashTodayK'
   | 'brokerageTodayK'
   | 'salaryY0K'
@@ -230,10 +231,10 @@ export const INSPECT_YEAR_FIELD: BaseFieldMeta = {
  *  reused as-is from the Assets group above (HOME_VALUE_FIELD etc.) rather than duplicated here. */
 export const MORTGAGE_TERM_FIELD: BaseFieldMeta = {
   id: 'mortgageTermYears',
-  label: 'Loan term',
+  label: 'Years left on loan',
   format: 'yr',
   tooltip:
-    "Length of your mortgage, in years (e.g. 30 or 15). Combined with the balance and rate above, this determines your required principal & interest payment - it's no longer a number you set directly.",
+    "How many years remain on your current mortgage, not the original term you signed up for (e.g. 26 left on a 30-year loan you took out 4 years ago). Combined with the balance and rate above, this determines your required principal & interest payment - it's no longer a number you set directly.",
   visibleIf: ownsHome,
 };
 
@@ -270,6 +271,21 @@ export const MORTGAGE_EXTRA_PRINCIPAL_FIELD: BaseFieldMeta = {
   format: '$',
   tooltip:
     'Optional additional amount applied straight to principal every month, on top of your required payment - shortens the loan and moves your payoff date earlier. Shown on the chart as a second line against the original schedule.',
+  visibleIf: ownsHome,
+};
+
+/** Rendered next to the loan-summary/year-detail breakdown below the Mortgage page's chart, same
+ *  "which year's numbers am I looking at" role as INSPECT_YEAR_FIELD/RETIREMENT_INSPECT_AGE_FIELD
+ *  above. Principal & interest never changes, but property tax and homeowners insurance grow with
+ *  Inflation and PMI drops off once projected equity crosses 20% - this is what lets a user see the
+ *  nominal monthly payment actually climb over time instead of assuming it's flat like the P&I slice.
+ */
+export const MORTGAGE_INSPECT_YEAR_FIELD: BaseFieldMeta = {
+  id: 'mortgageInspectYear',
+  label: 'Inspect year',
+  format: 'yr',
+  tooltip:
+    "Which year the payment breakdown below shows. Principal & interest stays fixed, but property tax and homeowners insurance grow with Inflation, and mortgage insurance drops off once projected equity crosses 20% - so the total nominal payment shifts year to year even though the loan terms don't.",
   visibleIf: ownsHome,
 };
 
@@ -423,6 +439,7 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   PROPERTY_TAX_FIELD.id,
   HOME_INSURANCE_FIELD.id,
   MORTGAGE_EXTRA_PRINCIPAL_FIELD.id,
+  MORTGAGE_INSPECT_YEAR_FIELD.id,
   RETIREMENT_ROTH_SAVINGS_FIELD.id,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
   RETIREMENT_ROTH_WITHDRAWAL_FIELD.id,
