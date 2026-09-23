@@ -201,7 +201,7 @@ function App() {
     <main className="page">
       <div className="page__header">
         <PlanMenu onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
-        <img src="/og-image.svg" alt="Pyenancial" className="page__logo" />
+        <img src="https://ajpye-gh.github.io/pyenancial/og-image.svg" alt="Pyenancial" className="page__logo" />
       </div>
       <p className="page__subtitle">
         A cashflow model for your situation — add the goals you're saving or spending toward, and see how they
