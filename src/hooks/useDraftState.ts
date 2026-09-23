@@ -13,7 +13,7 @@ import {
   type SalaryRaiseBreakpoint,
 } from '../lib/salaryRaises';
 
-const STORAGE_KEY = 'financial-planning-app:draft';
+const STORAGE_KEY = 'pyenancial:draft';
 const AUTOSAVE_DEBOUNCE_MS = 400;
 
 function loadDraft(): Plan {
