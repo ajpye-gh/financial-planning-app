@@ -116,7 +116,7 @@ describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () =
 
   it('drops corrupt entries from the registry instead of failing the whole list', () => {
     localStorage.setItem(
-      'financial-planning-app:plans',
+      'pyenancial:plans',
       JSON.stringify({ Good: freshPlan(), Bad: { not: 'a plan' } }),
     );
 
@@ -127,7 +127,7 @@ describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () =
     const plan = freshPlan();
     const { annualBonusK: _bonus, partnerAnnualBonusK: _partnerBonus, ...legacyBaseInputs } = plan.baseInputs;
     const legacyPlan = { ...plan, baseInputs: legacyBaseInputs };
-    localStorage.setItem('financial-planning-app:plans', JSON.stringify({ Legacy: legacyPlan }));
+    localStorage.setItem('pyenancial:plans', JSON.stringify({ Legacy: legacyPlan }));
 
     const loaded = loadSavedPlan('Legacy');
     expect(loaded?.baseInputs.annualBonusK).toBe(DEFAULT_BASE_RANGES.annualBonusK.default);

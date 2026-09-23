@@ -86,7 +86,7 @@ export function isValidPlan(value: unknown): value is Plan {
   return true;
 }
 
-const PLANS_STORAGE_KEY = 'financial-planning-app:plans';
+const PLANS_STORAGE_KEY = 'pyenancial:plans';
 
 type PlanRegistry = Record<string, Plan>;
 
