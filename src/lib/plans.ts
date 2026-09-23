@@ -41,7 +41,19 @@ export function isValidJobLossYear(value: unknown): value is number {
 /** Strict, all-or-nothing validation for a saved plan - unlike the autosaved draft (which recovers
  *  field-by-field from partial corruption, see useDraftState.ts's loadDraft), a named Save/Load is an
  *  explicit user action, so a malformed plan should fail clearly instead of silently loading a
- *  patchwork of defaults. */
+ *  patchwork of defaults.
+ *
+ *  Migration note (salary raise semantics): `SalaryRaiseBreakpoint`'s value field was renamed
+ *  `raiseK` -> `incomeK` when its meaning flipped from "delta above salaryY0K" to "absolute income"
+ *  (see salaryRaises.ts). `isValidBreakpoint` requires `incomeK`, so a plan saved before that change
+ *  (shape `{id, year, raiseK}`) fails validation here and its Load is rejected with a clear error,
+ *  same as any other malformed plan - intentionally, per the all-or-nothing philosophy above, rather
+ *  than silently reinterpreting an old delta value as a new absolute one (e.g. a $5k raise becoming a
+ *  $5k absolute salary) and producing a plan that "loads" but models something the user never meant.
+ *  This is a hobby app with no plan-version field to migrate off of, so no automatic conversion is
+ *  attempted - the user just re-enters the (probably few) breakpoints for that plan. The *autosaved*
+ *  draft (loadDraft below) is more forgiving: it filters old-shaped breakpoints out individually
+ *  rather than failing the whole draft. */
 export function isValidPlan(value: unknown): value is Plan {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -113,6 +125,19 @@ export function savePlan(name: string, plan: Plan): void {
   localStorage.setItem(PLANS_STORAGE_KEY, JSON.stringify(registry));
 }
 
+/** Backfills any `BaseFieldId` missing from a loaded plan's `baseInputs` (e.g. a field added in a
+ *  later release, such as `annualBonusK`) with its current default rather than leaving it
+ *  `undefined` and producing `NaN` through the model - same best-effort philosophy as the autosaved
+ *  draft's loader (see loadDraft in useDraftState.ts), applied here since `isValidPlan` only checks
+ *  `baseInputs` is *an* object, not that it has every current field. */
+function withBaseInputDefaults(baseInputs: BaseInputs): BaseInputs {
+  return { ...baseDefaults(DEFAULT_BASE_RANGES), ...baseInputs };
+}
+
 export function loadSavedPlan(name: string): Plan | null {
-  return readRegistry()[name] ?? null;
+  const plan = readRegistry()[name];
+  if (!plan) {
+    return null;
+  }
+  return { ...plan, baseInputs: withBaseInputDefaults(plan.baseInputs) };
 }

@@ -4,31 +4,41 @@ import { SliderField } from '../controls/SliderField';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { VerdictBanner } from '../results/VerdictBanner';
 import { FilingStatusToggle } from './FilingStatusToggle';
+import { SocialSecurityToggle } from './SocialSecurityToggle';
 import { RetirementBreakdownTable } from './RetirementBreakdownTable';
 import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
 import {
   BASE_FIELD_GROUPS,
+  RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD,
+  RETIREMENT_AFTER_TAX_GAIN_FIELD,
+  RETIREMENT_AFTER_TAX_SAVINGS_FIELD,
+  RETIREMENT_AFTER_TAX_WITHDRAWAL_FIELD,
   RETIREMENT_CURRENT_AGE_FIELD,
   RETIREMENT_INSPECT_AGE_FIELD,
+  RETIREMENT_PENSION_FIELD,
+  RETIREMENT_PENSION_START_AGE_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
-  RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_ROTH_WITHDRAWAL_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
   RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
-  RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD,
   type BaseFieldId,
   type BaseFieldGroup,
 } from '../../lib/baseFields';
-import { formatCurrency, formatCurrencyCompact } from '../../lib/format';
-import { filingStatus as getFilingStatus, type Answers } from '../../lib/questions';
+import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '../../lib/format';
+import { filingStatus as getFilingStatus, socialSecurityEnabled, type Answers } from '../../lib/questions';
 import {
+  buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
   MAX_PROJECTION_AGE,
+  projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
+  type NamedRetirementPot,
 } from '../../lib/retirement';
 
 const AGE_GROUP: BaseFieldGroup = {
@@ -38,17 +48,43 @@ const AGE_GROUP: BaseFieldGroup = {
 
 const ROTH_GROUP: BaseFieldGroup = {
   title: 'Roth',
-  fields: [RETIREMENT_ROTH_SAVINGS_FIELD, RETIREMENT_ROTH_CONTRIBUTION_FIELD, RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD],
+  fields: [RETIREMENT_ROTH_SAVINGS_FIELD, RETIREMENT_ROTH_CONTRIBUTION_FIELD, RETIREMENT_ROTH_WITHDRAWAL_FIELD],
 };
 
 const TRADITIONAL_GROUP: BaseFieldGroup = {
   title: 'Traditional',
-  fields: [RETIREMENT_TRADITIONAL_SAVINGS_FIELD, RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD, RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD],
+  fields: [RETIREMENT_TRADITIONAL_SAVINGS_FIELD, RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD, RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD],
 };
+
+const AFTER_TAX_GROUP: BaseFieldGroup = {
+  title: 'After-tax',
+  fields: [
+    RETIREMENT_AFTER_TAX_SAVINGS_FIELD,
+    RETIREMENT_AFTER_TAX_CONTRIBUTION_FIELD,
+    RETIREMENT_AFTER_TAX_WITHDRAWAL_FIELD,
+    RETIREMENT_AFTER_TAX_GAIN_FIELD,
+  ],
+};
+
+// Dollar amount is the primary, directly-editable slider value (see RETIREMENT_*_WITHDRAWAL_FIELD in
+// baseFields.ts); the equivalent "4% rule"-style initial withdrawal rate is derived from it and
+// shown alongside, in parentheses, as this field's valueLabel override - never as its own slider.
+function withdrawalValueLabel(monthlyDollar: number, ratePct: number): string {
+  return `${formatSliderValue(monthlyDollar, '$')} (${formatSliderValue(ratePct, '%')})`;
+}
+
+/** (monthlyDollar * 12) / balanceAtRetirement, as a percentage - the withdrawal rate that reproduces
+ *  the chosen dollar target, fed into projectRetirementBalance exactly like the old rate-primary
+ *  input was. $0 (rather than Infinity/NaN) when there's no balance to speak of - at that point the
+ *  scheduled withdrawal is capped to $0 by applyDecumulationStep regardless of what rate is passed,
+ *  so this is a display-safe placeholder, not a modeling choice. */
+function impliedWithdrawalRatePct(monthlyDollar: number, balanceAtRetirement: number): number {
+  return balanceAtRetirement > 0 ? ((monthlyDollar * 12) / balanceAtRetirement) * 100 : 0;
+}
 
 const INCOME_GROUP: BaseFieldGroup = {
   title: 'Income in retirement',
-  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD],
+  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD, RETIREMENT_PENSION_FIELD, RETIREMENT_PENSION_START_AGE_FIELD],
 };
 
 // Same "Assumptions" group (inflation, investment return) the primary page's sidebar renders -
@@ -76,6 +112,46 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const targetYearOffset = Math.max(0, baseInputs.retirementTargetAge - currentAge);
   const finalYearOffset = MAX_PROJECTION_AGE - currentAge;
 
+  // The dollar sliders are the primary input now (see RETIREMENT_*_WITHDRAWAL_FIELD in
+  // baseFields.ts), but projectRetirementBalance still takes a rate - so each pot's projected
+  // balance at retirement (accumulation-phase-only, and thus independent of the withdrawal amount
+  // itself - see projectedBalanceAtRetirement's own comment) is used to convert the chosen monthly
+  // dollar target into the equivalent rate before calling it, unchanged, below.
+  const rothBalanceAtRetirement = useMemo(
+    () =>
+      projectedBalanceAtRetirement(
+        baseInputs.retirementRothSavingsTodayK * 1000,
+        baseInputs.retirementRothContributionMo,
+        baseInputs.investmentReturnPct,
+        targetYearOffset,
+      ),
+    [baseInputs.retirementRothSavingsTodayK, baseInputs.retirementRothContributionMo, baseInputs.investmentReturnPct, targetYearOffset],
+  );
+  const traditionalBalanceAtRetirement = useMemo(
+    () =>
+      projectedBalanceAtRetirement(
+        baseInputs.retirementTraditionalSavingsTodayK * 1000,
+        baseInputs.retirementTraditionalContributionMo,
+        baseInputs.investmentReturnPct,
+        targetYearOffset,
+      ),
+    [baseInputs.retirementTraditionalSavingsTodayK, baseInputs.retirementTraditionalContributionMo, baseInputs.investmentReturnPct, targetYearOffset],
+  );
+  const afterTaxBalanceAtRetirement = useMemo(
+    () =>
+      projectedBalanceAtRetirement(
+        baseInputs.retirementAfterTaxSavingsTodayK * 1000,
+        baseInputs.retirementAfterTaxContributionMo,
+        baseInputs.investmentReturnPct,
+        targetYearOffset,
+      ),
+    [baseInputs.retirementAfterTaxSavingsTodayK, baseInputs.retirementAfterTaxContributionMo, baseInputs.investmentReturnPct, targetYearOffset],
+  );
+
+  const rothWithdrawalRatePct = impliedWithdrawalRatePct(baseInputs.retirementRothWithdrawalMo, rothBalanceAtRetirement);
+  const traditionalWithdrawalRatePct = impliedWithdrawalRatePct(baseInputs.retirementTraditionalWithdrawalMo, traditionalBalanceAtRetirement);
+  const afterTaxWithdrawalRatePct = impliedWithdrawalRatePct(baseInputs.retirementAfterTaxWithdrawalMo, afterTaxBalanceAtRetirement);
+
   const rothProjection = useMemo(
     () =>
       projectRetirementBalance(
@@ -84,7 +160,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.investmentReturnPct,
         targetYearOffset,
         finalYearOffset,
-        baseInputs.retirementRothWithdrawalRatePct,
+        rothWithdrawalRatePct,
         baseInputs.inflationPct,
       ),
     [
@@ -93,7 +169,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.investmentReturnPct,
       targetYearOffset,
       finalYearOffset,
-      baseInputs.retirementRothWithdrawalRatePct,
+      rothWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
   );
@@ -106,8 +182,10 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.investmentReturnPct,
         targetYearOffset,
         finalYearOffset,
-        baseInputs.retirementTraditionalWithdrawalRatePct,
+        traditionalWithdrawalRatePct,
         baseInputs.inflationPct,
+        // RMDs only apply to Traditional (pre-tax) accounts - Roth and after-tax never get this.
+        { currentAge },
       ),
     [
       baseInputs.retirementTraditionalSavingsTodayK,
@@ -115,23 +193,67 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.investmentReturnPct,
       targetYearOffset,
       finalYearOffset,
-      baseInputs.retirementTraditionalWithdrawalRatePct,
+      traditionalWithdrawalRatePct,
+      baseInputs.inflationPct,
+      currentAge,
+    ],
+  );
+
+  const afterTaxProjection = useMemo(
+    () =>
+      projectRetirementBalance(
+        baseInputs.retirementAfterTaxSavingsTodayK * 1000,
+        baseInputs.retirementAfterTaxContributionMo,
+        baseInputs.investmentReturnPct,
+        targetYearOffset,
+        finalYearOffset,
+        afterTaxWithdrawalRatePct,
+        baseInputs.inflationPct,
+      ),
+    [
+      baseInputs.retirementAfterTaxSavingsTodayK,
+      baseInputs.retirementAfterTaxContributionMo,
+      baseInputs.investmentReturnPct,
+      targetYearOffset,
+      finalYearOffset,
+      afterTaxWithdrawalRatePct,
       baseInputs.inflationPct,
     ],
   );
 
   const status = getFilingStatus(answers);
+  // A real on/off switch, not just "drag the slider to $0" - see SocialSecurityToggle.tsx and
+  // socialSecurityEnabled's own comment. Off means Social Security contributes nothing to the
+  // income projection at all, and its line is dropped entirely from the breakdown table below.
+  const ssEnabled = socialSecurityEnabled(answers);
+  const ssMonthlyBenefitToday = ssEnabled ? baseInputs.retirementSocialSecurityMo : 0;
 
   const incomeSeries = useMemo(
     () =>
-      projectHouseholdRetirementIncome(
+      projectHouseholdRetirementIncome({
         rothProjection,
         traditionalProjection,
-        baseInputs.retirementSocialSecurityMo,
-        status,
-        baseInputs.inflationPct,
-      ),
-    [rothProjection, traditionalProjection, baseInputs.retirementSocialSecurityMo, status, baseInputs.inflationPct],
+        afterTaxProjection,
+        afterTaxGainPct: baseInputs.retirementAfterTaxGainPct,
+        pensionMonthlyToday: baseInputs.retirementPensionMo,
+        pensionStartAge: baseInputs.retirementPensionStartAge,
+        ssMonthlyBenefitToday,
+        currentAge,
+        filingStatus: status,
+        inflationPct: baseInputs.inflationPct,
+      }),
+    [
+      rothProjection,
+      traditionalProjection,
+      afterTaxProjection,
+      baseInputs.retirementAfterTaxGainPct,
+      baseInputs.retirementPensionMo,
+      baseInputs.retirementPensionStartAge,
+      ssMonthlyBenefitToday,
+      currentAge,
+      status,
+      baseInputs.inflationPct,
+    ],
   );
   const taxSeries = useMemo(() => incomeSeries.map((entry) => entry.tax.tax), [incomeSeries]);
   // Nominal-dollar sum across the whole projection - pre-retirement years are already $0 (no
@@ -151,12 +273,16 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const inspectedIncome = incomeSeries[inspectIndex];
   const rothBalanceAtInspectYear = rothProjection.balances[inspectIndex] ?? 0;
   const traditionalBalanceAtInspectYear = traditionalProjection.balances[inspectIndex] ?? 0;
+  const afterTaxBalanceAtInspectYear = afterTaxProjection.balances[inspectIndex] ?? 0;
+  const rothWithdrawalRateAtInspectYear = rothProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
+  const traditionalWithdrawalRateAtInspectYear = traditionalProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
+  const afterTaxWithdrawalRateAtInspectYear = afterTaxProjection.effectiveWithdrawalRatePct[inspectIndex] ?? 0;
 
   const metrics: Metric[] = [
     {
       id: 'retirement-balance',
       label: 'Total balance, inspect age',
-      value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear),
+      value: formatCurrencyCompact(rothBalanceAtInspectYear + traditionalBalanceAtInspectYear + afterTaxBalanceAtInspectYear),
     },
     {
       id: 'retirement-income',
@@ -175,15 +301,50 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
     },
   ];
 
-  const verdict = buildRetirementVerdict(rothProjection, traditionalProjection, currentAge);
+  const pots: NamedRetirementPot[] = [
+    { name: 'Roth', projection: rothProjection },
+    { name: 'Traditional', projection: traditionalProjection },
+    { name: 'After-tax', projection: afterTaxProjection },
+  ];
+  const verdict = buildRetirementVerdict(pots, currentAge);
+  const earlyWithdrawalWarning = buildEarlyWithdrawalWarning(incomeSeries, currentAge);
 
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
           <ControlGroup group={AGE_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
-          <ControlGroup group={ROTH_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
-          <ControlGroup group={TRADITIONAL_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
+          <ControlGroup
+            group={ROTH_GROUP}
+            ranges={ranges}
+            values={baseInputs}
+            onChange={onChange}
+            valueLabelForField={(fieldId) =>
+              fieldId === 'retirementRothWithdrawalMo' ? withdrawalValueLabel(baseInputs.retirementRothWithdrawalMo, rothWithdrawalRatePct) : undefined
+            }
+          />
+          <ControlGroup
+            group={TRADITIONAL_GROUP}
+            ranges={ranges}
+            values={baseInputs}
+            onChange={onChange}
+            valueLabelForField={(fieldId) =>
+              fieldId === 'retirementTraditionalWithdrawalMo'
+                ? withdrawalValueLabel(baseInputs.retirementTraditionalWithdrawalMo, traditionalWithdrawalRatePct)
+                : undefined
+            }
+          />
+          <ControlGroup
+            group={AFTER_TAX_GROUP}
+            ranges={ranges}
+            values={baseInputs}
+            onChange={onChange}
+            valueLabelForField={(fieldId) =>
+              fieldId === 'retirementAfterTaxWithdrawalMo'
+                ? withdrawalValueLabel(baseInputs.retirementAfterTaxWithdrawalMo, afterTaxWithdrawalRatePct)
+                : undefined
+            }
+          />
           <ControlGroup
             group={INCOME_GROUP}
             ranges={ranges}
@@ -191,9 +352,13 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
             onChange={onChange}
             renderBeforeField={(fieldId) =>
               fieldId === 'retirementSocialSecurityMo' ? (
-                <FilingStatusToggle filingStatus={status} onChange={(next) => onAnswer('filingStatus', next)} />
+                <>
+                  <FilingStatusToggle filingStatus={status} onChange={(next) => onAnswer('filingStatus', next)} />
+                  <SocialSecurityToggle enabled={ssEnabled} onChange={(next) => onAnswer('socialSecurityEnabled', next)} />
+                </>
               ) : null
             }
+            disabledForField={(fieldId) => fieldId === 'retirementSocialSecurityMo' && !ssEnabled}
           />
           {ASSUMPTIONS_GROUP && <ControlGroup group={ASSUMPTIONS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />}
         </div>
@@ -201,9 +366,11 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
 
       <div className="app-shell__main">
         <VerdictBanner verdict={verdict} />
+        {earlyWithdrawalWarning && <VerdictBanner verdict={earlyWithdrawalWarning} />}
         <RetirementChart
           rothProjection={rothProjection}
           traditionalProjection={traditionalProjection}
+          afterTaxProjection={afterTaxProjection}
           taxSeries={taxSeries}
           currentAge={currentAge}
         />
@@ -220,6 +387,11 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
           age={inspectedAge}
           rothBalance={rothBalanceAtInspectYear}
           traditionalBalance={traditionalBalanceAtInspectYear}
+          afterTaxBalance={afterTaxBalanceAtInspectYear}
+          rothWithdrawalRatePct={rothWithdrawalRateAtInspectYear}
+          traditionalWithdrawalRatePct={traditionalWithdrawalRateAtInspectYear}
+          afterTaxWithdrawalRatePct={afterTaxWithdrawalRateAtInspectYear}
+          ssEnabled={ssEnabled}
           income={inspectedIncome}
         />
       </div>

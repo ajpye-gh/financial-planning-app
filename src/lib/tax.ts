@@ -36,6 +36,17 @@ const STANDARD_DEDUCTION_2024: Record<FilingStatus, number> = {
   marriedJoint: 29200,
 };
 
+/** A flat long-term capital gains rate applied to the taxable-gain slice of an after-tax
+ *  (brokerage) withdrawal, in lieu of modeling the real 0%/15%/20% LTCG bracket structure - the
+ *  same "approximate, blended" simplification this app already makes for ordinary-income state
+ *  tax, AMT, and NIIT. Not inflation-indexed, since it's a flat rate rather than a bracket edge. */
+export const LTCG_FLAT_RATE_PCT = 15;
+
+/** The real IRS penalty for withdrawing from a Traditional 401(k)/IRA before the early-withdrawal
+ *  age (see retirement.ts's TRADITIONAL_EARLY_WITHDRAWAL_AGE) - on top of ordinary income tax, not
+ *  in place of it. */
+export const EARLY_WITHDRAWAL_PENALTY_PCT = 10;
+
 /** Combined-income ("provisional income") thresholds that determine how much Social Security is
  *  taxable. Fixed in nominal dollars by law since 1983/1993 - deliberately, unlike the brackets and
  *  deduction above, NEVER inflation-adjusted (a well-known "stealth" tax expansion: more retirees'
@@ -86,28 +97,73 @@ export function estimateFederalTax(taxableIncome: number, filingStatus: FilingSt
 export interface TaxEstimate {
   taxableSS: number;
   standardDeduction: number;
-  /** Traditional withdrawal + taxable Social Security, minus the standard deduction, floored at 0. */
+  /** Traditional withdrawal + pension + taxable Social Security, minus the standard deduction,
+   *  floored at 0. Excludes after-tax withdrawal gains, which are taxed separately (see
+   *  capitalGainsTax) rather than run through these ordinary brackets. */
   taxableOrdinaryIncome: number;
+  /** The after-tax withdrawal's taxable-gain slice (withdrawal * afterTaxGainPct/100) - the rest of
+   *  that withdrawal is treated as a tax-free return of cost basis. */
+  taxableGain: number;
+  /** taxableGain taxed at the flat LTCG_FLAT_RATE_PCT rate. */
+  capitalGainsTax: number;
+  /** traditionalWithdrawalAnnual * EARLY_WITHDRAWAL_PENALTY_PCT/100, or 0 if isEarlyTraditionalWithdrawal was false. */
+  earlyWithdrawalPenalty: number;
+  /** Ordinary-income tax (on taxableOrdinaryIncome) plus capitalGainsTax plus earlyWithdrawalPenalty
+   *  - the total federal tax (and penalty) bill across every taxable source. */
   tax: number;
-  /** tax / (traditional withdrawal + gross Social Security) - 0 if there's no income to divide by. */
+  /** tax / (traditional withdrawal + pension + gross Social Security + after-tax withdrawal) - 0 if
+   *  there's no income to divide by. */
   effectiveRatePct: number;
 }
 
-/** Federal tax on a retiree's taxable income sources: Traditional withdrawals (fully ordinary
- *  income) plus whatever share of Social Security is taxable. Not a full simulation - a point-in-
- *  time estimate for a single year's income, same scope as the rest of the retirement page's
- *  metrics. */
-export function estimateRetirementTax(
-  traditionalWithdrawalAnnual: number,
-  ssBenefitAnnual: number,
-  filingStatus: FilingStatus,
-  inflationFactor: number,
-): TaxEstimate {
-  const taxableSS = taxableSocialSecurity(ssBenefitAnnual, traditionalWithdrawalAnnual, filingStatus);
+export interface RetirementTaxInputs {
+  traditionalWithdrawalAnnual: number;
+  /** Pension, annuity, or other fully-taxable ordinary income - combined with the Traditional
+   *  withdrawal for both bracket purposes and Social Security's provisional-income test. */
+  pensionAnnual: number;
+  ssBenefitAnnual: number;
+  /** Withdrawal from an after-tax (taxable brokerage) account. Only the gain slice is taxable (see
+   *  afterTaxGainPct); that gain still counts toward Social Security's provisional-income test
+   *  (real capital gains do), even though it's taxed at the flat LTCG rate rather than through the
+   *  ordinary brackets below. */
+  afterTaxWithdrawalAnnual: number;
+  /** Share of afterTaxWithdrawalAnnual that's taxable gain rather than a tax-free return of cost
+   *  basis, e.g. 40 for "40% of every withdrawal is gain." */
+  afterTaxGainPct: number;
+  /** True if traditionalWithdrawalAnnual is happening before the real IRS early-withdrawal age (see
+   *  retirement.ts's TRADITIONAL_EARLY_WITHDRAWAL_AGE) - the caller works out the age comparison,
+   *  since this module doesn't otherwise deal in ages. */
+  isEarlyTraditionalWithdrawal: boolean;
+  filingStatus: FilingStatus;
+  inflationFactor: number;
+}
+
+/** Federal tax on a retiree's taxable income sources: Traditional withdrawals and pension income
+ *  (both fully ordinary income), whatever share of Social Security is taxable, and the taxable-gain
+ *  slice of an after-tax withdrawal (flat LTCG rate, stacked on top rather than run through the
+ *  ordinary brackets) - plus the real 10% early-withdrawal penalty on Traditional withdrawals taken
+ *  before the early-withdrawal age. Not a full simulation - a point-in-time estimate for a single
+ *  year's income, same scope as the rest of the retirement page's metrics. */
+export function estimateRetirementTax({
+  traditionalWithdrawalAnnual,
+  pensionAnnual,
+  ssBenefitAnnual,
+  afterTaxWithdrawalAnnual,
+  afterTaxGainPct,
+  isEarlyTraditionalWithdrawal,
+  filingStatus,
+  inflationFactor,
+}: RetirementTaxInputs): TaxEstimate {
+  const taxableGain = afterTaxWithdrawalAnnual * (afterTaxGainPct / 100);
+  const ordinaryIncomeBeforeSS = traditionalWithdrawalAnnual + pensionAnnual;
+  const taxableSS = taxableSocialSecurity(ssBenefitAnnual, ordinaryIncomeBeforeSS + taxableGain, filingStatus);
   const standardDeduction = STANDARD_DEDUCTION_2024[filingStatus] * inflationFactor;
-  const taxableOrdinaryIncome = Math.max(0, traditionalWithdrawalAnnual + taxableSS - standardDeduction);
-  const tax = estimateFederalTax(taxableOrdinaryIncome, filingStatus, inflationFactor);
-  const grossIncome = traditionalWithdrawalAnnual + ssBenefitAnnual;
+  const taxableOrdinaryIncome = Math.max(0, ordinaryIncomeBeforeSS + taxableSS - standardDeduction);
+  const ordinaryTax = estimateFederalTax(taxableOrdinaryIncome, filingStatus, inflationFactor);
+  const capitalGainsTax = taxableGain * (LTCG_FLAT_RATE_PCT / 100);
+  const earlyWithdrawalPenalty = isEarlyTraditionalWithdrawal ? traditionalWithdrawalAnnual * (EARLY_WITHDRAWAL_PENALTY_PCT / 100) : 0;
+  const tax = ordinaryTax + capitalGainsTax + earlyWithdrawalPenalty;
+  const grossIncome = ordinaryIncomeBeforeSS + ssBenefitAnnual + afterTaxWithdrawalAnnual;
   const effectiveRatePct = grossIncome > 0 ? (tax / grossIncome) * 100 : 0;
-  return { taxableSS, standardDeduction, taxableOrdinaryIncome, tax, effectiveRatePct };
+  return { taxableSS, standardDeduction, taxableOrdinaryIncome, taxableGain, capitalGainsTax, earlyWithdrawalPenalty, tax, effectiveRatePct };
 }

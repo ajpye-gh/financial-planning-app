@@ -1,13 +1,18 @@
 import { formatSliderValue } from '../../lib/format';
 import { TrashIcon } from '../icons';
+import { Slider } from './Slider';
 import type { SalaryRaiseBreakpoint } from '../../lib/salaryRaises';
 
 const HORIZON_YEARS = 18;
-const RAISE_RANGE = { min: 0, max: 150, step: 5 };
+const INCOME_RANGE = { min: 0, max: 400, step: 5 };
 const DEFAULT_JOB_LOSS_YEAR = 10;
 
 export interface SalaryRaiseBreakpointsProps {
   breakpoints: SalaryRaiseBreakpoint[];
+  /** This stream's current starting salary (in $K) - floors the first breakpoint's slider so it can't
+   *  be dragged below today's salary (see salaryRaises.ts's applyRaiseUpdate doc comment for why this
+   *  is a UI-level nicety on top of, not a replacement for, model.ts's own defensive floor). */
+  salaryY0K: number;
   onAdd: () => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => void;
@@ -19,6 +24,7 @@ export interface SalaryRaiseBreakpointsProps {
 
 export function SalaryRaiseBreakpoints({
   breakpoints,
+  salaryY0K,
   onAdd,
   onRemove,
   onUpdate,
@@ -31,11 +37,12 @@ export function SalaryRaiseBreakpoints({
 
   return (
     <div className="salary-raises">
-      <div className="salary-raises__label">Raises</div>
+      <div className="salary-raises__label">Income milestones</div>
       {sorted.map((breakpoint, index) => {
-        // Can't drag below the previous (earlier-year) breakpoint's raise - dragging this one above a
-        // later breakpoint instead pushes that one up too, via applyRaiseUpdate (see onUpdate).
-        const floor = index === 0 ? RAISE_RANGE.min : sorted[index - 1].raiseK;
+        // Can't drag below the previous (earlier-year) breakpoint's income, or below today's starting
+        // salary for the first one - dragging this one above a later breakpoint instead pushes that
+        // one up too, via applyRaiseUpdate (see onUpdate).
+        const floor = index === 0 ? Math.max(INCOME_RANGE.min, salaryY0K) : sorted[index - 1].incomeK;
         return (
           <div className="salary-raise-row" key={breakpoint.id}>
             <div className="salary-raise-row__top">
@@ -53,22 +60,20 @@ export function SalaryRaiseBreakpoints({
                 type="button"
                 className="salary-raise-row__remove"
                 onClick={() => onRemove(breakpoint.id)}
-                aria-label={`Remove raise at year ${breakpoint.year}`}
+                aria-label={`Remove income milestone at year ${breakpoint.year}`}
               >
                 <TrashIcon />
               </button>
             </div>
-            <div className="salary-raise-row__control">
-              <input
-                type="range"
-                min={floor}
-                max={RAISE_RANGE.max}
-                step={RAISE_RANGE.step}
-                value={breakpoint.raiseK}
-                onChange={(event) => onUpdate(breakpoint.id, { raiseK: Number(event.target.value) })}
-              />
-              <span className="salary-raise-row__value">{formatSliderValue(breakpoint.raiseK, 'k')}</span>
-            </div>
+            <Slider
+              id={`raise-${breakpoint.id}`}
+              ariaLabel={`Income at year ${breakpoint.year}`}
+              range={{ min: floor, max: INCOME_RANGE.max, step: INCOME_RANGE.step }}
+              value={breakpoint.incomeK}
+              onChange={(value) => onUpdate(breakpoint.id, { incomeK: value })}
+              valueLabel={formatSliderValue(breakpoint.incomeK, 'k')}
+              formatBound={(bound) => formatSliderValue(bound, 'k')}
+            />
           </div>
         );
       })}
@@ -100,7 +105,7 @@ export function SalaryRaiseBreakpoints({
 
       <div className="salary-raises__actions">
         <button type="button" className="salary-raises__add" onClick={onAdd}>
-          + Add raise
+          + Add income milestone
         </button>
         {jobLossYear === undefined && (
           <button type="button" className="salary-raises__add" onClick={() => onSetJobLoss(DEFAULT_JOB_LOSS_YEAR)}>

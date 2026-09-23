@@ -11,15 +11,33 @@ import type { Child } from '@src/lib/children';
 import type { RecurringGoal } from '@src/lib/goals';
 import type { SalaryRaiseBreakpoint } from '@src/lib/salaryRaises';
 
+// P&I is now computed from balance/rate/term (see monthlyMortgagePayment) instead of being a
+// manually-entered fixture field. Solving for the balance that reproduces exactly the same $1200/mo
+// figure the old fixture hardcoded keeps every hand-derived expected value below (which assumed a
+// fixed $1200 P&I) still correct, without having to redo all that arithmetic by hand.
+const BASE_MORTGAGE_RATE_PCT = 6;
+const BASE_MORTGAGE_TERM_YEARS = 30;
+const BASE_PI_TARGET = 1200;
+
+function loanAmountForPayment(targetPayment: number, annualRatePct: number, termYears: number): number {
+  const monthlyRate = annualRatePct / 100 / 12;
+  const numPayments = termYears * 12;
+  return (targetPayment * (1 - Math.pow(1 + monthlyRate, -numPayments))) / monthlyRate;
+}
+
+const BASE_MORTGAGE_BALANCE = loanAmountForPayment(BASE_PI_TARGET, BASE_MORTGAGE_RATE_PCT, BASE_MORTGAGE_TERM_YEARS);
+
 // A fixed fixture, independent of Defaults.json, so this test stays stable regardless of what the
 // committed defaults happen to contain.
 const BASE: BaseInputs = {
   expensesMo: 4000,
   housingPaymentMo: 1800,
-  housingPrincipalInterestMo: 1200,
   homeValueK: 350,
-  mortgageBalanceK: 250,
-  currentMortgageRatePct: 6,
+  mortgageBalanceK: BASE_MORTGAGE_BALANCE / 1000,
+  currentMortgageRatePct: BASE_MORTGAGE_RATE_PCT,
+  mortgageTermYears: BASE_MORTGAGE_TERM_YEARS,
+  mortgageInsuranceMo: 0,
+  mortgageExtraPrincipalMo: 0,
   brokerageTodayK: 50,
   cashTodayK: 20,
   salaryY0K: 70,
@@ -31,16 +49,19 @@ const BASE: BaseInputs = {
   costPerKidMo: 500,
   inflationPct: 3,
   investmentReturnPct: 6,
+  cashGrowthPct: 1,
   inspectYear: 5,
 };
 
 const NO_CHILDREN: Child[] = [];
 
+// Absolute-income breakpoints (see salaryRaises.ts) equivalent to the old +5/+20/+30/+50 deltas
+// above a $70k salaryY0K: $75k by yr1, $90k by yr4, $100k by yr6, $120k by yr10.
 const SALARY_RAISES: SalaryRaiseBreakpoint[] = [
-  { id: 'r1', year: 1, raiseK: 5 },
-  { id: 'r4', year: 4, raiseK: 20 },
-  { id: 'r6', year: 6, raiseK: 30 },
-  { id: 'r10', year: 10, raiseK: 50 },
+  { id: 'r1', year: 1, incomeK: 75 },
+  { id: 'r4', year: 4, incomeK: 90 },
+  { id: 'r6', year: 6, incomeK: 100 },
+  { id: 'r10', year: 10, incomeK: 120 },
 ];
 
 const PRIMARY_INCOME: IncomeStreamInputs = {
@@ -48,6 +69,7 @@ const PRIMARY_INCOME: IncomeStreamInputs = {
   growthAfterLastRaisePct: 2,
   netKeepRatePct: 65,
   raises: SALARY_RAISES,
+  annualBonusK: 0,
 };
 
 // $0 salary is a genuine no-op through the income formula (gross stays 0 regardless of raises/growth),
@@ -57,6 +79,7 @@ const NO_PARTNER_INCOME: IncomeStreamInputs = {
   growthAfterLastRaisePct: 0,
   netKeepRatePct: 0,
   raises: [],
+  annualBonusK: 0,
 };
 
 /** Runs the model with the fixtures above, overridable per-test. */
@@ -121,6 +144,22 @@ const PROPERTY_GOAL: RecurringGoal = {
   isPurchase: true,
   purchasePriceK: 400,
   mortgageRatePct: 6,
+};
+
+const EMERGENCY_GOAL: RecurringGoal = {
+  kind: 'recurring',
+  id: 'emergency',
+  name: 'Emergency fund',
+  mode: 'accumulate',
+  category: 'emergency',
+  monthlyAmount: 200,
+  monthlyAmountRange: { min: 0, max: 2000, step: 25 },
+  startYear: 1,
+  endYear: 18,
+  cashAllocated: 0,
+  brokerageAllocated: 0,
+  equityAllocated: false,
+  isPurchase: false,
 };
 
 const BOAT_GOAL: RecurringGoal = {
@@ -290,6 +329,45 @@ describe('runModel', () => {
     });
   });
 
+  describe('emergency fund growth (cashGrowthPct, not investmentReturnPct)', () => {
+    it("compounds a 'category: emergency' goal balance at cashGrowthPct, not investmentReturnPct", () => {
+      const noContribution: RecurringGoal = { ...EMERGENCY_GOAL, monthlyAmount: 0, cashAllocated: 10000 };
+      const result = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 2, investmentReturnPct: 6 },
+      });
+
+      // Y0 balance is the cash seed (10000); year 1 should grow at cashGrowthPct (2%), not
+      // investmentReturnPct (6%): 10000 * 1.02 = 10200.
+      expect(result.chart.goalBalances.emergency[0]).toBe(10000);
+      expect(result.chart.goalBalances.emergency[1]).toBe(10200);
+    });
+
+    it('a higher investmentReturnPct has no effect on the emergency fund balance when cashGrowthPct is unchanged', () => {
+      const noContribution: RecurringGoal = { ...EMERGENCY_GOAL, monthlyAmount: 0, cashAllocated: 10000 };
+      const lowReturn = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 1.5, investmentReturnPct: 3 },
+      });
+      const highReturn = run({
+        goals: [noContribution],
+        base: { ...BASE, cashGrowthPct: 1.5, investmentReturnPct: 11 },
+      });
+
+      expect(highReturn.chart.goalBalances.emergency).toEqual(lowReturn.chart.goalBalances.emergency);
+    });
+
+    it('a non-emergency accumulate goal still compounds at investmentReturnPct, unaffected by cashGrowthPct', () => {
+      const funded: RecurringGoal = { ...COLLEGE_GOAL, monthlyAmount: 0, brokerageAllocated: 10000 };
+      const lowCashGrowth = run({ goals: [funded], base: { ...BASE, cashGrowthPct: 0, investmentReturnPct: 6 } });
+      const highCashGrowth = run({ goals: [funded], base: { ...BASE, cashGrowthPct: 5, investmentReturnPct: 6 } });
+
+      expect(highCashGrowth.chart.goalBalances.college).toEqual(lowCashGrowth.chart.goalBalances.college);
+      // Still grows at investmentReturnPct (6%): 10000 * 1.06 = 10600.
+      expect(lowCashGrowth.chart.goalBalances.college[1]).toBe(10600);
+    });
+  });
+
   describe('projectHomeEquity', () => {
     const OWNED_BASE = { ...BASE, currentMortgageRatePct: 3 };
 
@@ -298,7 +376,7 @@ describe('runModel', () => {
 
       expect(result.homeValue).toBeCloseTo(350000 * Math.pow(1.03, 3), 6);
       expect(result.mortgageBalance).toBeGreaterThan(0);
-      expect(result.mortgageBalance).toBeLessThan(250000);
+      expect(result.mortgageBalance).toBeLessThan(OWNED_BASE.mortgageBalanceK * 1000);
       expect(result.equity).toBeCloseTo(result.homeValue - result.mortgageBalance, 6);
     });
 
@@ -313,8 +391,10 @@ describe('runModel', () => {
     });
 
     it('floors the mortgage balance at $0 once the loan would be fully paid off', () => {
-      // $1200/mo at 3% pays off $250k in ~25yr - well past 18, so check further out than the app's
-      // own 18yr horizon ever would, just to confirm the flooring behavior itself is correct.
+      // The level payment is calibrated (by definition of the standard amortization formula) to
+      // fully pay off the balance in exactly mortgageTermYears (30) at the OWNED_BASE rate - so year
+      // 40 is well past payoff regardless of the exact balance/rate, past the app's own 18yr horizon
+      // too, just to confirm the flooring behavior itself is correct.
       const result = projectHomeEquity(OWNED_BASE, true, 40);
       expect(result.mortgageBalance).toBe(0);
     });
@@ -351,7 +431,11 @@ describe('runModel', () => {
       const withoutEquity = run({ goals: [{ ...funded, equityAllocated: false }], base }).chart.goalBalances.property[3];
 
       expect(withEquity).toBeGreaterThan(withoutEquity);
-      expect(withEquity - withoutEquity).toBeCloseTo(projectHomeEquity(base, true, 3).equity, 0);
+      // Precision -1 (nearest $10), not 0: withEquity and withoutEquity are each independently
+      // Math.round()'ed to whole dollars in their own goalBalances series, so their difference can be
+      // off by up to ~$1 from the raw unrounded equity figure - unrelated to this fixture's mortgage
+      // numbers specifically, just a rounding-boundary margin that needs a little more slack.
+      expect(withEquity - withoutEquity).toBeCloseTo(projectHomeEquity(base, true, 3).equity, -1);
     });
 
     it("doesn't seed equity for a renter, even if allocated", () => {
@@ -531,7 +615,7 @@ describe('runModel', () => {
     it('applies "growth after last raise" starting from the final breakpoint, not a fixed year 10', () => {
       const oneBreakpoint = run({
         goals: [],
-        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 3, raiseK: 15 }], growthAfterLastRaisePct: 5 },
+        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 3, incomeK: 85 }], growthAfterLastRaisePct: 5 },
       });
 
       // Year 3 is the last (only) breakpoint: gross salary = 85k there, then compounds at 5%/yr.
@@ -542,15 +626,29 @@ describe('runModel', () => {
     });
 
     it('raising salaryY0K alone never decreases free cash in any year', () => {
-      // Raises are relative to Y0 (raiseK above it), and income is a flat share of gross salary, so
-      // bumping Y0 shifts the whole gross-salary curve - and therefore income - up in every year,
-      // never down. (This is the property the earlier Y0/raise-milestone bug fix was chasing.)
+      // Breakpoints are absolute income targets now, so on their own they wouldn't guarantee this -
+      // buildStreamContext (model.ts) defensively floors every milestone at salaryY0K, so raising Y0
+      // above the whole breakpoint curve just makes the curve flat at the new (higher) Y0 until growth
+      // kicks in after the last breakpoint, never lower than the unmodified curve in any year. (This is
+      // the property the earlier Y0/raise-milestone bug fix was chasing, preserved under the new
+      // absolute semantics.)
       const base = run({ goals: [] });
       const higherY0 = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, salaryY0K: 150 } });
 
       for (let year = 1; year <= 18; year++) {
         expect(higherY0.chart.freeCash[year]).toBeGreaterThanOrEqual(base.chart.freeCash[year]);
       }
+    });
+
+    it('floors a breakpoint at salaryY0K even if its raw value sits below it (defensive, e.g. stale/malformed data)', () => {
+      const result = run({
+        goals: [],
+        primaryIncome: { ...PRIMARY_INCOME, raises: [{ id: 'r1', year: 5, incomeK: 10 }], growthAfterLastRaisePct: 0 },
+      });
+
+      // A $10k breakpoint is far below the $70k salaryY0K - it should never model a pay cut, so gross
+      // salary stays flat at $70k through year 5 (and beyond, since growth is 0%).
+      expect(result.snapshot.grossSalary).toBe(70000);
     });
   });
 
@@ -582,6 +680,7 @@ describe('runModel', () => {
       growthAfterLastRaisePct: 0,
       netKeepRatePct,
       raises: [],
+      annualBonusK: 0,
       jobLossYear,
     });
 
@@ -608,6 +707,71 @@ describe('runModel', () => {
       for (let year = 1; year <= 18; year++) {
         expect(higher.chart.freeCash[year]).toBeGreaterThanOrEqual(lower.chart.freeCash[year]);
       }
+    });
+  });
+
+  describe('annual bonus', () => {
+    it('adds the bonus, net of the keep rate, to monthly income - same treatment as salary', () => {
+      const withoutBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 0 } });
+      const withBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12 } });
+
+      // $12k bonus * 65% keep rate / 12mo = $650/mo, every year (flat, no inflation growth).
+      for (let year = 0; year <= 18; year++) {
+        expect(withBonus.chart.freeCash[year] - withoutBonus.chart.freeCash[year]).toBeCloseTo(650, 6);
+      }
+    });
+
+    it('does not add the bonus to grossSalary - that figure is salary only', () => {
+      const withBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12 } });
+      const withoutBonus = run({ goals: [], primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 0 } });
+
+      expect(withBonus.snapshot.grossSalary).toBe(withoutBonus.snapshot.grossSalary);
+    });
+
+    it('stays flat (no inflation growth) across the horizon, like salary/raise breakpoints', () => {
+      // With no raises/growth, gross salary is flat at $70k every year, so the bonus's $650/mo net
+      // contribution should be identical year over year too (no CPI-style compounding applied to it).
+      const bonusContribution = (year: number) => {
+        const withBonus = run({
+          goals: [],
+          primaryIncome: { ...PRIMARY_INCOME, raises: [], growthAfterLastRaisePct: 0, annualBonusK: 12 },
+          base: { ...BASE, inspectYear: year },
+        }).snapshot.freeCash;
+        const withoutBonus = run({
+          goals: [],
+          primaryIncome: { ...PRIMARY_INCOME, raises: [], growthAfterLastRaisePct: 0, annualBonusK: 0 },
+          base: { ...BASE, inspectYear: year },
+        }).snapshot.freeCash;
+        return withBonus - withoutBonus;
+      };
+
+      expect(bonusContribution(1)).toBeCloseTo(bonusContribution(15), 6);
+    });
+
+    it('is zeroed out from the job-loss year on, same as salary', () => {
+      const result = run({
+        goals: [],
+        primaryIncome: { ...PRIMARY_INCOME, annualBonusK: 12, jobLossYear: 3 },
+        base: { ...BASE, inspectYear: 5 },
+      });
+
+      expect(result.snapshot.netIncome).toBe(0);
+    });
+
+    it('applies to the partner stream the same way', () => {
+      const partnerStream = (annualBonusK: number): IncomeStreamInputs => ({
+        salaryY0K: 40,
+        growthAfterLastRaisePct: 0,
+        netKeepRatePct: 60,
+        raises: [],
+        annualBonusK,
+        jobLossYear: 10,
+      });
+      const noBonus = run({ goals: [], partnerIncome: partnerStream(0) });
+      const withBonus = run({ goals: [], partnerIncome: partnerStream(20) });
+
+      // $20k bonus * 60% keep rate / 12mo = $1000/mo.
+      expect(withBonus.chart.freeCash[5] - noBonus.chart.freeCash[5]).toBeCloseTo(1000, 6);
     });
   });
 });

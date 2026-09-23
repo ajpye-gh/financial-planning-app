@@ -308,7 +308,8 @@ legend {
 /* Range input */
 
 input[type='range'] {
-  flex: 1;
+  flex: 1 1 40px;
+  min-width: 0;
   appearance: none;
   height: 4px;
   border-radius: 999px;
@@ -356,7 +357,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 .app-shell__sidebar {
-  flex: 0 0 300px;
+  flex: 0 0 360px;
   position: sticky;
   top: 24px;
   max-height: calc(100svh - 48px);
@@ -428,6 +429,10 @@ input[type='range']::-moz-range-thumb {
   margin-bottom: 0;
 }
 
+.slider-field--disabled {
+  opacity: 0.5;
+}
+
 .slider-field__label {
   font-size: 13px;
   color: var(--text-secondary);
@@ -436,7 +441,8 @@ input[type='range']::-moz-range-thumb {
 .slider-field__control {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .slider-field__value {
@@ -445,6 +451,29 @@ input[type='range']::-moz-range-thumb {
   color: var(--text-primary);
   min-width: 58px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.slider-field__bound {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider-field__bound:hover {
+  color: var(--text-primary);
+}
+
+input.slider-field__bound-input,
+input.slider-field__value-input {
+  flex: none;
+  width: 76px;
+  padding: 0.2rem 0.35rem;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -489,19 +518,8 @@ input[type='range']::-moz-range-thumb {
   font-size: 12px;
 }
 
-.salary-raise-row__control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.salary-raise-row__value {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  min-width: 40px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.salary-raise-row .slider-field {
+  margin-bottom: 0;
 }
 
 .salary-raise-row__remove {
@@ -986,6 +1004,12 @@ input[type='range']::-moz-range-thumb {
   stroke-dasharray: 5 4;
 }
 
+/* Same solid weight as --primary/--unallocated, since a third balance line (after-tax) is a real
+   data series, not a thin dashed reference line like --target below. */
+.cashflow-chart__line--tertiary {
+  stroke: var(--text-secondary);
+}
+
 .cashflow-chart__line--target {
   stroke: var(--text-secondary);
   stroke-width: 1;
@@ -1002,6 +1026,19 @@ input[type='range']::-moz-range-thumb {
 .cashflow-chart__retirement-marker-label {
   fill: var(--accent);
   font-size: 11px;
+}
+
+.cashflow-chart__marker {
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.cashflow-chart__marker--primary {
+  stroke: var(--accent);
+}
+
+.cashflow-chart__marker--unallocated {
+  stroke: var(--success);
 }
 
 .cashflow-chart__line--zero-cash {
@@ -1057,6 +1094,10 @@ input[type='range']::-moz-range-thumb {
   fill: var(--warning);
 }
 
+.cashflow-chart__point--tertiary {
+  fill: var(--text-secondary);
+}
+
 .cashflow-chart__tooltip-box {
   fill: var(--surface-2);
   stroke: var(--border);
@@ -1086,6 +1127,10 @@ input[type='range']::-moz-range-thumb {
 
 .cashflow-chart__tooltip-row--cash {
   fill: var(--warning);
+}
+
+.cashflow-chart__tooltip-row--tertiary {
+  fill: var(--text-secondary);
 }
 
 .cashflow-chart__legend {
@@ -1135,6 +1180,10 @@ input[type='range']::-moz-range-thumb {
 }
 
 .cashflow-chart__swatch--target {
+  background: var(--text-secondary);
+}
+
+.cashflow-chart__swatch--tertiary {
   background: var(--text-secondary);
 }
 
@@ -1192,3 +1241,12 @@ input[type='range']::-moz-range-thumb {
 .breakdown-table__value--success {
   color: var(--success);
 }
+
+/* Mortgage */
+
+.mortgage-page__empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+  max-width: 480px;
+}
+

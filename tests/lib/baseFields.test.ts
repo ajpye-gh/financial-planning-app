@@ -4,12 +4,12 @@ import {
   INSPECT_YEAR_FIELD,
   RETIREMENT_ROTH_CONTRIBUTION_FIELD,
   RETIREMENT_ROTH_SAVINGS_FIELD,
-  RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_ROTH_WITHDRAWAL_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
   RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
-  RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD,
+  RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD,
   visibleBaseFieldGroups,
 } from '@src/lib/baseFields';
 import { MAX_PROJECTION_AGE } from '@src/lib/retirement';
@@ -25,17 +25,26 @@ describe('visibleBaseFieldGroups', () => {
 
     expect(fieldIds).not.toContain('homeValueK');
     expect(fieldIds).not.toContain('mortgageBalanceK');
-    expect(fieldIds).not.toContain('housingPrincipalInterestMo');
+    expect(fieldIds).not.toContain('currentMortgageRatePct');
     expect(fieldIds).toContain('housingPaymentMo');
   });
 
-  it('shows home value/mortgage fields under Assets for an owner', () => {
+  it('shows home value/mortgage balance under Assets for an owner', () => {
     const groups = visibleBaseFieldGroups({ housing: 'own' });
 
     expect(fieldIdsIn('Assets', groups)).toEqual(
       expect.arrayContaining(['homeValueK', 'mortgageBalanceK', 'brokerageTodayK', 'cashTodayK']),
     );
-    expect(fieldIdsIn('Expenses', groups)).toContain('housingPrincipalInterestMo');
+  });
+
+  it('does not show the mortgage rate under Assets - it is edited on the Mortgage tab instead', () => {
+    const fieldIds = fieldIdsIn('Assets', visibleBaseFieldGroups({ housing: 'own' }));
+    expect(fieldIds).not.toContain('currentMortgageRatePct');
+  });
+
+  it('no longer renders a manual "of which is P&I" slider - it is computed from the Mortgage tab inputs instead', () => {
+    const fieldIds = visibleBaseFieldGroups({ housing: 'own' }).flatMap((group) => group.fields.map((field) => field.id));
+    expect(fieldIds).not.toContain('housingPrincipalInterestMo');
   });
 
   it('mirrors Income as its own always-visible Partner income group - no questionnaire gating it anymore', () => {
@@ -43,6 +52,16 @@ describe('visibleBaseFieldGroups', () => {
       'partnerSalaryY0K',
       'partnerSalaryGrowthAfterY10Pct',
       'partnerNetKeepRatePct',
+      'partnerAnnualBonusK',
+    ]);
+  });
+
+  it('includes the annual bonus field under Income', () => {
+    expect(fieldIdsIn('Income', visibleBaseFieldGroups({}))).toEqual([
+      'salaryY0K',
+      'salaryGrowthAfterY10Pct',
+      'netKeepRatePct',
+      'annualBonusK',
     ]);
   });
 
@@ -72,20 +91,20 @@ describe('visibleBaseFieldGroups', () => {
     const fieldIds = visibleBaseFieldGroups({}).flatMap((group) => group.fields.map((field) => field.id));
     expect(fieldIds).not.toContain('retirementRothSavingsTodayK');
     expect(fieldIds).not.toContain('retirementRothContributionMo');
-    expect(fieldIds).not.toContain('retirementRothWithdrawalRatePct');
+    expect(fieldIds).not.toContain('retirementRothWithdrawalMo');
     expect(fieldIds).not.toContain('retirementTraditionalSavingsTodayK');
     expect(fieldIds).not.toContain('retirementTraditionalContributionMo');
-    expect(fieldIds).not.toContain('retirementTraditionalWithdrawalRatePct');
+    expect(fieldIds).not.toContain('retirementTraditionalWithdrawalMo');
     expect(fieldIds).not.toContain('retirementSocialSecurityMo');
     expect(fieldIds).not.toContain('retirementTargetAge');
     expect(ALL_BASE_FIELD_IDS).toEqual(
       expect.arrayContaining([
         RETIREMENT_ROTH_SAVINGS_FIELD.id,
         RETIREMENT_ROTH_CONTRIBUTION_FIELD.id,
-        RETIREMENT_ROTH_WITHDRAWAL_RATE_FIELD.id,
+        RETIREMENT_ROTH_WITHDRAWAL_FIELD.id,
         RETIREMENT_TRADITIONAL_SAVINGS_FIELD.id,
         RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD.id,
-        RETIREMENT_TRADITIONAL_WITHDRAWAL_RATE_FIELD.id,
+        RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD.id,
         RETIREMENT_SOCIAL_SECURITY_FIELD.id,
         RETIREMENT_TARGET_AGE_FIELD.id,
       ]),
@@ -94,5 +113,10 @@ describe('visibleBaseFieldGroups', () => {
 
   it("Inspect age's slider max stays in sync with retirement.ts's MAX_PROJECTION_AGE - both should always cap the projection/inspection window at the same age", () => {
     expect(DEFAULT_BASE_RANGES.retirementInspectAge.max).toBe(MAX_PROJECTION_AGE);
+  });
+
+  it('renders cashGrowthPct in the Assumptions group, right next to inflationPct', () => {
+    const assumptionsIds = fieldIdsIn('Assumptions', visibleBaseFieldGroups({}));
+    expect(assumptionsIds).toEqual(['inflationPct', 'cashGrowthPct', 'investmentReturnPct']);
   });
 });

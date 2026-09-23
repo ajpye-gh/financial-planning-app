@@ -6,6 +6,7 @@ import type { RetirementProjection } from '../../lib/retirement';
 interface RetirementChartProps {
   rothProjection: RetirementProjection;
   traditionalProjection: RetirementProjection;
+  afterTaxProjection: RetirementProjection;
   /** Annual federal tax owed, one entry per year - a very different magnitude than the balance
    *  lines, so it gets its own right-side axis (same reasoning as CashflowChart's cash/primary
    *  split). */
@@ -37,23 +38,31 @@ function axisTicks(min: number, max: number, count: number): number[] {
   return Array.from({ length: count }, (_, i) => min + ((max - min) * i) / (count - 1));
 }
 
-/** A three-line chart for the Roth and Traditional retirement balances plus estimated income tax,
- *  reusing the `.cashflow-chart*` classes from CashflowChart.tsx instead of new CSS. Roth and
- *  Traditional share one (left) y-scale - same kind of quantity, a running balance. Tax gets its
- *  own (right) y-scale, same split CashflowChart already uses between its balance-like series and
- *  its very-differently-scaled monthly cashflow series. */
-export function RetirementChart({ rothProjection, traditionalProjection, taxSeries, currentAge }: Readonly<RetirementChartProps>) {
+/** A four-line chart for the Roth, Traditional, and after-tax retirement balances plus estimated
+ *  income tax, reusing the `.cashflow-chart*` classes from CashflowChart.tsx (plus a `--tertiary`
+ *  variant added alongside them) instead of new one-off CSS. All three balances share one (left)
+ *  y-scale - same kind of quantity, a running balance. Tax gets its own (right) y-scale, same split
+ *  CashflowChart already uses between its balance-like series and its very-differently-scaled
+ *  monthly cashflow series. */
+export function RetirementChart({
+  rothProjection,
+  traditionalProjection,
+  afterTaxProjection,
+  taxSeries,
+  currentAge,
+}: Readonly<RetirementChartProps>) {
   const { yearLabels, retirementYearIndex } = rothProjection;
   const rothBalances = rothProjection.balances;
   const traditionalBalances = traditionalProjection.balances;
+  const afterTaxBalances = afterTaxProjection.balances;
   const count = yearLabels.length;
   const ageLabels = yearLabels.map((_, index) => String(currentAge + index));
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const balanceMax = Math.max(...rothBalances, ...traditionalBalances, 0);
-  const balanceMin = Math.min(...rothBalances, ...traditionalBalances, 0);
+  const balanceMax = Math.max(...rothBalances, ...traditionalBalances, ...afterTaxBalances, 0);
+  const balanceMin = Math.min(...rothBalances, ...traditionalBalances, ...afterTaxBalances, 0);
   const balanceRange = balanceMax - balanceMin || 1;
 
   const taxMax = Math.max(...taxSeries, 0);
@@ -66,6 +75,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
 
   const rothLine = buildPath(rothBalances, scaleX, scaleBalanceY);
   const traditionalLine = buildPath(traditionalBalances, scaleX, scaleBalanceY);
+  const afterTaxLine = buildPath(afterTaxBalances, scaleX, scaleBalanceY);
   const taxLine = buildPath(taxSeries, scaleX, scaleTaxY);
   const balanceTicks = axisTicks(balanceMin, balanceMax, AXIS_TICK_COUNT);
   const taxTicks = axisTicks(taxMin, taxMax, AXIS_TICK_COUNT);
@@ -97,6 +107,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
       : [
           { text: `Roth: ${formatCurrencyCompact(rothBalances[hoverIndex])}`, className: 'primary' },
           { text: `Traditional: ${formatCurrencyCompact(traditionalBalances[hoverIndex])}`, className: 'unallocated' },
+          { text: `After-tax: ${formatCurrencyCompact(afterTaxBalances[hoverIndex])}`, className: 'tertiary' },
           { text: `Tax: ${formatCurrency(taxSeries[hoverIndex])}/yr`, className: 'cash' },
         ];
   const tooltipHeight = TOOLTIP_TOP_PADDING + tooltipRows.length * TOOLTIP_ROW_HEIGHT + TOOLTIP_BOTTOM_PADDING;
@@ -107,7 +118,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="cashflow-chart__svg"
         role="img"
-        aria-label={`Projected Roth and Traditional retirement balances and estimated income tax from age ${currentAge} through age ${currentAge + count - 1}, including drawdown after retirement`}
+        aria-label={`Projected Roth, Traditional, and after-tax retirement balances and estimated income tax from age ${currentAge} through age ${currentAge + count - 1}, including drawdown after retirement`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
@@ -124,6 +135,7 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
 
         <path d={rothLine} className="cashflow-chart__line cashflow-chart__line--primary" />
         <path d={traditionalLine} className="cashflow-chart__line cashflow-chart__line--unallocated" />
+        <path d={afterTaxLine} className="cashflow-chart__line cashflow-chart__line--tertiary" />
         <path d={taxLine} className="cashflow-chart__line cashflow-chart__line--cash" />
 
         {retirementYearIndex > 0 && retirementYearIndex < count - 1 && (
@@ -183,6 +195,12 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
               r={4}
               className="cashflow-chart__point cashflow-chart__point--unallocated"
             />
+            <circle
+              cx={hoverX}
+              cy={scaleBalanceY(afterTaxBalances[hoverIndex])}
+              r={4}
+              className="cashflow-chart__point cashflow-chart__point--tertiary"
+            />
             <circle cx={hoverX} cy={scaleTaxY(taxSeries[hoverIndex])} r={4} className="cashflow-chart__point cashflow-chart__point--cash" />
             <g transform={`translate(${tooltipX}, ${PADDING.top})`} className="cashflow-chart__tooltip">
               <rect width={TOOLTIP_WIDTH} height={tooltipHeight} rx={8} className="cashflow-chart__tooltip-box" />
@@ -209,6 +227,9 @@ export function RetirementChart({ rothProjection, traditionalProjection, taxSeri
         </span>
         <span className="cashflow-chart__legend-item">
           <span className="cashflow-chart__swatch cashflow-chart__swatch--unallocated" /> Traditional
+        </span>
+        <span className="cashflow-chart__legend-item">
+          <span className="cashflow-chart__swatch cashflow-chart__swatch--tertiary" /> After-tax
         </span>
         <span className="cashflow-chart__legend-item">
           <span className="cashflow-chart__swatch cashflow-chart__swatch--cash" />

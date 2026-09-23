@@ -2,9 +2,23 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RetirementPage } from '@src/components/retirement/RetirementPage';
 import { DEFAULT_BASE_RANGES, baseDefaults, type BaseInputs } from '@src/lib/baseData';
-import { buildRetirementVerdict, projectHouseholdRetirementIncome, projectRetirementBalance } from '@src/lib/retirement';
-import { formatCurrency, formatCurrencyCompact } from '@src/lib/format';
+import {
+  buildRetirementVerdict,
+  projectedBalanceAtRetirement,
+  projectHouseholdRetirementIncome,
+  projectRetirementBalance,
+} from '@src/lib/retirement';
+import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '@src/lib/format';
 import type { Answers } from '@src/lib/questions';
+
+// Mirrors RetirementPage.tsx's own dollar -> rate conversion, so tests can build the exact same
+// expected projection the component itself would, regardless of which dollar figure a given test
+// chooses to exercise - see retirement.test.ts's "dollar <-> rate equivalence" suite for the math
+// itself.
+function derivedRatePct(startingBalance: number, contributionMo: number, investmentReturnPct: number, targetYearOffset: number, withdrawalMo: number): number {
+  const balanceAtRetirement = projectedBalanceAtRetirement(startingBalance, contributionMo, investmentReturnPct, targetYearOffset);
+  return balanceAtRetirement > 0 ? ((withdrawalMo * 12) / balanceAtRetirement) * 100 : 0;
+}
 
 const BASE_INPUTS: BaseInputs = {
   ...baseDefaults(DEFAULT_BASE_RANGES),
@@ -12,10 +26,15 @@ const BASE_INPUTS: BaseInputs = {
   inflationPct: 3,
   retirementRothSavingsTodayK: 500,
   retirementRothContributionMo: 500,
-  retirementRothWithdrawalRatePct: 4,
+  retirementRothWithdrawalMo: 5700,
   retirementTraditionalSavingsTodayK: 300,
   retirementTraditionalContributionMo: 500,
-  retirementTraditionalWithdrawalRatePct: 4,
+  retirementTraditionalWithdrawalMo: 3700,
+  // ~4% of the after-tax balance projected at this test suite's own 20-year accumulation window
+  // (currentAge 35 -> targetAge 55) - Defaults.json's own $900 default is calibrated to a 30-year
+  // window (age 35 -> 65) instead, which would imply a much more aggressive ~7% rate here and
+  // deplete this pot in tests that don't mean to exercise depletion at all.
+  retirementAfterTaxWithdrawalMo: 500,
   retirementSocialSecurityMo: 2000,
   retirementCurrentAge: 35,
   retirementTargetAge: 55,
@@ -36,15 +55,18 @@ function renderRetirementPage(overrides: Partial<Parameters<typeof RetirementPag
 }
 
 describe('RetirementPage', () => {
-  it('renders separate Roth and Traditional groups, each with their own savings/contribution/withdrawal-rate sliders', () => {
+  it('renders separate Roth, Traditional, and after-tax groups, each with their own savings/contribution/withdrawal sliders', () => {
     renderRetirementPage();
 
-    expect(screen.getByRole('button', { name: /Roth/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Traditional/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Roth$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Traditional$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^After-tax$/ })).toBeInTheDocument();
     expect(screen.getByText('Current Roth savings')).toBeInTheDocument();
     expect(screen.getByText('Current Traditional savings')).toBeInTheDocument();
-    expect(screen.getAllByText('Monthly contribution')).toHaveLength(2);
-    expect(screen.getAllByText('Initial withdrawal rate')).toHaveLength(2);
+    expect(screen.getByText('Current after-tax savings')).toBeInTheDocument();
+    expect(screen.getAllByText('Monthly contribution')).toHaveLength(3);
+    expect(screen.getAllByText('Initial monthly withdrawal')).toHaveLength(3);
+    expect(screen.getByText('Taxable gain %')).toBeInTheDocument();
     expect(screen.getByText('Target retirement age')).toBeInTheDocument();
   });
 
@@ -57,29 +79,151 @@ describe('RetirementPage', () => {
     expect(sidebar).toContainElement(screen.getByLabelText('Target retirement age'));
   });
 
-  it('calls onChange with the right field id for the Roth vs Traditional withdrawal-rate sliders', () => {
+  it('calls onChange with the right field id for the Roth vs Traditional monthly-withdrawal sliders', () => {
     const onChange = jest.fn();
     renderRetirementPage({ onChange });
 
-    const [rothSlider, traditionalSlider] = screen.getAllByLabelText('Initial withdrawal rate') as HTMLInputElement[];
+    const [rothSlider, traditionalSlider] = screen.getAllByLabelText('Initial monthly withdrawal') as HTMLInputElement[];
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
 
-    setter?.call(rothSlider, '5');
+    setter?.call(rothSlider, '6000');
     rothSlider.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(onChange).toHaveBeenCalledWith('retirementRothWithdrawalRatePct', 5);
+    expect(onChange).toHaveBeenCalledWith('retirementRothWithdrawalMo', 6000);
 
-    setter?.call(traditionalSlider, '3');
+    setter?.call(traditionalSlider, '4000');
     traditionalSlider.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(onChange).toHaveBeenCalledWith('retirementTraditionalWithdrawalRatePct', 3);
+    expect(onChange).toHaveBeenCalledWith('retirementTraditionalWithdrawalMo', 4000);
   });
 
-  it('renders the Social Security field alongside a filing-status toggle', () => {
+  describe('dollar-primary, rate-secondary withdrawal sliders', () => {
+    it("shows the monthly dollar amount as the slider's primary value, with the equivalent initial withdrawal rate alongside it in parentheses", () => {
+      renderRetirementPage();
+
+      // currentAge 35, targetAge 55 -> targetYearOffset 20.
+      const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+      const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+
+      const rothSlider = screen.getAllByLabelText('Initial monthly withdrawal')[0].closest('.slider-field');
+      expect(rothSlider).toHaveTextContent(formatSliderValue(5700, '$'));
+      expect(rothSlider).toHaveTextContent(`(${formatSliderValue(rothRatePct, '%')})`);
+
+      const traditionalSlider = screen.getAllByLabelText('Initial monthly withdrawal')[1].closest('.slider-field');
+      expect(traditionalSlider).toHaveTextContent(formatSliderValue(3700, '$'));
+      expect(traditionalSlider).toHaveTextContent(`(${formatSliderValue(traditionalRatePct, '%')})`);
+    });
+
+    it('is a single slider, not a second interactive control, for the derived rate', () => {
+      renderRetirementPage();
+
+      // Exactly one range input per pot for the withdrawal field - "Initial monthly withdrawal" is
+      // the only label, and the % shown alongside it is plain text, not another <input type="range">.
+      expect(screen.getAllByLabelText('Initial monthly withdrawal')).toHaveLength(3);
+      expect(screen.queryByLabelText(/Initial withdrawal rate/)).not.toBeInTheDocument();
+    });
+
+    it('the displayed rate recalculates as the dollar amount changes, tracking whatever balance is currently projected', () => {
+      const lowRate = derivedRatePct(500000, 500, 6, 20, 1000);
+      const highRate = derivedRatePct(500000, 500, 6, 20, 10000);
+      expect(highRate).toBeGreaterThan(lowRate);
+
+      const { rerender } = renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementRothWithdrawalMo: 1000 } });
+      let rothSlider = screen.getAllByLabelText('Initial monthly withdrawal')[0].closest('.slider-field');
+      expect(rothSlider).toHaveTextContent(`(${formatSliderValue(lowRate, '%')})`);
+
+      rerender(
+        <RetirementPage
+          baseInputs={{ ...BASE_INPUTS, retirementRothWithdrawalMo: 10000 }}
+          ranges={DEFAULT_BASE_RANGES}
+          onChange={jest.fn()}
+          answers={{}}
+          onAnswer={jest.fn()}
+        />,
+      );
+      rothSlider = screen.getAllByLabelText('Initial monthly withdrawal')[0].closest('.slider-field');
+      expect(rothSlider).toHaveTextContent(`(${formatSliderValue(highRate, '%')})`);
+    });
+  });
+
+  it('renders the Social Security field alongside a filing-status toggle and a Social Security on/off toggle', () => {
     renderRetirementPage();
 
     expect(screen.getByText('Social Security benefit')).toBeInTheDocument();
     expect(screen.getByText('Filing status')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Single' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Married' })).toBeInTheDocument();
+    expect(screen.getByText('Social Security', { selector: '.housing-toggle__label' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'On' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Off' })).toBeInTheDocument();
+  });
+
+  describe('Social Security on/off toggle', () => {
+    it('defaults to On when unanswered, and the benefit slider is enabled', () => {
+      renderRetirementPage();
+
+      expect(screen.getByRole('button', { name: 'On' })).toHaveClass('chart-toggle__tab--active');
+      const ssSlider = screen.getByLabelText('Social Security benefit') as HTMLInputElement;
+      expect(ssSlider).not.toBeDisabled();
+    });
+
+    it('calls onAnswer with socialSecurityEnabled=false when Off is clicked', async () => {
+      const user = userEvent.setup();
+      const onAnswer = jest.fn();
+      renderRetirementPage({ onAnswer });
+
+      await user.click(screen.getByRole('button', { name: 'Off' }));
+      expect(onAnswer).toHaveBeenCalledWith('socialSecurityEnabled', false);
+    });
+
+    it('calls onAnswer with socialSecurityEnabled=true when On is clicked from an off state', async () => {
+      const user = userEvent.setup();
+      const onAnswer = jest.fn();
+      renderRetirementPage({ onAnswer, answers: { socialSecurityEnabled: false } as Answers });
+
+      await user.click(screen.getByRole('button', { name: 'On' }));
+      expect(onAnswer).toHaveBeenCalledWith('socialSecurityEnabled', true);
+    });
+
+    it('disables the benefit slider once turned off', () => {
+      renderRetirementPage({ answers: { socialSecurityEnabled: false } as Answers });
+
+      expect(screen.getByRole('button', { name: 'Off' })).toHaveClass('chart-toggle__tab--active');
+      const ssSlider = screen.getByLabelText('Social Security benefit') as HTMLInputElement;
+      expect(ssSlider).toBeDisabled();
+    });
+
+    it('drops Social Security from the income breakdown table entirely when off, rather than showing a $0 line', () => {
+      renderRetirementPage({ answers: { socialSecurityEnabled: false } as Answers });
+
+      expect(screen.getByText('Age 55 detail')).toBeInTheDocument();
+      expect(screen.queryByText('Social Security, gross')).not.toBeInTheDocument();
+      expect(screen.queryByText('— of which taxable Social Security')).not.toBeInTheDocument();
+    });
+
+    it('still shows Social Security, gross when on', () => {
+      renderRetirementPage();
+      expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
+    });
+
+    it('contributes $0 to estimated income once turned off, even though the benefit slider still holds a nonzero value', () => {
+      // Already retired at 65 (>= SS_MIN_CLAIMING_AGE) so Social Security is actually active at the
+      // inspected age - BASE_INPUTS's default retirement age of 55 wouldn't be, since Social
+      // Security never starts before 62 regardless of retirement age.
+      const alreadyRetired = { ...BASE_INPUTS, retirementCurrentAge: 65, retirementTargetAge: 65, retirementInspectAge: 65 };
+
+      const onWithoutSS = renderRetirementPage({ baseInputs: alreadyRetired, answers: { socialSecurityEnabled: false } as Answers });
+      const incomeWithoutSS = screen.getByText('Estimated income, inspect age').closest('.metric-card')?.querySelector('.metric-card__value')
+        ?.textContent;
+      onWithoutSS.unmount();
+
+      renderRetirementPage({ baseInputs: alreadyRetired, answers: { socialSecurityEnabled: true } as Answers });
+      const incomeWithSS = screen.getByText('Estimated income, inspect age').closest('.metric-card')?.querySelector('.metric-card__value')
+        ?.textContent;
+
+      // The stored benefit slider value ($2,000/mo) is unchanged between the two renders - only the
+      // toggle differs - so a lower net income with SS off confirms it's actually excluded from the
+      // model, not just hidden from the table.
+      expect(incomeWithoutSS).not.toBe(incomeWithSS);
+    });
   });
 
   it('defaults the filing-status toggle to Single, and calls onAnswer when Married is clicked', async () => {
@@ -130,13 +274,17 @@ describe('RetirementPage', () => {
     expect(onChange).toHaveBeenCalledWith('retirementCurrentAge', 40);
   });
 
-  it('shows the combined Roth+Traditional balance at the inspected age, matching projectRetirementBalance for each pot', () => {
+  it('shows the combined Roth+Traditional+after-tax balance at the inspected age, matching projectRetirementBalance for each pot', () => {
     const { container } = renderRetirementPage();
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const combined = roth.balances[20] + traditional.balances[20];
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const afterTaxRatePct = derivedRatePct(50000, 0, 6, 20, BASE_INPUTS.retirementAfterTaxWithdrawalMo);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, afterTaxRatePct, 3);
+    const combined = roth.balances[20] + traditional.balances[20] + afterTax.balances[20];
 
     expect(screen.getByText('Total balance, inspect age')).toBeInTheDocument();
     expect(container.querySelector('.metric-card__value')).toHaveTextContent(formatCurrencyCompact(combined));
@@ -146,9 +294,24 @@ describe('RetirementPage', () => {
     renderRetirementPage();
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3)[20];
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const afterTaxRatePct = derivedRatePct(50000, 0, 6, 20, BASE_INPUTS.retirementAfterTaxWithdrawalMo);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, afterTaxRatePct, 3);
+    const income = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'single',
+      inflationPct: 3,
+    })[20];
 
     expect(screen.getByText('Estimated income, inspect age')).toBeInTheDocument();
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
@@ -161,9 +324,24 @@ describe('RetirementPage', () => {
     renderRetirementPage();
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const series = projectHouseholdRetirementIncome(roth, traditional, 2000, 'single', 3);
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const afterTaxRatePct = derivedRatePct(50000, 0, 6, 20, BASE_INPUTS.retirementAfterTaxWithdrawalMo);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, afterTaxRatePct, 3);
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'single',
+      inflationPct: 3,
+    });
     const totalTaxPaid = series.reduce((sum, entry) => sum + entry.tax.tax, 0);
 
     expect(screen.getByText('Total taxes paid')).toBeInTheDocument();
@@ -178,7 +356,33 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Traditional withdrawal, gross')).toBeInTheDocument();
     expect(screen.getByText('Social Security, gross')).toBeInTheDocument();
     expect(screen.getByText('Standard deduction')).toBeInTheDocument();
-    expect(screen.getByText('Federal tax')).toBeInTheDocument();
+    expect(screen.getByText('Federal tax, total')).toBeInTheDocument();
+  });
+
+  it("shows each pot's current-year withdrawal as a % of its balance alongside the dollar figure, matching effectiveWithdrawalRatePct", () => {
+    renderRetirementPage();
+
+    // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65. Inspect index 20 = age 55.
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3, { currentAge: 35 });
+
+    const rothRow = screen.getByText('Roth withdrawal').closest('tr');
+    expect(rothRow).toHaveTextContent(formatSliderValue(roth.effectiveWithdrawalRatePct[20], '%'));
+    const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
+    expect(traditionalRow).toHaveTextContent(formatSliderValue(traditional.effectiveWithdrawalRatePct[20], '%'));
+  });
+
+  it('the displayed withdrawal-rate % drifts away from the Initial monthly withdrawal input over time, since the withdrawal grows with inflation but the balance follows investment return instead', () => {
+    renderRetirementPage({ baseInputs: { ...BASE_INPUTS, retirementInspectAge: 90 } });
+
+    // Age 90 is deep into decumulation - the initial ~4% rate implied by the $5,700/mo Roth target
+    // should no longer be what's shown, since the withdrawal itself has compounded with inflation
+    // for 35 years by then.
+    const initialRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const rothRow = screen.getByText('Roth withdrawal').closest('tr');
+    expect(rothRow).not.toHaveTextContent(formatSliderValue(initialRatePct, '%'));
   });
 
   it("shows a nonzero Traditional withdrawal and tax immediately when already retired (Current age == Target retirement age), not just starting the year after", () => {
@@ -198,7 +402,7 @@ describe('RetirementPage', () => {
     expect(screen.getByText('Age 65 detail')).toBeInTheDocument();
     const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
     expect(traditionalRow).not.toHaveTextContent('$0/yr');
-    const taxRow = screen.getByText('Federal tax').closest('tr');
+    const taxRow = screen.getByText('Federal tax, total').closest('tr');
     expect(taxRow).not.toHaveTextContent('$0/yr');
   });
 
@@ -243,9 +447,24 @@ describe('RetirementPage', () => {
     renderRetirementPage({ answers: { filingStatus: 'marriedJoint' } as Answers });
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const income = projectHouseholdRetirementIncome(roth, traditional, 2000, 'marriedJoint', 3)[20];
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const afterTaxRatePct = derivedRatePct(50000, 0, 6, 20, BASE_INPUTS.retirementAfterTaxWithdrawalMo);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, afterTaxRatePct, 3);
+    const income = projectHouseholdRetirementIncome({
+      rothProjection: roth,
+      traditionalProjection: traditional,
+      afterTaxProjection: afterTax,
+      afterTaxGainPct: 50,
+      pensionMonthlyToday: 0,
+      pensionStartAge: 65,
+      ssMonthlyBenefitToday: 2000,
+      currentAge: 35,
+      filingStatus: 'marriedJoint',
+      inflationPct: 3,
+    })[20];
 
     expect(screen.getByText(`${formatCurrency(income.netMonthlyNominal)}/mo`)).toBeInTheDocument();
   });
@@ -254,24 +473,38 @@ describe('RetirementPage', () => {
     renderRetirementPage();
 
     // currentAge 35 -> finalYear = MAX_PROJECTION_AGE(100) - 35 = 65.
-    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, 4, 3);
-    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, 4, 3);
-    const verdict = buildRetirementVerdict(roth, traditional, BASE_INPUTS.retirementCurrentAge);
+    const rothRatePct = derivedRatePct(500000, 500, 6, 20, 5700);
+    const traditionalRatePct = derivedRatePct(300000, 500, 6, 20, 3700);
+    const afterTaxRatePct = derivedRatePct(50000, 0, 6, 20, BASE_INPUTS.retirementAfterTaxWithdrawalMo);
+    const roth = projectRetirementBalance(500000, 500, 6, 20, 65, rothRatePct, 3);
+    const traditional = projectRetirementBalance(300000, 500, 6, 20, 65, traditionalRatePct, 3);
+    const afterTax = projectRetirementBalance(50000, 0, 6, 20, 65, afterTaxRatePct, 3);
+    const verdict = buildRetirementVerdict(
+      [
+        { name: 'Roth', projection: roth },
+        { name: 'Traditional', projection: traditional },
+        { name: 'After-tax', projection: afterTax },
+      ],
+      BASE_INPUTS.retirementCurrentAge,
+    );
 
     expect(screen.getByText(verdict.headline)).toBeInTheDocument();
     expect(document.querySelector(`.verdict-banner--${verdict.tone}`)).toBeInTheDocument();
   });
 
-  it('shows a danger verdict when both pots are drained to depletion', () => {
+  it('shows a danger verdict when every pot is drained to depletion', () => {
     renderRetirementPage({
       baseInputs: {
         ...BASE_INPUTS,
         retirementRothSavingsTodayK: 10,
         retirementRothContributionMo: 0,
-        retirementRothWithdrawalRatePct: 8,
+        retirementRothWithdrawalMo: 250,
         retirementTraditionalSavingsTodayK: 10,
         retirementTraditionalContributionMo: 0,
-        retirementTraditionalWithdrawalRatePct: 8,
+        retirementTraditionalWithdrawalMo: 250,
+        retirementAfterTaxSavingsTodayK: 10,
+        retirementAfterTaxContributionMo: 0,
+        retirementAfterTaxWithdrawalMo: 250,
       },
     });
 
@@ -284,11 +517,68 @@ describe('RetirementPage', () => {
         ...BASE_INPUTS,
         retirementRothSavingsTodayK: 10,
         retirementRothContributionMo: 0,
-        retirementRothWithdrawalRatePct: 8,
+        retirementRothWithdrawalMo: 250,
       },
     });
 
     expect(document.querySelector('.verdict-banner--warning')).toBeInTheDocument();
     expect(screen.getByText(/Roth runs out/)).toBeInTheDocument();
+  });
+
+  it('shows a clear early-withdrawal-penalty warning banner when retiring before age 60 with a Traditional withdrawal', () => {
+    // BASE_INPUTS retires at 55 (< 60) with a nonzero Traditional balance/withdrawal by default.
+    renderRetirementPage();
+
+    expect(screen.getByText(/10% early-withdrawal penalty applies/)).toBeInTheDocument();
+    expect(screen.getByText(/59½/)).toBeInTheDocument();
+  });
+
+  it('does not show the early-withdrawal-penalty warning when retiring at or after age 60', () => {
+    renderRetirementPage({
+      baseInputs: { ...BASE_INPUTS, retirementCurrentAge: 60, retirementTargetAge: 60, retirementInspectAge: 60 },
+    });
+
+    expect(screen.queryByText(/early-withdrawal penalty/)).not.toBeInTheDocument();
+  });
+
+  it("shows $0 Social Security before age 62 even though already retired, matching the real earliest claiming age", () => {
+    renderRetirementPage({
+      baseInputs: {
+        ...BASE_INPUTS,
+        retirementCurrentAge: 55,
+        retirementTargetAge: 55,
+        retirementInspectAge: 55,
+      },
+    });
+
+    expect(screen.getByText('Age 55 detail')).toBeInTheDocument();
+    const ssRow = screen.getByText('Social Security, gross').closest('tr');
+    expect(ssRow).toHaveTextContent('$0/yr');
+  });
+
+  it('forces a Traditional withdrawal at least as large as the Required Minimum Distribution once age reaches 73', () => {
+    // A ~2%-equivalent withdrawal target would normally take ~2% of the balance; at age 73 the RMD
+    // (balance / 26.5) is much larger and should win instead.
+    renderRetirementPage({
+      baseInputs: {
+        ...BASE_INPUTS,
+        retirementTraditionalSavingsTodayK: 1000,
+        retirementTraditionalContributionMo: 0,
+        // targetYearOffset is 0 here (currentAge == targetAge), so balanceAtRetirement is exactly
+        // the $1,000,000 starting balance - (1,000,000 * 2%) / 12 reproduces a ~2% initial rate.
+        retirementTraditionalWithdrawalMo: (1000000 * 0.02) / 12,
+        retirementCurrentAge: 73,
+        retirementTargetAge: 73,
+        retirementInspectAge: 73,
+      },
+    });
+
+    expect(screen.getByText('Age 73 detail')).toBeInTheDocument();
+    const traditionalRow = screen.getByText('Traditional withdrawal, gross').closest('tr');
+    // currentAge=targetAge=73 -> finalYear = MAX_PROJECTION_AGE(100) - 73 = 27.
+    const expected = projectRetirementBalance(1000000, 0, 6, 0, 27, 2, 3, { currentAge: 73 });
+    expect(traditionalRow).toHaveTextContent(formatCurrency(expected.withdrawals[0]));
+    // 2% of $1,000,000 would only be $20,000 - confirms the RMD, not the chosen rate, actually won.
+    expect(expected.withdrawals[0]).toBeGreaterThan(20000);
   });
 });
