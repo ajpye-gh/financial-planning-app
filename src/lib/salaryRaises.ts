@@ -28,9 +28,6 @@ export function generateBreakpointId(): string {
  *  unchanged, just expressed the new way: $75k by yr1, $90k by yr4, $100k by yr6, $120k by yr10. */
 export const DEFAULT_SALARY_RAISES: Array<Omit<SalaryRaiseBreakpoint, 'id'>> = [
   { year: 1, incomeK: 75 },
-  { year: 4, incomeK: 90 },
-  { year: 6, incomeK: 100 },
-  { year: 10, incomeK: 120 },
 ];
 
 /** Sensible defaults for a newly added breakpoint: one year past (and matching the income of) the

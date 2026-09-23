@@ -210,10 +210,14 @@ legend {
 
 .page__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.page__logo {
+  height: 80px;
+  width: auto;
 }
 
 .page__subtitle {
@@ -256,27 +260,108 @@ legend {
   font-weight: 500;
 }
 
+/* Plan menu */
+
+.plan-menu {
+  position: relative;
+}
+
+.plan-menu__trigger {
+  padding: 0.5rem;
+  line-height: 0;
+}
+
+.plan-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  width: max-content;
+  min-width: 200px;
+}
+
 /* Plan controls */
 
 .plan-controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
 }
 
-.plan-controls__load {
-  font: inherit;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.875rem;
-  background: var(--bg);
+.plan-controls > button,
+.plan-controls__load-trigger {
+  width: 100%;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0.5rem 0.625rem;
+}
+
+.plan-controls > button:hover:not(:disabled),
+.plan-controls__load-trigger:hover {
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.plan-controls__load-item {
+  position: relative;
+}
+
+.plan-controls__load-trigger {
+  justify-content: space-between;
   color: var(--text-h);
 }
 
+.plan-controls__submenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  z-index: 21;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  margin-left: 4px;
+  width: max-content;
+  min-width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.plan-controls__submenu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  text-align: left;
+  padding: 0.5rem 0.625rem;
+  background: none;
+  color: var(--text-h);
+}
+
+button.plan-controls__submenu-item:hover {
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.plan-controls__submenu-item--disabled {
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
 .plan-controls__error {
+  display: block;
   font-size: 13px;
   color: var(--danger);
+  padding: 0.25rem 0.625rem;
 }
 
 /* Tooltip */
