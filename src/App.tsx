@@ -5,7 +5,7 @@ import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRa
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
 import { MortgagePage } from './components/mortgage/MortgagePage';
-import { PlanControls } from './components/PlanControls';
+import { PlanMenu } from './components/PlanMenu';
 import { RetirementPage } from './components/retirement/RetirementPage';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
@@ -200,8 +200,8 @@ function App() {
   return (
     <main className="page">
       <div className="page__header">
-        <h1>Financial Planning</h1>
-        <PlanControls onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
+        <PlanMenu onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
+        <img src="/og-image.svg" alt="Pyenancial" className="page__logo" />
       </div>
       <p className="page__subtitle">
         A cashflow model for your situation — add the goals you're saving or spending toward, and see how they
