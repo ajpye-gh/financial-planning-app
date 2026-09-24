@@ -14,6 +14,7 @@ import { CollapsibleChart } from './components/results/CollapsibleChart';
 import { MetricCards, type Metric } from './components/results/MetricCards';
 import { VerdictBanner } from './components/results/VerdictBanner';
 import { BreakdownTable } from './components/results/BreakdownTable';
+import { useAutoHideOnScroll } from './hooks/useAutoHideOnScroll';
 import { useDraftState } from './hooks/useDraftState';
 import type { Plan } from './lib/plans';
 import { ownsHome } from './lib/questions';
@@ -36,6 +37,7 @@ function App() {
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
   const [activeTab, setActiveTab] = useState<PageTab>('primary');
   const [mobileTab, setMobileTab] = useState<MobileTab>('inputs');
+  const headerHidden = useAutoHideOnScroll();
 
   /** Which saved plan (if any) the current draft was loaded from/saved as, plus a snapshot of its
    *  content at that moment - together these drive the "which plan, and is it modified" indicator
@@ -254,7 +256,7 @@ function App() {
 
   return (
     <main className="page">
-      <div className="page__header">
+      <div className={headerHidden ? 'page__header page__header--hidden' : 'page__header'}>
         <img src="https://ajpye-gh.github.io/pyenancial/og-image.svg" alt="Pyenancial" className="page__logo" />
         <nav className="page-tabs">
           <div className={tabClassName('primary', activeTab)} onClick={() => setActiveTab('primary')}>

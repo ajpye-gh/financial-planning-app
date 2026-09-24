@@ -85,6 +85,12 @@ body {
 .page {
   max-width: 1400px;
   margin: 0 auto;
+
+  /* Reserves the header's height since it switches from sticky to fixed on mobile (see
+   *  .page__header) - fixed elements don't occupy normal-flow space on their own. */
+  @media (max-width: 640px) {
+    padding-top: 93px;
+  }
 }
 
 h1,
@@ -228,6 +234,25 @@ legend {
   flex-wrap: wrap;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+
+  /* Switches to fixed (instead of sticky) so it can slide off-screen without leaving a hole in the
+   *  flow - see .page's padding-top reserve and .page__header--hidden below. Animates `top`, not
+   *  `transform`: this element has a position:fixed descendant (.page__header-controls, the plan
+   *  toolbar, pinned to the viewport bottom) - a transform here would give it a new containing
+   *  block, breaking that fixed positioning. */
+  @media (max-width: 640px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    transition: top 0.25s ease-out;
+  }
+}
+
+.page__header--hidden {
+  @media (max-width: 640px) {
+    top: -93px;
+  }
 }
 
 .page__logo {
