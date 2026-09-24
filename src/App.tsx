@@ -233,9 +233,20 @@ function App() {
     <main className="page">
       <div className="page__header">
         <img src="https://ajpye-gh.github.io/pyenancial/og-image.svg" alt="Pyenancial" className="page__logo" />
+        <nav className="page-tabs">
+          <div className={tabClassName('primary', activeTab)} onClick={() => setActiveTab('primary')}>
+            Home
+          </div>
+          <div className={tabClassName('mortgage', activeTab)} onClick={() => setActiveTab('mortgage')}>
+            Mortgage
+          </div>
+          <div className={tabClassName('retirement', activeTab)} onClick={() => setActiveTab('retirement')}>
+            Retirement
+          </div>
+        </nav>
         <div className="page__header-controls">
           <span className="page__active-plan">
-            {activePlanName ?? 'Untitled plan'}
+            <span className="page__active-plan-name">{activePlanName ?? 'Untitled plan'}</span>
             {isDirty && <span className="page__active-plan-dot" title="Unsaved changes" aria-label="Unsaved changes" />}
           </span>
           <PlanToolbar
@@ -253,22 +264,8 @@ function App() {
           />
         </div>
       </div>
-      <p className="page__subtitle">
-        A cashflow model for your situation — add the goals you're saving or spending toward, and see how they
-        trade off against your free cash.
-      </p>
 
-      <nav className="page-tabs">
-        <button type="button" className={tabClassName('primary', activeTab)} onClick={() => setActiveTab('primary')}>
-          Home
-        </button>
-        <button type="button" className={tabClassName('mortgage', activeTab)} onClick={() => setActiveTab('mortgage')}>
-          Mortgage
-        </button>
-        <button type="button" className={tabClassName('retirement', activeTab)} onClick={() => setActiveTab('retirement')}>
-          Retirement
-        </button>
-      </nav>
+
 
       {activeTabContent}
     </main>

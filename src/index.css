@@ -86,6 +86,10 @@ body {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px 48px;
+
+  @media (max-width: 640px) {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
 }
 
 h1,
@@ -225,9 +229,8 @@ legend {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  column-gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -241,29 +244,42 @@ legend {
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    justify-content: space-between;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
 }
 
 .page__active-plan {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-size: 14px;
   color: var(--text-secondary);
 }
 
+.page__active-plan-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .page__active-plan-dot {
+  flex-shrink: 0;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-}
-
-.page__subtitle {
-  color: var(--text-secondary);
-  font-size: 15px;
-  line-height: 150%;
-  max-width: 640px;
-  margin-bottom: 28px;
 }
 
 .page__section-title {
@@ -281,21 +297,44 @@ legend {
 
 .page-tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
+  align-self: stretch;
+  flex-grow: 1;
 }
 
 .page-tabs__item {
-  padding: 0.5rem 1.125rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 1.125rem;
   font-size: 14px;
-  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition:
+    color 0.15s,
+    background 0.2s;
+}
+
+.page-tabs__item + .page-tabs__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 40%;
+  width: 1px;
+  background: var(--border);
+}
+
+.page-tabs__item:hover {
+  color: var(--text-primary);
 }
 
 .page-tabs__item--active {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--text-primary);
   font-weight: 500;
+  border-bottom-color: var(--accent);
+  background: linear-gradient(to top, var(--accent-bg), transparent 70%);
 }
 
 /* Dialog (in-app confirm/prompt replacement) */
@@ -350,6 +389,7 @@ legend {
   position: relative;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -396,6 +436,11 @@ legend {
   min-width: 220px;
   max-height: 320px;
   overflow-y: auto;
+
+  @media (max-width: 640px) {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
 }
 
 .plan-toolbar__item {
