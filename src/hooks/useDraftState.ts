@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTravel } from 'use-travel';
 import type { Answers } from '../lib/questions';
 import type { BaseInputs } from '../lib/baseData';
 import type { BaseFieldId } from '../lib/baseFields';
@@ -15,6 +16,8 @@ import {
 
 const STORAGE_KEY = 'pyenancial:draft';
 const AUTOSAVE_DEBOUNCE_MS = 400;
+const MAX_HISTORY = 50;
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'email', 'password', 'tel', 'number']);
 
 function loadDraft(): Plan {
   const fresh = freshPlan();
@@ -89,10 +92,29 @@ export interface UseDraftStateResult {
   planForSaving: () => Plan;
   /** Replaces the entire draft with a loaded plan (see lib/plans.ts). */
   loadPlan: (plan: Plan) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** True while a change is debounced/pending write to the autosave slot - drives the toolbar's
+   *  saving indicator. */
+  isAutosaving: boolean;
 }
 
 export function useDraftState(): UseDraftStateResult {
-  const [draft, setDraft] = useState<Plan>(loadDraft);
+  const [initialDraft] = useState(loadDraft);
+  const [draft, setDraft, { back, forward, canUndo, canRedo }] = useTravel<Plan, false, true>(initialDraft, {
+    maxHistory: MAX_HISTORY,
+  });
+  const [isAutosaving, setIsAutosaving] = useState(false);
+
+  // Marks a change as pending right where it originates (an event handler), rather than inferring
+  // "pending" reactively from a `useEffect` keyed on `draft` - setState belongs in the handler that
+  // causes it, not synchronously in an effect body watching for it after the fact.
+  const updateDraft = useCallback((updater: Parameters<typeof setDraft>[0]) => {
+    setIsAutosaving(true);
+    setDraft(updater);
+  }, [setDraft]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -101,125 +123,169 @@ export function useDraftState(): UseDraftStateResult {
       } catch {
         // best-effort; localStorage can throw (private browsing, quota exceeded)
       }
+      setIsAutosaving(false);
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timeout);
   }, [draft]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+      const target = event.target as HTMLInputElement | null;
+      const tag = target?.tagName;
+      const isTextInput = tag === 'INPUT' && TEXT_INPUT_TYPES.has(target?.type ?? 'text');
+      if (isTextInput || tag === 'TEXTAREA' || target?.isContentEditable) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        if (canUndo) {
+          event.preventDefault();
+          back();
+        }
+      } else if ((key === 'z' && event.shiftKey) || key === 'y') {
+        if (canRedo) {
+          event.preventDefault();
+          forward();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [back, forward, canUndo, canRedo]);
+
   const setAnswer = useCallback((id: string, value: boolean | string) => {
-    setDraft((prev) => ({ ...prev, answers: { ...prev.answers, [id]: value } }));
-  }, []);
+    updateDraft((next) => {
+      next.answers[id] = value;
+    });
+  }, [updateDraft]);
 
   const setBaseInput = useCallback((id: BaseFieldId, value: number) => {
-    setDraft((prev) => {
-      const baseInputs = { ...prev.baseInputs, [id]: value };
+    updateDraft((next) => {
+      next.baseInputs[id] = value;
       // Shrinking Cash today / Brokerage today can leave goals promised more than's actually there.
-      const goals =
-        id === 'cashTodayK' || id === 'brokerageTodayK'
-          ? rebalanceAllocations(prev.goals, baseInputs.cashTodayK * 1000, baseInputs.brokerageTodayK * 1000)
-          : prev.goals;
-      return { ...prev, baseInputs, goals };
+      if (id === 'cashTodayK' || id === 'brokerageTodayK') {
+        next.goals = rebalanceAllocations(next.goals, next.baseInputs.cashTodayK * 1000, next.baseInputs.brokerageTodayK * 1000);
+      }
     });
-  }, []);
+  }, [updateDraft]);
 
   const addGoal = useCallback((goal: Goal) => {
-    setDraft((prev) => ({ ...prev, goals: [...prev.goals, goal] }));
-  }, []);
+    updateDraft((next) => {
+      next.goals.push(goal);
+    });
+  }, [updateDraft]);
 
   const removeGoal = useCallback((id: string) => {
-    setDraft((prev) => ({ ...prev, goals: prev.goals.filter((goal) => goal.id !== id) }));
-  }, []);
+    updateDraft((next) => {
+      next.goals = next.goals.filter((goal) => goal.id !== id);
+    });
+  }, [updateDraft]);
 
   const updateGoal = useCallback((id: string, patch: Partial<Goal>) => {
-    setDraft((prev) => {
-      let goals = prev.goals.map((goal) => (goal.id === id ? sanitizeGoal({ ...goal, ...patch }) : goal));
+    updateDraft((next) => {
+      let goals = next.goals.map((goal) => (goal.id === id ? sanitizeGoal({ ...goal, ...patch }) : goal));
       if (patch.equityAllocated) {
         goals = enforceExclusiveEquity(goals, id);
       }
-      return {
-        ...prev,
-        goals: rebalanceAllocations(goals, prev.baseInputs.cashTodayK * 1000, prev.baseInputs.brokerageTodayK * 1000),
-      };
+      next.goals = rebalanceAllocations(goals, next.baseInputs.cashTodayK * 1000, next.baseInputs.brokerageTodayK * 1000);
     });
-  }, []);
+  }, [updateDraft]);
 
   const addSalaryRaise = useCallback(() => {
-    setDraft((prev) => ({
-      ...prev,
-      salaryRaises: [
-        ...prev.salaryRaises,
-        { id: generateBreakpointId(), ...nextBreakpoint(prev.salaryRaises, prev.baseInputs.salaryY0K) },
-      ],
-    }));
-  }, []);
+    updateDraft((next) => {
+      next.salaryRaises.push({ id: generateBreakpointId(), ...nextBreakpoint(next.salaryRaises, next.baseInputs.salaryY0K) });
+    });
+  }, [updateDraft]);
 
   const removeSalaryRaise = useCallback((id: string) => {
-    setDraft((prev) => ({ ...prev, salaryRaises: prev.salaryRaises.filter((breakpoint) => breakpoint.id !== id) }));
-  }, []);
+    updateDraft((next) => {
+      next.salaryRaises = next.salaryRaises.filter((breakpoint) => breakpoint.id !== id);
+    });
+  }, [updateDraft]);
 
   const updateSalaryRaise = useCallback((id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => {
-    setDraft((prev) => ({ ...prev, salaryRaises: applyRaiseUpdate(prev.salaryRaises, id, patch) }));
-  }, []);
+    updateDraft((next) => {
+      next.salaryRaises = applyRaiseUpdate(next.salaryRaises, id, patch);
+    });
+  }, [updateDraft]);
 
   const setJobLossYear = useCallback((year: number) => {
-    setDraft((prev) => ({ ...prev, jobLossYear: year }));
-  }, []);
+    updateDraft((next) => {
+      next.jobLossYear = year;
+    });
+  }, [updateDraft]);
 
   const clearJobLossYear = useCallback(() => {
-    setDraft((prev) => ({ ...prev, jobLossYear: undefined }));
-  }, []);
+    updateDraft((next) => {
+      next.jobLossYear = undefined;
+    });
+  }, [updateDraft]);
 
   const addPartnerSalaryRaise = useCallback(() => {
-    setDraft((prev) => ({
-      ...prev,
-      partnerSalaryRaises: [
-        ...prev.partnerSalaryRaises,
-        { id: generateBreakpointId(), ...nextBreakpoint(prev.partnerSalaryRaises, prev.baseInputs.partnerSalaryY0K) },
-      ],
-    }));
-  }, []);
+    updateDraft((next) => {
+      next.partnerSalaryRaises.push({
+        id: generateBreakpointId(),
+        ...nextBreakpoint(next.partnerSalaryRaises, next.baseInputs.partnerSalaryY0K),
+      });
+    });
+  }, [updateDraft]);
 
   const removePartnerSalaryRaise = useCallback((id: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      partnerSalaryRaises: prev.partnerSalaryRaises.filter((breakpoint) => breakpoint.id !== id),
-    }));
-  }, []);
+    updateDraft((next) => {
+      next.partnerSalaryRaises = next.partnerSalaryRaises.filter((breakpoint) => breakpoint.id !== id);
+    });
+  }, [updateDraft]);
 
   const updatePartnerSalaryRaise = useCallback((id: string, patch: Partial<Omit<SalaryRaiseBreakpoint, 'id'>>) => {
-    setDraft((prev) => ({ ...prev, partnerSalaryRaises: applyRaiseUpdate(prev.partnerSalaryRaises, id, patch) }));
-  }, []);
+    updateDraft((next) => {
+      next.partnerSalaryRaises = applyRaiseUpdate(next.partnerSalaryRaises, id, patch);
+    });
+  }, [updateDraft]);
 
   const setPartnerJobLossYear = useCallback((year: number) => {
-    setDraft((prev) => ({ ...prev, partnerJobLossYear: year }));
-  }, []);
+    updateDraft((next) => {
+      next.partnerJobLossYear = year;
+    });
+  }, [updateDraft]);
 
   const clearPartnerJobLossYear = useCallback(() => {
-    setDraft((prev) => ({ ...prev, partnerJobLossYear: undefined }));
-  }, []);
+    updateDraft((next) => {
+      next.partnerJobLossYear = undefined;
+    });
+  }, [updateDraft]);
 
   const addChild = useCallback(() => {
-    setDraft((prev) => ({
-      ...prev,
-      children: [...prev.children, { id: generateChildId(), year: nextChildYear(prev.children) }],
-    }));
-  }, []);
+    updateDraft((next) => {
+      next.children.push({ id: generateChildId(), year: nextChildYear(next.children) });
+    });
+  }, [updateDraft]);
 
   const removeChild = useCallback((id: string) => {
-    setDraft((prev) => ({ ...prev, children: prev.children.filter((child) => child.id !== id) }));
-  }, []);
+    updateDraft((next) => {
+      next.children = next.children.filter((child) => child.id !== id);
+    });
+  }, [updateDraft]);
 
   const updateChild = useCallback((id: string, year: number) => {
-    setDraft((prev) => ({
-      ...prev,
-      children: prev.children.map((child) => (child.id === id ? { ...child, year } : child)),
-    }));
-  }, []);
+    updateDraft((next) => {
+      const child = next.children.find((candidate) => candidate.id === id);
+      if (child) {
+        child.year = year;
+      }
+    });
+  }, [updateDraft]);
 
   const planForSaving = useCallback((): Plan => draft, [draft]);
 
   const loadPlan = useCallback((plan: Plan) => {
-    setDraft(plan);
-  }, []);
+    updateDraft(plan);
+  }, [updateDraft]);
+
+  const undo = useCallback(() => back(), [back]);
+  const redo = useCallback(() => forward(), [forward]);
 
   return {
     answers: draft.answers,
@@ -250,5 +316,10 @@ export function useDraftState(): UseDraftStateResult {
     updateChild,
     planForSaving,
     loadPlan,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    isAutosaving,
   };
 }

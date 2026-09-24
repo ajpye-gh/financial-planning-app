@@ -5,7 +5,7 @@ import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRa
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
 import { MortgagePage } from './components/mortgage/MortgagePage';
-import { PlanMenu } from './components/PlanMenu';
+import { PlanToolbar } from './components/PlanToolbar';
 import { RetirementPage } from './components/retirement/RetirementPage';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
@@ -13,6 +13,7 @@ import { MetricCards, type Metric } from './components/results/MetricCards';
 import { VerdictBanner } from './components/results/VerdictBanner';
 import { BreakdownTable } from './components/results/BreakdownTable';
 import { useDraftState } from './hooks/useDraftState';
+import type { Plan } from './lib/plans';
 import { ownsHome } from './lib/questions';
 import { DEFAULT_BASE_RANGES } from './lib/baseData';
 import { INSPECT_YEAR_FIELD } from './lib/baseFields';
@@ -31,6 +32,37 @@ function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
   const [activeTab, setActiveTab] = useState<PageTab>('primary');
+
+  /** Which saved plan (if any) the current draft was loaded from/saved as, plus a snapshot of its
+   *  content at that moment - together these drive the "which plan, and is it modified" indicator
+   *  in the header. Null activePlanName means the draft isn't tied to any saved plan (untitled). */
+  const [activePlanName, setActivePlanName] = useState<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const isDirty = activePlanName !== null && savedSnapshot !== null && JSON.stringify(draft.planForSaving()) !== savedSnapshot;
+
+  const handlePlanLoaded = (name: string, plan: Plan) => {
+    draft.loadPlan(plan);
+    setActivePlanName(name);
+    setSavedSnapshot(JSON.stringify(plan));
+  };
+
+  const handlePlanSaved = (name: string, plan: Plan) => {
+    setActivePlanName(name);
+    setSavedSnapshot(JSON.stringify(plan));
+  };
+
+  const handlePlanDeleted = (name: string) => {
+    if (name === activePlanName) {
+      setActivePlanName(null);
+      setSavedSnapshot(null);
+    }
+  };
+
+  const handleImportPlan = (plan: Plan) => {
+    draft.loadPlan(plan);
+    setActivePlanName(null);
+    setSavedSnapshot(null);
+  };
 
   const primaryIncomeControls: SalaryRaiseBreakpointsProps = {
     breakpoints: draft.salaryRaises,
@@ -200,8 +232,26 @@ function App() {
   return (
     <main className="page">
       <div className="page__header">
-        <PlanMenu onLoad={draft.loadPlan} planForSaving={draft.planForSaving} />
         <img src="https://ajpye-gh.github.io/pyenancial/og-image.svg" alt="Pyenancial" className="page__logo" />
+        <div className="page__header-controls">
+          <span className="page__active-plan">
+            {activePlanName ?? 'Untitled plan'}
+            {isDirty && <span className="page__active-plan-dot" title="Unsaved changes" aria-label="Unsaved changes" />}
+          </span>
+          <PlanToolbar
+            activePlanName={activePlanName}
+            onPlanLoaded={handlePlanLoaded}
+            onPlanSaved={handlePlanSaved}
+            onPlanDeleted={handlePlanDeleted}
+            onImportPlan={handleImportPlan}
+            planForSaving={draft.planForSaving}
+            onUndo={draft.undo}
+            onRedo={draft.redo}
+            canUndo={draft.canUndo}
+            canRedo={draft.canRedo}
+            isAutosaving={draft.isAutosaving}
+          />
+        </div>
       </div>
       <p className="page__subtitle">
         A cashflow model for your situation — add the goals you're saving or spending toward, and see how they

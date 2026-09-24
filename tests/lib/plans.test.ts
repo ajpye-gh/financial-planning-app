@@ -1,4 +1,4 @@
-import { freshPlan, isValidJobLossYear, isValidPlan, listSavedPlans, loadSavedPlan, savePlan, type Plan } from '@src/lib/plans';
+import { deletePlan, freshPlan, isValidJobLossYear, isValidPlan, listSavedPlans, loadSavedPlan, savePlan, type Plan } from '@src/lib/plans';
 import { DEFAULT_BASE_RANGES } from '@src/lib/baseData';
 
 beforeEach(() => {
@@ -121,6 +121,24 @@ describe('saved plan registry (listSavedPlans / savePlan / loadSavedPlan)', () =
     );
 
     expect(listSavedPlans()).toEqual(['Good']);
+  });
+
+  it('deletes a saved plan by name, leaving the rest of the registry intact', () => {
+    savePlan('Keep me', freshPlan());
+    savePlan('Delete me', freshPlan());
+
+    deletePlan('Delete me');
+
+    expect(listSavedPlans()).toEqual(['Keep me']);
+    expect(loadSavedPlan('Delete me')).toBeNull();
+  });
+
+  it('does nothing when deleting a name that was never saved', () => {
+    savePlan('Keep me', freshPlan());
+
+    deletePlan('Never saved');
+
+    expect(listSavedPlans()).toEqual(['Keep me']);
   });
 
   it('backfills baseInputs fields missing from an older saved plan (e.g. annualBonusK, added in a later release) with current defaults on load', () => {
