@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ControlGroup } from '../controls/ControlGroup';
 import { SliderField } from '../controls/SliderField';
+import { MobileSubTabs } from '../MobileSubTabs';
+import { CollapsibleChart } from '../results/CollapsibleChart';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { Row } from '../results/BreakdownTable';
 import { MortgageChart } from './MortgageChart';
@@ -53,6 +55,8 @@ interface MortgagePageProps {
   answers: Answers;
 }
 
+type MobileTab = 'inputs' | 'results';
+
 /** Right-pads a balance series with trailing $0s so two schedules of different lengths (the
  *  original payoff vs. a shorter one from extra payments) can share one chart x-axis - same idea as
  *  a goal balance freezing after its endYear elsewhere in this app, just frozen at $0 instead. */
@@ -68,6 +72,7 @@ function padToLength(values: number[], length: number): number[] {
  *  currentMortgageRatePct) - separate from model.ts's estimateMortgage/MORTGAGE_TERM_YEARS, which is
  *  about a future property-goal purchase instead. */
 export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly<MortgagePageProps>) {
+  const [mobileTab, setMobileTab] = useState<MobileTab>('results');
   const owns = getOwnsHome(answers);
   const loanAmount = baseInputs.mortgageBalanceK * 1000;
   const homeValue = baseInputs.homeValueK * 1000;
@@ -167,7 +172,7 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-mobile-tab={mobileTab}>
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
           <ControlGroup group={MORTGAGE_DETAILS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
@@ -178,54 +183,70 @@ export function MortgagePage({ baseInputs, ranges, onChange, answers }: Readonly
       </aside>
 
       <div className="app-shell__main">
-        <MortgageChart
-          originalBalances={originalBalances}
-          withExtraBalances={withExtraBalances}
-          hasExtraPayment={hasExtraPayment}
-          originalPayoffYear={originalPayoffYear}
-          withExtraPayoffYear={withExtraPayoffYear}
-        />
-        <div className="inspect-year-control">
-          <SliderField meta={MORTGAGE_INSPECT_YEAR_FIELD} range={inspectRange} value={inspectYear} onChange={onChange} />
+        <div className="app-shell__chart">
+          <CollapsibleChart>
+            <MortgageChart
+              originalBalances={originalBalances}
+              withExtraBalances={withExtraBalances}
+              hasExtraPayment={hasExtraPayment}
+              originalPayoffYear={originalPayoffYear}
+              withExtraPayoffYear={withExtraPayoffYear}
+            />
+          </CollapsibleChart>
         </div>
-        <MetricCards metrics={metrics} />
-        <div className="breakdown-table-wrap">
-          <div className="breakdown-table__title">Year {inspectYear} payment detail</div>
-          <table className="breakdown-table">
-            <tbody>
-              <Row label="Remaining balance" value={formatCurrency(inspectPoint.closingBalance)} muted />
-              <Row label="Principal & interest" value={`${formatCurrency(originalSchedule.monthlyPaymentPI)}/mo`} muted />
-              <Row label="Mortgage insurance" value={inspectInsuranceValue} muted />
-              <Row
-                label="Property tax, inflated"
-                value={monthlyPropertyTax > 0 ? `${formatCurrency(propertyTaxAtInspect)}/mo` : 'None'}
-                muted
-              />
-              <Row
-                label="Homeowners insurance, inflated"
-                value={monthlyHomeInsurance > 0 ? `${formatCurrency(homeInsuranceAtInspect)}/mo` : 'None'}
-                muted
-              />
-              {hasExtraPayment && (
-                <Row label="Extra principal" value={`${formatCurrency(baseInputs.mortgageExtraPrincipalMo)}/mo`} muted />
-              )}
-              <tr className="breakdown-table__divider">
-                <td colSpan={2} />
-              </tr>
-              <Row label="Total monthly payment, nominal" value={`${formatCurrency(inspectPoint.monthlyPaymentNominal)}/mo`} />
-              <Row label="— vs. today's payment" value={`${formatCurrency(monthlyPayment)}/mo`} muted />
-              <tr className="breakdown-table__divider">
-                <td colSpan={2} />
-              </tr>
-              <Row label="Total interest, original schedule" value={formatCurrency(totalInterestOriginal)} muted />
-              {hasExtraPayment && (
-                <>
-                  <Row label="Total interest, with extra payments" value={formatCurrency(totalInterestWithExtra)} muted />
-                  <Row label="Interest saved" value={formatCurrency(interestSaved)} />
-                </>
-              )}
-            </tbody>
-          </table>
+
+        <MobileSubTabs
+          options={[
+            { id: 'inputs', label: 'Inputs' },
+            { id: 'results', label: 'Results' },
+          ]}
+          active={mobileTab}
+          onSelect={setMobileTab}
+        />
+
+        <div className="app-shell__results">
+          <div className="inspect-year-control">
+            <SliderField meta={MORTGAGE_INSPECT_YEAR_FIELD} range={inspectRange} value={inspectYear} onChange={onChange} />
+          </div>
+          <MetricCards metrics={metrics} />
+          <div className="breakdown-table-wrap">
+            <div className="breakdown-table__title">Year {inspectYear} payment detail</div>
+            <table className="breakdown-table">
+              <tbody>
+                <Row label="Remaining balance" value={formatCurrency(inspectPoint.closingBalance)} muted />
+                <Row label="Principal & interest" value={`${formatCurrency(originalSchedule.monthlyPaymentPI)}/mo`} muted />
+                <Row label="Mortgage insurance" value={inspectInsuranceValue} muted />
+                <Row
+                  label="Property tax, inflated"
+                  value={monthlyPropertyTax > 0 ? `${formatCurrency(propertyTaxAtInspect)}/mo` : 'None'}
+                  muted
+                />
+                <Row
+                  label="Homeowners insurance, inflated"
+                  value={monthlyHomeInsurance > 0 ? `${formatCurrency(homeInsuranceAtInspect)}/mo` : 'None'}
+                  muted
+                />
+                {hasExtraPayment && (
+                  <Row label="Extra principal" value={`${formatCurrency(baseInputs.mortgageExtraPrincipalMo)}/mo`} muted />
+                )}
+                <tr className="breakdown-table__divider">
+                  <td colSpan={2} />
+                </tr>
+                <Row label="Total monthly payment, nominal" value={`${formatCurrency(inspectPoint.monthlyPaymentNominal)}/mo`} />
+                <Row label="— vs. today's payment" value={`${formatCurrency(monthlyPayment)}/mo`} muted />
+                <tr className="breakdown-table__divider">
+                  <td colSpan={2} />
+                </tr>
+                <Row label="Total interest, original schedule" value={formatCurrency(totalInterestOriginal)} muted />
+                {hasExtraPayment && (
+                  <>
+                    <Row label="Total interest, with extra payments" value={formatCurrency(totalInterestWithExtra)} muted />
+                    <Row label="Interest saved" value={formatCurrency(interestSaved)} />
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
