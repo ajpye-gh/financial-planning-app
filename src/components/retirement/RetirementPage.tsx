@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ControlGroup } from '../controls/ControlGroup';
 import { SliderField } from '../controls/SliderField';
+import { MobileSubTabs } from '../MobileSubTabs';
+import { CollapsibleChart } from '../results/CollapsibleChart';
 import { MetricCards, type Metric } from '../results/MetricCards';
 import { VerdictBanner } from '../results/VerdictBanner';
 import { FilingStatusToggle } from './FilingStatusToggle';
@@ -100,9 +102,12 @@ interface RetirementPageProps {
   onAnswer: (id: string, value: boolean | string) => void;
 }
 
+type MobileTab = 'inputs' | 'results';
+
 /** Same shape as the primary page (App.tsx): sidebar on the left for inputs, chart on the right for
  *  results. */
 export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer }: Readonly<RetirementPageProps>) {
+  const [mobileTab, setMobileTab] = useState<MobileTab>('results');
   const currentAge = baseInputs.retirementCurrentAge;
   // Everything below still works in terms of "years from today," same as before ages existed -
   // this is just the translation layer between that and the age the user actually thinks in.
@@ -310,7 +315,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const earlyWithdrawalWarning = buildEarlyWithdrawalWarning(incomeSeries, currentAge);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-mobile-tab={mobileTab}>
       <aside className="app-shell__sidebar">
         <div className="controls-panel">
           <ControlGroup group={AGE_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />
@@ -365,35 +370,51 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       </aside>
 
       <div className="app-shell__main">
-        <VerdictBanner verdict={verdict} />
-        {earlyWithdrawalWarning && <VerdictBanner verdict={earlyWithdrawalWarning} />}
-        <RetirementChart
-          rothProjection={rothProjection}
-          traditionalProjection={traditionalProjection}
-          afterTaxProjection={afterTaxProjection}
-          taxSeries={taxSeries}
-          currentAge={currentAge}
+        <div className="app-shell__chart">
+          <CollapsibleChart>
+            <RetirementChart
+              rothProjection={rothProjection}
+              traditionalProjection={traditionalProjection}
+              afterTaxProjection={afterTaxProjection}
+              taxSeries={taxSeries}
+              currentAge={currentAge}
+            />
+          </CollapsibleChart>
+        </div>
+
+        <MobileSubTabs
+          options={[
+            { id: 'inputs', label: 'Inputs' },
+            { id: 'results', label: 'Results' },
+          ]}
+          active={mobileTab}
+          onSelect={setMobileTab}
         />
-        <div className="inspect-year-control">
-          <SliderField
-            meta={RETIREMENT_INSPECT_AGE_FIELD}
-            range={inspectAgeRange}
-            value={baseInputs.retirementInspectAge}
-            onChange={onChange}
+
+        <div className="app-shell__results">
+          <VerdictBanner verdict={verdict} />
+          {earlyWithdrawalWarning && <VerdictBanner verdict={earlyWithdrawalWarning} />}
+          <div className="inspect-year-control">
+            <SliderField
+              meta={RETIREMENT_INSPECT_AGE_FIELD}
+              range={inspectAgeRange}
+              value={baseInputs.retirementInspectAge}
+              onChange={onChange}
+            />
+          </div>
+          <MetricCards metrics={metrics} />
+          <RetirementBreakdownTable
+            age={inspectedAge}
+            rothBalance={rothBalanceAtInspectYear}
+            traditionalBalance={traditionalBalanceAtInspectYear}
+            afterTaxBalance={afterTaxBalanceAtInspectYear}
+            rothWithdrawalRatePct={rothWithdrawalRateAtInspectYear}
+            traditionalWithdrawalRatePct={traditionalWithdrawalRateAtInspectYear}
+            afterTaxWithdrawalRatePct={afterTaxWithdrawalRateAtInspectYear}
+            ssEnabled={ssEnabled}
+            income={inspectedIncome}
           />
         </div>
-        <MetricCards metrics={metrics} />
-        <RetirementBreakdownTable
-          age={inspectedAge}
-          rothBalance={rothBalanceAtInspectYear}
-          traditionalBalance={traditionalBalanceAtInspectYear}
-          afterTaxBalance={afterTaxBalanceAtInspectYear}
-          rothWithdrawalRatePct={rothWithdrawalRateAtInspectYear}
-          traditionalWithdrawalRatePct={traditionalWithdrawalRateAtInspectYear}
-          afterTaxWithdrawalRatePct={afterTaxWithdrawalRateAtInspectYear}
-          ssEnabled={ssEnabled}
-          income={inspectedIncome}
-        />
       </div>
     </div>
   );

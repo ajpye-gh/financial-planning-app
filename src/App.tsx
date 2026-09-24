@@ -4,11 +4,13 @@ import { ControlsPanel } from './components/controls/ControlsPanel';
 import type { SalaryRaiseBreakpointsProps } from './components/controls/SalaryRaiseBreakpoints';
 import { SliderField } from './components/controls/SliderField';
 import { GoalsPanel } from './components/goals/GoalsPanel';
+import { MobileSubTabs } from './components/MobileSubTabs';
 import { MortgagePage } from './components/mortgage/MortgagePage';
 import { PlanToolbar } from './components/PlanToolbar';
 import { RetirementPage } from './components/retirement/RetirementPage';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
+import { CollapsibleChart } from './components/results/CollapsibleChart';
 import { MetricCards, type Metric } from './components/results/MetricCards';
 import { VerdictBanner } from './components/results/VerdictBanner';
 import { BreakdownTable } from './components/results/BreakdownTable';
@@ -22,6 +24,7 @@ import { chartToggleOptions, primarySeriesFor, type ChartSeriesId } from './lib/
 import { formatCurrency, formatCurrencyCompact } from './lib/format';
 
 type PageTab = 'primary' | 'mortgage' | 'retirement';
+type MobileTab = 'inputs' | 'goals' | 'results';
 
 function tabClassName(tab: PageTab, activeTab: PageTab): string {
   const base = 'page-tabs__item';
@@ -32,6 +35,7 @@ function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
   const [activeTab, setActiveTab] = useState<PageTab>('primary');
+  const [mobileTab, setMobileTab] = useState<MobileTab>('results');
 
   /** Which saved plan (if any) the current draft was loaded from/saved as, plus a snapshot of its
    *  content at that moment - together these drive the "which plan, and is it modified" indicator
@@ -168,7 +172,7 @@ function App() {
   let activeTabContent: ReactNode;
   if (activeTab === 'primary') {
     activeTabContent = (
-      <div className="app-shell">
+      <div className="app-shell" data-mobile-tab={mobileTab}>
         <aside className="app-shell__sidebar">
           <ControlsPanel
             answers={draft.answers}
@@ -183,33 +187,52 @@ function App() {
         </aside>
 
         <div className="app-shell__main">
-          <div className="page__section-title">Goals</div>
-          <GoalsPanel
-            goals={draft.goals}
-            runningTotals={runningTotals}
-            cashRemaining={cashRemaining}
-            brokerageRemaining={brokerageRemaining}
-            base={draft.baseInputs}
-            ownsHome={ownsHome(draft.answers)}
-            onAdd={draft.addGoal}
-            onRemove={draft.removeGoal}
-            onUpdate={draft.updateGoal}
+          <div className="app-shell__chart">
+            <CollapsibleChart>
+              <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
+              <CashflowChart chart={result.chart} primary={primary} />
+            </CollapsibleChart>
+          </div>
+
+          <MobileSubTabs
+            options={[
+              { id: 'inputs', label: 'Inputs' },
+              { id: 'goals', label: 'Goals' },
+              { id: 'results', label: 'Results' },
+            ]}
+            active={mobileTab}
+            onSelect={setMobileTab}
           />
 
-          <div className="page__section-title">Results</div>
-          <VerdictBanner verdict={result.verdict} />
-          <ChartToggle options={toggleOptions} selected={effectiveSeriesId} onSelect={setSelectedSeriesId} />
-          <CashflowChart chart={result.chart} primary={primary} />
-          <div className="inspect-year-control">
-            <SliderField
-              meta={INSPECT_YEAR_FIELD}
-              range={DEFAULT_BASE_RANGES.inspectYear}
-              value={draft.baseInputs.inspectYear}
-              onChange={draft.setBaseInput}
+          <div className="app-shell__goals">
+            <div className="page__section-title">Goals</div>
+            <GoalsPanel
+              goals={draft.goals}
+              runningTotals={runningTotals}
+              cashRemaining={cashRemaining}
+              brokerageRemaining={brokerageRemaining}
+              base={draft.baseInputs}
+              ownsHome={ownsHome(draft.answers)}
+              onAdd={draft.addGoal}
+              onRemove={draft.removeGoal}
+              onUpdate={draft.updateGoal}
             />
           </div>
-          <MetricCards metrics={metrics} />
-          <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
+
+          <div className="app-shell__results">
+            <div className="page__section-title">Results</div>
+            <VerdictBanner verdict={result.verdict} />
+            <div className="inspect-year-control">
+              <SliderField
+                meta={INSPECT_YEAR_FIELD}
+                range={DEFAULT_BASE_RANGES.inspectYear}
+                value={draft.baseInputs.inspectYear}
+                onChange={draft.setBaseInput}
+              />
+            </div>
+            <MetricCards metrics={metrics} />
+            <BreakdownTable snapshot={result.snapshot} goals={draft.goals} />
+          </div>
         </div>
       </div>
     );
