@@ -125,6 +125,12 @@ export function savePlan(name: string, plan: Plan): void {
   localStorage.setItem(PLANS_STORAGE_KEY, JSON.stringify(registry));
 }
 
+export function deletePlan(name: string): void {
+  const registry = readRegistry();
+  delete registry[name];
+  localStorage.setItem(PLANS_STORAGE_KEY, JSON.stringify(registry));
+}
+
 /** Backfills any `BaseFieldId` missing from a loaded plan's `baseInputs` (e.g. a field added in a
  *  later release, such as `annualBonusK`) with its current default rather than leaving it
  *  `undefined` and producing `NaN` through the model - same best-effort philosophy as the autosaved
