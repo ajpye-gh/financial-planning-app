@@ -253,6 +253,36 @@ describe('projectRetirementBalance', () => {
       expect(result.withdrawals[0]).toBeCloseTo(1000, 0);
     });
   });
+
+  describe('Social Security bridge (the optional ssBridge argument)', () => {
+    it('does not touch the withdrawal before startYearOffset', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3, undefined, { startYearOffset: 5, annualBenefitToday: 30000 });
+      expect(result.withdrawals[0]).toBeCloseTo(40000, 0);
+    });
+
+    it('cuts the scheduled withdrawal by that year’s inflated Social Security benefit from startYearOffset onward', () => {
+      const withoutBridge = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3);
+      const withBridge = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3, undefined, { startYearOffset: 0, annualBenefitToday: 30000 });
+      // Y0: 40,000 scheduled - 30,000 SS (no inflation yet, year 0) = 10,000.
+      expect(withBridge.withdrawals[0]).toBeCloseTo(withoutBridge.withdrawals[0] - 30000, 0);
+    });
+
+    it('floors the reduced withdrawal at $0 rather than going negative when the SS benefit exceeds the scheduled amount', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3, undefined, { startYearOffset: 0, annualBenefitToday: 999999 });
+      expect(result.withdrawals[0]).toBe(0);
+    });
+
+    it('still applies the RMD floor on top of the bridge-reduced withdrawal, since RMDs are a legal requirement either way', () => {
+      const result = projectRetirementBalance(1000000, 0, 6, 0, 25, 2, 3, { currentAge: RMD_START_AGE }, { startYearOffset: 0, annualBenefitToday: 999999 });
+      // The bridge alone would floor this at $0, but the RMD (divisor 26.5) still forces ~$37,736.
+      expect(result.withdrawals[0]).toBeCloseTo(1000000 / 26.5, 0);
+    });
+
+    it('leaves the withdrawal unaffected when the ssBridge option is omitted entirely', () => {
+      const withBridgeOmitted = projectRetirementBalance(1000000, 0, 6, 0, 25, 4, 3);
+      expect(withBridgeOmitted.withdrawals[0]).toBeCloseTo(40000, 0);
+    });
+  });
 });
 
 describe('requiredMinimumDistribution', () => {

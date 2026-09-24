@@ -36,3 +36,5 @@ lerna-debug.log*
 
 # CodeGraph local index (never commit)
 .codegraph/
+
+features.md

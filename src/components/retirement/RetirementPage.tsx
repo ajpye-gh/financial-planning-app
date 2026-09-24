@@ -7,6 +7,7 @@ import { MetricCards, type Metric } from '../results/MetricCards';
 import { VerdictBanner } from '../results/VerdictBanner';
 import { FilingStatusToggle } from './FilingStatusToggle';
 import { SocialSecurityToggle } from './SocialSecurityToggle';
+import { WithdrawalBridgeToggle } from './WithdrawalBridgeToggle';
 import { RetirementBreakdownTable } from './RetirementBreakdownTable';
 import { RetirementChart } from './RetirementChart';
 import type { BaseInputs, BaseRanges } from '../../lib/baseData';
@@ -32,7 +33,7 @@ import {
   type BaseFieldGroup,
 } from '../../lib/baseFields';
 import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '../../lib/format';
-import { filingStatus as getFilingStatus, socialSecurityEnabled, type Answers } from '../../lib/questions';
+import { filingStatus as getFilingStatus, socialSecurityEnabled, ssWithdrawalBridgeEnabled, type Answers } from '../../lib/questions';
 import {
   buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
@@ -40,6 +41,7 @@ import {
   projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
+  SS_MIN_CLAIMING_AGE,
   type NamedRetirementPot,
 } from '../../lib/retirement';
 
@@ -157,6 +159,22 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   const traditionalWithdrawalRatePct = impliedWithdrawalRatePct(baseInputs.retirementTraditionalWithdrawalMo, traditionalBalanceAtRetirement);
   const afterTaxWithdrawalRatePct = impliedWithdrawalRatePct(baseInputs.retirementAfterTaxWithdrawalMo, afterTaxBalanceAtRetirement);
 
+  const status = getFilingStatus(answers);
+  // A real on/off switch, not just "drag the slider to $0" - see SocialSecurityToggle.tsx and
+  // socialSecurityEnabled's own comment. Off means Social Security contributes nothing to the
+  // income projection at all, and its line is dropped entirely from the breakdown table below.
+  const ssEnabled = socialSecurityEnabled(answers);
+  const ssMonthlyBenefitToday = ssEnabled ? baseInputs.retirementSocialSecurityMo : 0;
+  // Same "never before SS_MIN_CLAIMING_AGE" floor projectHouseholdRetirementIncome itself applies -
+  // duplicated here (rather than reading it back off the income series) because the Traditional
+  // projection below needs it before that series exists.
+  const ssStartYearOffset = Math.max(targetYearOffset, SS_MIN_CLAIMING_AGE - currentAge);
+  // The bridge only means anything when there's an actual gap to bridge - retiring before Social
+  // Security starts. Retiring at or after ssStartYearOffset means SS already begins on day one, so
+  // there's nothing to cut back later.
+  const ssBridgeEligible = ssEnabled && targetYearOffset < ssStartYearOffset;
+  const ssBridgeEnabled = ssBridgeEligible && ssWithdrawalBridgeEnabled(answers);
+
   const rothProjection = useMemo(
     () =>
       projectRetirementBalance(
@@ -191,6 +209,8 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         baseInputs.inflationPct,
         // RMDs only apply to Traditional (pre-tax) accounts - Roth and after-tax never get this.
         { currentAge },
+        // Same restriction: the Social Security bridge only ever touches the Traditional pot.
+        ssBridgeEnabled ? { startYearOffset: ssStartYearOffset, annualBenefitToday: ssMonthlyBenefitToday * 12 } : undefined,
       ),
     [
       baseInputs.retirementTraditionalSavingsTodayK,
@@ -201,6 +221,9 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       traditionalWithdrawalRatePct,
       baseInputs.inflationPct,
       currentAge,
+      ssBridgeEnabled,
+      ssStartYearOffset,
+      ssMonthlyBenefitToday,
     ],
   );
 
@@ -225,13 +248,6 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.inflationPct,
     ],
   );
-
-  const status = getFilingStatus(answers);
-  // A real on/off switch, not just "drag the slider to $0" - see SocialSecurityToggle.tsx and
-  // socialSecurityEnabled's own comment. Off means Social Security contributes nothing to the
-  // income projection at all, and its line is dropped entirely from the breakdown table below.
-  const ssEnabled = socialSecurityEnabled(answers);
-  const ssMonthlyBenefitToday = ssEnabled ? baseInputs.retirementSocialSecurityMo : 0;
 
   const incomeSeries = useMemo(
     () =>
@@ -360,6 +376,9 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
                 <>
                   <FilingStatusToggle filingStatus={status} onChange={(next) => onAnswer('filingStatus', next)} />
                   <SocialSecurityToggle enabled={ssEnabled} onChange={(next) => onAnswer('socialSecurityEnabled', next)} />
+                  {ssBridgeEligible && (
+                    <WithdrawalBridgeToggle enabled={ssBridgeEnabled} onChange={(next) => onAnswer('ssWithdrawalBridgeEnabled', next)} />
+                  )}
                 </>
               ) : null
             }

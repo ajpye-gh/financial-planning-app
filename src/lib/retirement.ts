@@ -154,7 +154,15 @@ function applyDecumulationStep(balance: number, investmentReturnPct: number, sch
  *  rmd, when passed (Traditional pots only - see RetirementPage.tsx), forces each decumulation
  *  year's actual withdrawal up to at least that year's Required Minimum Distribution once age
  *  reaches RMD_START_AGE - same as real law: RMDs are a floor on top of whatever you'd otherwise
- *  withdraw, not a replacement for a higher voluntary withdrawal. */
+ *  withdraw, not a replacement for a higher voluntary withdrawal.
+ *
+ *  ssBridge, when passed (Traditional pots only, and only when retiring before Social Security
+ *  starts - see RetirementPage.tsx's ssWithdrawalBridgeEnabled gating), models the opt-in "Social
+ *  Security bridge" strategy: from ssBridge.startYearOffset onward, the scheduled withdrawal is cut
+ *  back by that year's (inflated) Social Security benefit, floored at $0 - the idea being Social
+ *  Security now covers the difference in income, so the account doesn't need to keep supplying the
+ *  full amount. Applied before the RMD floor, since RMDs are a legal requirement regardless of
+ *  which voluntary strategy is in play. */
 export function projectRetirementBalance(
   startingBalance: number,
   monthlyContribution: number,
@@ -164,6 +172,7 @@ export function projectRetirementBalance(
   withdrawalRatePct: number,
   inflationPct: number,
   rmd?: { currentAge: number },
+  ssBridge?: { startYearOffset: number; annualBenefitToday: number },
 ): RetirementProjection {
   const accumulation = accumulatePhase(startingBalance, monthlyContribution, investmentReturnPct, targetYear);
   const balances = accumulation.balances;
@@ -176,11 +185,16 @@ export function projectRetirementBalance(
   let depletionYear: number | null = null;
 
   const effectiveWithdrawal = (year: number) => {
+    let scheduled = scheduledWithdrawal;
+    if (ssBridge && year >= ssBridge.startYearOffset) {
+      const ssInflationFactor = Math.pow(1 + inflationPct / 100, year);
+      scheduled = Math.max(0, scheduled - ssBridge.annualBenefitToday * ssInflationFactor);
+    }
     if (!rmd) {
-      return scheduledWithdrawal;
+      return scheduled;
     }
     const rmdAmount = requiredMinimumDistribution(balance, rmd.currentAge + year);
-    return Math.max(scheduledWithdrawal, rmdAmount);
+    return Math.max(scheduled, rmdAmount);
   };
 
   if (targetYear === 0) {

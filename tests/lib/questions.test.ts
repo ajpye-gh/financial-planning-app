@@ -1,4 +1,4 @@
-import { filingStatus, ownsHome, socialSecurityEnabled } from '@src/lib/questions';
+import { filingStatus, ownsHome, socialSecurityEnabled, ssWithdrawalBridgeEnabled } from '@src/lib/questions';
 
 describe('ownsHome', () => {
   it('is true only when housing is answered "own"', () => {
@@ -31,5 +31,19 @@ describe('socialSecurityEnabled', () => {
 
   it('is true when explicitly turned on', () => {
     expect(socialSecurityEnabled({ socialSecurityEnabled: true })).toBe(true);
+  });
+});
+
+describe('ssWithdrawalBridgeEnabled', () => {
+  it('defaults to false (off) when unset - an opt-in strategy, not a default assumption', () => {
+    expect(ssWithdrawalBridgeEnabled({})).toBe(false);
+  });
+
+  it('is true only when explicitly turned on', () => {
+    expect(ssWithdrawalBridgeEnabled({ ssWithdrawalBridgeEnabled: true })).toBe(true);
+  });
+
+  it('is false when explicitly turned off', () => {
+    expect(ssWithdrawalBridgeEnabled({ ssWithdrawalBridgeEnabled: false })).toBe(false);
   });
 });

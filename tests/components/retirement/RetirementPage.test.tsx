@@ -226,6 +226,77 @@ describe('RetirementPage', () => {
     });
   });
 
+  describe('Social Security withdrawal bridge toggle', () => {
+    // BASE_INPUTS retires at 55 (currentAge 35), well before Social Security's earliest claiming
+    // age of 62 - a real gap to bridge, so the toggle should be offered.
+    it('is offered when retiring before Social Security starts', () => {
+      renderRetirementPage();
+      expect(screen.getByText('Reduce Traditional withdrawals once Social Security starts')).toBeInTheDocument();
+    });
+
+    it('is not offered once Social Security is turned off entirely - there is nothing to bridge to', () => {
+      renderRetirementPage({ answers: { socialSecurityEnabled: false } as Answers });
+      expect(screen.queryByText('Reduce Traditional withdrawals once Social Security starts')).not.toBeInTheDocument();
+    });
+
+    it('is not offered when retiring at or after Social Security already starts - no gap to bridge', () => {
+      const alreadyRetired = { ...BASE_INPUTS, retirementCurrentAge: 65, retirementTargetAge: 65, retirementInspectAge: 65 };
+      renderRetirementPage({ baseInputs: alreadyRetired });
+      expect(screen.queryByText('Reduce Traditional withdrawals once Social Security starts')).not.toBeInTheDocument();
+    });
+
+    it('defaults to Off when unanswered', () => {
+      renderRetirementPage();
+      expect(screen.getByRole('button', { name: 'Disable Social Security bridge' })).toHaveClass('chart-toggle__tab--active');
+    });
+
+    it('calls onAnswer with ssWithdrawalBridgeEnabled=true when On is clicked', async () => {
+      const user = userEvent.setup();
+      const onAnswer = jest.fn();
+      renderRetirementPage({ onAnswer });
+
+      await user.click(screen.getByRole('button', { name: 'Enable Social Security bridge' }));
+      expect(onAnswer).toHaveBeenCalledWith('ssWithdrawalBridgeEnabled', true);
+    });
+
+    it('calls onAnswer with ssWithdrawalBridgeEnabled=false when Off is clicked from an on state', async () => {
+      const user = userEvent.setup();
+      const onAnswer = jest.fn();
+      renderRetirementPage({ onAnswer, answers: { ssWithdrawalBridgeEnabled: true } as Answers });
+
+      await user.click(screen.getByRole('button', { name: 'Disable Social Security bridge' }));
+      expect(onAnswer).toHaveBeenCalledWith('ssWithdrawalBridgeEnabled', false);
+    });
+
+    it('reduces the Traditional withdrawal once Social Security starts, once enabled', () => {
+      // Inspect age 62 == SS_MIN_CLAIMING_AGE, the year Social Security (and the bridge's cutback)
+      // actually kicks in for this 35 -> 55 retiree.
+      const atSsStart = { ...BASE_INPUTS, retirementInspectAge: 62 };
+
+      const off = renderRetirementPage({ baseInputs: atSsStart });
+      const withdrawalOff = screen.getByText('Traditional withdrawal, gross').closest('tr')?.textContent;
+      off.unmount();
+
+      renderRetirementPage({ baseInputs: atSsStart, answers: { ssWithdrawalBridgeEnabled: true } as Answers });
+      const withdrawalOn = screen.getByText('Traditional withdrawal, gross').closest('tr')?.textContent;
+
+      expect(withdrawalOn).not.toBe(withdrawalOff);
+    });
+
+    it('leaves the Traditional withdrawal unaffected before Social Security starts, even when enabled', () => {
+      // Inspect age 55 (retirement itself) is still well before SS starts at 62 - the bridge has
+      // nothing to cut back yet.
+      const off = renderRetirementPage();
+      const withdrawalOff = screen.getByText('Traditional withdrawal, gross').closest('tr')?.textContent;
+      off.unmount();
+
+      renderRetirementPage({ answers: { ssWithdrawalBridgeEnabled: true } as Answers });
+      const withdrawalOn = screen.getByText('Traditional withdrawal, gross').closest('tr')?.textContent;
+
+      expect(withdrawalOn).toBe(withdrawalOff);
+    });
+  });
+
   it('defaults the filing-status toggle to Single, and calls onAnswer when Married is clicked', async () => {
     const user = userEvent.setup();
     const onAnswer = jest.fn();

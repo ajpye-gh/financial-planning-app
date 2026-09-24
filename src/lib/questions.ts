@@ -20,3 +20,12 @@ export function filingStatus(answers: Answers): FilingStatus {
 export function socialSecurityEnabled(answers: Answers): boolean {
   return answers.socialSecurityEnabled !== false;
 }
+
+/** Defaults to false (off) when unset - this is an opt-in strategy (the "Social Security bridge":
+ *  draw down Traditional/IRA to cover the gap before Social Security starts, then cut that
+ *  withdrawal back once it does, since Social Security now covers the difference), not a default
+ *  assumption about how every early retiree behaves. Only meaningful - and only shown - when
+ *  retiring before Social Security starts; see RetirementPage.tsx's own gating. */
+export function ssWithdrawalBridgeEnabled(answers: Answers): boolean {
+  return answers.ssWithdrawalBridgeEnabled === true;
+}
