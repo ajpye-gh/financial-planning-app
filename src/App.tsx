@@ -35,7 +35,7 @@ function App() {
   const draft = useDraftState();
   const [selectedSeriesId, setSelectedSeriesId] = useState<ChartSeriesId | null>(null);
   const [activeTab, setActiveTab] = useState<PageTab>('primary');
-  const [mobileTab, setMobileTab] = useState<MobileTab>('results');
+  const [mobileTab, setMobileTab] = useState<MobileTab>('inputs');
 
   /** Which saved plan (if any) the current draft was loaded from/saved as, plus a snapshot of its
    *  content at that moment - together these drive the "which plan, and is it modified" indicator
