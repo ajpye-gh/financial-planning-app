@@ -631,6 +631,7 @@ input[type='range']::-moz-range-thumb {
 .app-shell__main {
   flex: 1;
   min-width: 0;
+  padding-bottom: 24px;
 
   /* Unwraps at the same breakpoint the header collapses to its compact mobile shape (see
    *  .page__header-controls) - its children become direct flex items of .app-shell so
