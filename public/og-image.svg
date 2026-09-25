@@ -1,9 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 75 1200 480">
   <style>
-    .wordmark { fill: #08060d; }
-    @media (prefers-color-scheme: dark) {
-      .wordmark { fill: #f3f4f6; }
-    }
+    .wordmark { fill: #6b7280; }
   </style>
 
   <svg x="132.10" y="175.00" width="280" height="280" viewBox="0 0 24 24" fill="none" stroke="#aa3bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
