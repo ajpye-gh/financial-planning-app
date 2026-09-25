@@ -13,7 +13,7 @@ interface SliderProps {
    *  input). Omit for compact rows that already show context elsewhere - `ariaLabel` is then used
    *  to give the input an accessible name instead. */
   label?: ReactNode;
-  tooltip?: string;
+  tooltip?: ReactNode;
   /** Accessible name for the range input when no visible `label` is rendered, and a prefix for the
    *  inline min/max/value edit inputs' own aria-labels either way. */
   ariaLabel?: string;

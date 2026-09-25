@@ -36,6 +36,7 @@
   "retirementAfterTaxWithdrawalMo": { "min": 0, "max": 5000, "step": 50, "default": 900 },
   "retirementAfterTaxGainPct": { "min": 0, "max": 100, "step": 5, "default": 50 },
   "retirementSocialSecurityMo": { "min": 0, "max": 5000, "step": 50, "default": 2000 },
+  "retirementSocialSecurityStartAge": { "min": 62, "max": 70, "step": 1, "default": 67 },
   "retirementPensionMo": { "min": 0, "max": 5000, "step": 50, "default": 0 },
   "retirementPensionStartAge": { "min": 18, "max": 100, "step": 1, "default": 65 },
   "retirementCurrentAge": { "min": 18, "max": 100, "step": 1, "default": 35 },

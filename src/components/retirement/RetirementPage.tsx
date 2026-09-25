@@ -25,6 +25,7 @@ import {
   RETIREMENT_ROTH_SAVINGS_FIELD,
   RETIREMENT_ROTH_WITHDRAWAL_FIELD,
   RETIREMENT_SOCIAL_SECURITY_FIELD,
+  RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD,
   RETIREMENT_TARGET_AGE_FIELD,
   RETIREMENT_TRADITIONAL_CONTRIBUTION_FIELD,
   RETIREMENT_TRADITIONAL_SAVINGS_FIELD,
@@ -37,11 +38,11 @@ import { filingStatus as getFilingStatus, socialSecurityEnabled, ssWithdrawalBri
 import {
   buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
+  clampSocialSecurityStartAge,
   MAX_PROJECTION_AGE,
   projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
-  SS_MIN_CLAIMING_AGE,
   type NamedRetirementPot,
 } from '../../lib/retirement';
 
@@ -88,7 +89,7 @@ function impliedWithdrawalRatePct(monthlyDollar: number, balanceAtRetirement: nu
 
 const INCOME_GROUP: BaseFieldGroup = {
   title: 'Income in retirement',
-  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD, RETIREMENT_PENSION_FIELD, RETIREMENT_PENSION_START_AGE_FIELD],
+  fields: [RETIREMENT_SOCIAL_SECURITY_FIELD, RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD, RETIREMENT_PENSION_FIELD, RETIREMENT_PENSION_START_AGE_FIELD],
 };
 
 // Same "Assumptions" group (inflation, investment return) the primary page's sidebar renders -
@@ -165,10 +166,11 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
   // income projection at all, and its line is dropped entirely from the breakdown table below.
   const ssEnabled = socialSecurityEnabled(answers);
   const ssMonthlyBenefitToday = ssEnabled ? baseInputs.retirementSocialSecurityMo : 0;
-  // Same "never before SS_MIN_CLAIMING_AGE" floor projectHouseholdRetirementIncome itself applies -
-  // duplicated here (rather than reading it back off the income series) because the Traditional
-  // projection below needs it before that series exists.
-  const ssStartYearOffset = Math.max(targetYearOffset, SS_MIN_CLAIMING_AGE - currentAge);
+  // Same clamp-then-offset math projectHouseholdRetirementIncome itself applies - duplicated here
+  // (rather than reading it back off the income series) because the Traditional projection below
+  // needs it before that series exists. Independent of targetYearOffset, same as pensionStartAge -
+  // you can claim Social Security before, at, or well after the age you stop withdrawing.
+  const ssStartYearOffset = Math.max(0, clampSocialSecurityStartAge(baseInputs.retirementSocialSecurityStartAge) - currentAge);
   // The bridge only means anything when there's an actual gap to bridge - retiring before Social
   // Security starts. Retiring at or after ssStartYearOffset means SS already begins on day one, so
   // there's nothing to cut back later.
@@ -259,6 +261,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
         pensionMonthlyToday: baseInputs.retirementPensionMo,
         pensionStartAge: baseInputs.retirementPensionStartAge,
         ssMonthlyBenefitToday,
+        ssStartAge: baseInputs.retirementSocialSecurityStartAge,
         currentAge,
         filingStatus: status,
         inflationPct: baseInputs.inflationPct,
@@ -271,6 +274,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
       baseInputs.retirementPensionMo,
       baseInputs.retirementPensionStartAge,
       ssMonthlyBenefitToday,
+      baseInputs.retirementSocialSecurityStartAge,
       currentAge,
       status,
       baseInputs.inflationPct,
@@ -382,7 +386,7 @@ export function RetirementPage({ baseInputs, ranges, onChange, answers, onAnswer
                 </>
               ) : null
             }
-            disabledForField={(fieldId) => fieldId === 'retirementSocialSecurityMo' && !ssEnabled}
+            disabledForField={(fieldId) => (fieldId === 'retirementSocialSecurityMo' || fieldId === 'retirementSocialSecurityStartAge') && !ssEnabled}
           />
           {ASSUMPTIONS_GROUP && <ControlGroup group={ASSUMPTIONS_GROUP} ranges={ranges} values={baseInputs} onChange={onChange} />}
         </div>

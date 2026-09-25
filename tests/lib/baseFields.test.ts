@@ -12,7 +12,7 @@ import {
   RETIREMENT_TRADITIONAL_WITHDRAWAL_FIELD,
   visibleBaseFieldGroups,
 } from '@src/lib/baseFields';
-import { MAX_PROJECTION_AGE } from '@src/lib/retirement';
+import { MAX_PROJECTION_AGE, SS_MAX_CLAIMING_AGE, SS_MIN_CLAIMING_AGE } from '@src/lib/retirement';
 
 function fieldIdsIn(title: string, groups: ReturnType<typeof visibleBaseFieldGroups>): string[] {
   return groups.find((group) => group.title === title)?.fields.map((field) => field.id) ?? [];
@@ -113,6 +113,11 @@ describe('visibleBaseFieldGroups', () => {
 
   it("Inspect age's slider max stays in sync with retirement.ts's MAX_PROJECTION_AGE - both should always cap the projection/inspection window at the same age", () => {
     expect(DEFAULT_BASE_RANGES.retirementInspectAge.max).toBe(MAX_PROJECTION_AGE);
+  });
+
+  it("Social Security start age's slider range stays in sync with retirement.ts's SS_MIN_CLAIMING_AGE/SS_MAX_CLAIMING_AGE - the real legal claiming window", () => {
+    expect(DEFAULT_BASE_RANGES.retirementSocialSecurityStartAge.min).toBe(SS_MIN_CLAIMING_AGE);
+    expect(DEFAULT_BASE_RANGES.retirementSocialSecurityStartAge.max).toBe(SS_MAX_CLAIMING_AGE);
   });
 
   it('renders cashGrowthPct in the Assumptions group, right next to inflationPct', () => {

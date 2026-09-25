@@ -30,11 +30,52 @@ export interface RetirementProjection {
  *  retirementInspectAge.max in Defaults.json in sync with this (a test asserts it). */
 export const MAX_PROJECTION_AGE = 100;
 
-/** Real earliest Social Security claiming age - benefits never start before this, regardless of
- *  retirement age (retiring at 55 doesn't mean Social Security starts at 55). Doesn't model delayed
- *  claiming past this floor for a larger benefit (see full retirement age / age-70 maximum) - this
- *  app only models "claim as soon as retired, no earlier than this floor." */
+/** Real earliest Social Security claiming age - the RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD
+ *  slider's floor (see baseFields.tsx). Claiming this early permanently cuts the benefit - see
+ *  socialSecurityAdjustmentFactor. */
 export const SS_MIN_CLAIMING_AGE = 62;
+
+/** Real "full retirement age" under current law (67, for anyone born 1960 or later) - the age a
+ *  Social Security benefit estimate is normally quoted against, with no early-claim reduction or
+ *  delayed-retirement-credit adjustment either way. Same "single point-in-time snapshot of current
+ *  law" scope as the rest of this app (e.g. tax.ts's 2024 brackets) - doesn't model the lower FRA
+ *  that applies to anyone born before 1960. */
+export const SS_FULL_RETIREMENT_AGE = 67;
+
+/** Real age Social Security delayed retirement credits stop accruing - the
+ *  RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD slider's ceiling. Real law gives no further benefit
+ *  increase for waiting past this age, so there's no reason to model claiming later. */
+export const SS_MAX_CLAIMING_AGE = 70;
+
+/** Clamps a chosen Social Security start age into the real legal claiming window
+ *  [SS_MIN_CLAIMING_AGE, SS_MAX_CLAIMING_AGE] - shared by socialSecurityAdjustmentFactor and
+ *  projectHouseholdRetirementIncome's own start-year math, so both agree on the same effective age
+ *  even if a caller somehow passes one outside the slider's own enforced range. */
+export function clampSocialSecurityStartAge(age: number): number {
+  return Math.min(Math.max(age, SS_MIN_CLAIMING_AGE), SS_MAX_CLAIMING_AGE);
+}
+
+/** The real SSA early-claim reduction / delayed-retirement-credit formula, as a multiplier on the
+ *  benefit estimate at SS_FULL_RETIREMENT_AGE (1.0 exactly at full retirement age). Claiming before
+ *  it permanently reduces the benefit: 5/9 of 1% per month for the first 36 months early, then 5/12
+ *  of 1% per month for any month earlier than that - the standard two-slope SSA formula, maxing out
+ *  at a 30% cut at the earliest possible age (62, 60 months early under a 67 FRA). Claiming after it
+ *  permanently increases the benefit via delayed retirement credits: 2/3 of 1% per month (8%/year),
+ *  capped at SS_MAX_CLAIMING_AGE - a 24% boost at 70. See
+ *  https://www.ssa.gov/benefits/retirement/planner/delayret.html. */
+export function socialSecurityAdjustmentFactor(startAge: number): number {
+  const clampedAge = clampSocialSecurityStartAge(startAge);
+  const monthsFromFullRetirementAge = (clampedAge - SS_FULL_RETIREMENT_AGE) * 12;
+
+  if (monthsFromFullRetirementAge >= 0) {
+    return 1 + monthsFromFullRetirementAge * (2 / 3 / 100);
+  }
+
+  const earlyMonths = -monthsFromFullRetirementAge;
+  const first36EarlyMonths = Math.min(earlyMonths, 36);
+  const earlyMonthsBeyond36 = Math.max(earlyMonths - 36, 0);
+  return 1 - first36EarlyMonths * (5 / 9 / 100) - earlyMonthsBeyond36 * (5 / 12 / 100);
+}
 
 /** Real IRS early-withdrawal age for Traditional 401(k)/IRA accounts - 59½ in law, rounded to a
  *  whole year here since every other age in this app is a whole number. Withdrawing before this
@@ -145,9 +186,8 @@ function applyDecumulationStep(balance: number, investmentReturnPct: number, sch
  *  special-casing needed.
  *
  *  targetYear - 1 is the last year with a new contribution; targetYear (retirement year itself) is
- *  the first year with a withdrawal (and the first year retirement income tax applies) - matching
- *  Social Security, which already starts at retirementYearIndex in projectHouseholdRetirementIncome.
- *  This holds even when targetYear === 0 (already retired today): Y0 immediately reflects that
+ *  the first year with a withdrawal (and the first year retirement income tax applies). This holds
+ *  even when targetYear === 0 (already retired today): Y0 immediately reflects that
  *  first withdrawal rather than showing the raw input untouched for a year, so "the balance today"
  *  and "the balance at retirement" mean the same thing once you're already retired.
  *
@@ -255,7 +295,16 @@ export interface HouseholdIncomeProjectionInputs {
   afterTaxGainPct: number;
   pensionMonthlyToday: number;
   pensionStartAge: number;
+  /** Estimated monthly benefit at SS_FULL_RETIREMENT_AGE (what SSA's own statements quote) - the
+   *  actual gross benefit used is this, permanently scaled up or down by socialSecurityAdjustmentFactor
+   *  for however early/late ssStartAge is relative to that. */
   ssMonthlyBenefitToday: number;
+  /** Age Social Security claiming begins - independent of retirementYearIndex, same as
+   *  pensionStartAge (real Social Security isn't gated on "have you stopped withdrawing yet"
+   *  either). Clamped into [SS_MIN_CLAIMING_AGE, SS_MAX_CLAIMING_AGE] before use - the
+   *  RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD slider already enforces that range, this is just a
+   *  defensive backstop. */
+  ssStartAge: number;
   currentAge: number;
   filingStatus: FilingStatus;
   inflationPct: number;
@@ -267,10 +316,11 @@ export interface HouseholdIncomeProjectionInputs {
  *  slice is taxed at the flat LTCG rate, and (a taxable share of) Social Security is ordinary too -
  *  so this is the one place that actually calls tax.ts. Uses each projection's actual
  *  (depletion-capped) withdrawals rather than re-deriving them, so income correctly drops once a pot
- *  runs dry instead of assuming the scheduled amount forever. Social Security is assumed to start
- *  the year you retire, but never before SS_MIN_CLAIMING_AGE regardless of retirement age, and never
- *  depletes, unlike the three accounts; pension income starts at its own independent pensionStartAge
- *  instead. Traditional withdrawals taken before TRADITIONAL_EARLY_WITHDRAWAL_AGE flag the real 10%
+ *  runs dry instead of assuming the scheduled amount forever. Social Security starts at the
+ *  user-chosen ssStartAge - independent of retirement, same as pensionStartAge - and never depletes,
+ *  unlike the three accounts; its gross amount is ssMonthlyBenefitToday scaled by
+ *  socialSecurityAdjustmentFactor(ssStartAge), for the real early-claim reduction / delayed-credit
+ *  effect. Traditional withdrawals taken before TRADITIONAL_EARLY_WITHDRAWAL_AGE flag the real 10%
  *  early-withdrawal penalty (see tax.ts) - RMDs themselves are already baked into the Traditional
  *  projection's own withdrawals (see projectRetirementBalance's rmd option), not handled here. */
 export function projectHouseholdRetirementIncome({
@@ -281,19 +331,20 @@ export function projectHouseholdRetirementIncome({
   pensionMonthlyToday,
   pensionStartAge,
   ssMonthlyBenefitToday,
+  ssStartAge,
   currentAge,
   filingStatus,
   inflationPct,
 }: HouseholdIncomeProjectionInputs): HouseholdRetirementIncome[] {
-  const { retirementYearIndex } = rothProjection;
   const pensionStartYearOffset = Math.max(0, pensionStartAge - currentAge);
-  const ssStartYearOffset = Math.max(retirementYearIndex, SS_MIN_CLAIMING_AGE - currentAge);
+  const ssStartYearOffset = Math.max(0, clampSocialSecurityStartAge(ssStartAge) - currentAge);
+  const ssAdjustedMonthlyBenefitToday = ssMonthlyBenefitToday * socialSecurityAdjustmentFactor(ssStartAge);
   return rothProjection.yearLabels.map((_, year) => {
     const inflationFactor = Math.pow(1 + inflationPct / 100, year);
     const rothWithdrawal = rothProjection.withdrawals[year] ?? 0;
     const traditionalWithdrawal = traditionalProjection.withdrawals[year] ?? 0;
     const afterTaxWithdrawal = afterTaxProjection.withdrawals[year] ?? 0;
-    const ssGross = year >= ssStartYearOffset ? ssMonthlyBenefitToday * 12 * inflationFactor : 0;
+    const ssGross = year >= ssStartYearOffset ? ssAdjustedMonthlyBenefitToday * 12 * inflationFactor : 0;
     const pensionGross = year >= pensionStartYearOffset ? pensionMonthlyToday * 12 * inflationFactor : 0;
     const isEarlyTraditionalWithdrawal = traditionalWithdrawal > 0 && currentAge + year < TRADITIONAL_EARLY_WITHDRAWAL_AGE;
 

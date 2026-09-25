@@ -1,12 +1,16 @@
 import {
   buildEarlyWithdrawalWarning,
   buildRetirementVerdict,
+  clampSocialSecurityStartAge,
   MAX_PROJECTION_AGE,
   projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
   requiredMinimumDistribution,
   RMD_START_AGE,
+  socialSecurityAdjustmentFactor,
+  SS_FULL_RETIREMENT_AGE,
+  SS_MAX_CLAIMING_AGE,
   SS_MIN_CLAIMING_AGE,
   TRADITIONAL_EARLY_WITHDRAWAL_AGE,
 } from '@src/lib/retirement';
@@ -310,6 +314,48 @@ describe('requiredMinimumDistribution', () => {
   });
 });
 
+describe('clampSocialSecurityStartAge', () => {
+  it('leaves an age already inside [SS_MIN_CLAIMING_AGE, SS_MAX_CLAIMING_AGE] untouched', () => {
+    expect(clampSocialSecurityStartAge(SS_FULL_RETIREMENT_AGE)).toBe(SS_FULL_RETIREMENT_AGE);
+  });
+
+  it('clamps up to SS_MIN_CLAIMING_AGE when given something earlier', () => {
+    expect(clampSocialSecurityStartAge(50)).toBe(SS_MIN_CLAIMING_AGE);
+  });
+
+  it('clamps down to SS_MAX_CLAIMING_AGE when given something later', () => {
+    expect(clampSocialSecurityStartAge(80)).toBe(SS_MAX_CLAIMING_AGE);
+  });
+});
+
+describe('socialSecurityAdjustmentFactor', () => {
+  it('is exactly 1 (no adjustment) at full retirement age', () => {
+    expect(socialSecurityAdjustmentFactor(SS_FULL_RETIREMENT_AGE)).toBe(1);
+  });
+
+  it('cuts the benefit by 30% at the earliest possible claiming age (62), the real SSA figure for a 67 FRA', () => {
+    expect(socialSecurityAdjustmentFactor(SS_MIN_CLAIMING_AGE)).toBeCloseTo(0.7, 6);
+  });
+
+  it('grows the benefit by 24% at the latest age that still earns delayed retirement credits (70), the real SSA figure', () => {
+    expect(socialSecurityAdjustmentFactor(SS_MAX_CLAIMING_AGE)).toBeCloseTo(1.24, 6);
+  });
+
+  it('is a smooth, strictly increasing function of claiming age across the whole legal range', () => {
+    let previous = socialSecurityAdjustmentFactor(SS_MIN_CLAIMING_AGE);
+    for (let age = SS_MIN_CLAIMING_AGE + 1; age <= SS_MAX_CLAIMING_AGE; age++) {
+      const factor = socialSecurityAdjustmentFactor(age);
+      expect(factor).toBeGreaterThan(previous);
+      previous = factor;
+    }
+  });
+
+  it('clamps ages outside the legal claiming window the same as the age itself would clamp', () => {
+    expect(socialSecurityAdjustmentFactor(40)).toBe(socialSecurityAdjustmentFactor(SS_MIN_CLAIMING_AGE));
+    expect(socialSecurityAdjustmentFactor(90)).toBe(socialSecurityAdjustmentFactor(SS_MAX_CLAIMING_AGE));
+  });
+});
+
 describe('projectHouseholdRetirementIncome', () => {
   // targetYear=0 so decumulation starts immediately: index 0 is already the first year of retirement.
   const roth = () => projectRetirementBalance(500000, 0, 6, 0, 25, 4, 3);
@@ -321,13 +367,23 @@ describe('projectHouseholdRetirementIncome', () => {
     pensionMonthlyToday: 0,
     pensionStartAge: 65,
     ssMonthlyBenefitToday: 2000,
+    // Full retirement age - socialSecurityAdjustmentFactor is exactly 1 here, so tests that don't
+    // care about the age-adjustment feature itself can use round, unadjusted dollar figures.
+    ssStartAge: SS_FULL_RETIREMENT_AGE,
     currentAge: 65,
     filingStatus: 'single' as const,
     inflationPct: 3,
   };
 
   it('combines tax-free Roth withdrawal, gross Traditional withdrawal, and gross Social Security, minus tax', () => {
-    const series = projectHouseholdRetirementIncome({ rothProjection: roth(), traditionalProjection: traditional(), ...baseIncomeInputs });
+    // currentAge and ssStartAge both 67 (full retirement age) - Social Security starts immediately,
+    // unadjusted, so the plain $2,000/mo benefit shows up as-is.
+    const series = projectHouseholdRetirementIncome({
+      rothProjection: roth(),
+      traditionalProjection: traditional(),
+      ...baseIncomeInputs,
+      currentAge: SS_FULL_RETIREMENT_AGE,
+    });
     // Year 0 (already retired, so this is the retirement year itself): Roth withdrawal
     // 500,000*4%=20,000 (tax-free); Traditional 300,000*4%=12,000 (taxable); SS $2,000/mo*12=24,000,
     // no inflation applied yet (year 0's inflationFactor is 1).
@@ -350,21 +406,22 @@ describe('projectHouseholdRetirementIncome', () => {
     expect(year0.netAnnual).toBeCloseTo(year0.rothWithdrawal + year0.traditionalWithdrawal + year0.ssGross - expectedTax.tax, 6);
   });
 
-  it('has no Social Security before the retirement year, and it inflates forward starting then', () => {
-    // targetYear=10 this time, so there's a real accumulation phase to check SS is $0 through.
-    const rothLater = projectRetirementBalance(500000, 0, 6, 10, 35, 4, 3);
-    const traditionalLater = projectRetirementBalance(300000, 0, 6, 10, 35, 4, 3);
+  it('Social Security starts at ssStartAge, independent of retirementYearIndex, and inflates forward from there', () => {
+    // Retirement (targetYear=3) happens after Social Security is claimed (ssStartAge=67 -> year 2,
+    // currentAge=65) - demonstrates the two don't gate each other, same as pensionStartAge.
+    const rothLater = projectRetirementBalance(500000, 0, 6, 3, 35, 4, 3);
+    const traditionalLater = projectRetirementBalance(300000, 0, 6, 3, 35, 4, 3);
     const series = projectHouseholdRetirementIncome({
       rothProjection: rothLater,
       traditionalProjection: traditionalLater,
       ...baseIncomeInputs,
     });
 
-    for (let year = 0; year < 10; year++) {
+    for (let year = 0; year < 2; year++) {
       expect(series[year].ssGross).toBe(0);
     }
-    expect(series[10].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 10), 0);
-    expect(series[11].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 11), 0);
+    expect(series[2].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 2), 0);
+    expect(series[3].ssGross).toBeCloseTo(24000 * Math.pow(1.03, 3), 0);
   });
 
   it('reflects the actual (depletion-capped) withdrawal, not the scheduled amount, once a pot runs dry', () => {
@@ -470,14 +527,15 @@ describe('projectHouseholdRetirementIncome', () => {
     );
   });
 
-  it('never starts Social Security before SS_MIN_CLAIMING_AGE, even if retired earlier', () => {
-    // currentAge=55, already retired (targetYear=0) - SS_MIN_CLAIMING_AGE=62 means index 0-6 (ages
-    // 55-61) get no Social Security at all, despite already being retired.
+  it('clamps a requested ssStartAge below SS_MIN_CLAIMING_AGE up to it - the real earliest claiming age', () => {
+    // currentAge=55, ssStartAge requested well below the real floor - index 0-6 (ages 55-61) still
+    // get no Social Security, since the effective start age is clamped up to 62.
     const series = projectHouseholdRetirementIncome({
       ...baseIncomeInputs,
       rothProjection: roth(),
       traditionalProjection: traditional(),
       currentAge: 55,
+      ssStartAge: 50,
     });
 
     for (let year = 0; year < SS_MIN_CLAIMING_AGE - 55; year++) {
@@ -486,8 +544,19 @@ describe('projectHouseholdRetirementIncome', () => {
     expect(series[SS_MIN_CLAIMING_AGE - 55].ssGross).toBeGreaterThan(0);
   });
 
-  it('starts Social Security immediately (no gap) when already older than SS_MIN_CLAIMING_AGE at retirement', () => {
-    const series = projectHouseholdRetirementIncome({ ...baseIncomeInputs, rothProjection: roth(), traditionalProjection: traditional() });
+  it('clamps a requested ssStartAge above SS_MAX_CLAIMING_AGE down to it - no further credit for waiting past 70', () => {
+    const atMax = socialSecurityAdjustmentFactor(SS_MAX_CLAIMING_AGE);
+    const pastMax = socialSecurityAdjustmentFactor(SS_MAX_CLAIMING_AGE + 5);
+    expect(pastMax).toBe(atMax);
+  });
+
+  it('starts Social Security immediately (no gap) when ssStartAge is at or before currentAge', () => {
+    const series = projectHouseholdRetirementIncome({
+      ...baseIncomeInputs,
+      rothProjection: roth(),
+      traditionalProjection: traditional(),
+      ssStartAge: baseIncomeInputs.currentAge,
+    });
     expect(series[0].ssGross).toBeGreaterThan(0);
   });
 

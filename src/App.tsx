@@ -8,6 +8,7 @@ import { MobileSubTabs } from './components/MobileSubTabs';
 import { MortgagePage } from './components/mortgage/MortgagePage';
 import { PlanToolbar } from './components/PlanToolbar';
 import { RetirementPage } from './components/retirement/RetirementPage';
+import { SettingsMenu } from './components/SettingsMenu';
 import { ChartToggle } from './components/results/ChartToggle';
 import { CashflowChart } from './components/results/CashflowChart';
 import { CollapsibleChart } from './components/results/CollapsibleChart';
@@ -287,6 +288,7 @@ function App() {
             canRedo={draft.canRedo}
             isAutosaving={draft.isAutosaving}
           />
+          <SettingsMenu />
         </div>
       </div>
 
