@@ -7,6 +7,7 @@ import {
   projectedBalanceAtRetirement,
   projectHouseholdRetirementIncome,
   projectRetirementBalance,
+  socialSecurityAdjustmentFactor,
 } from '@src/lib/retirement';
 import { formatCurrency, formatCurrencyCompact, formatSliderValue } from '@src/lib/format';
 import type { Answers } from '@src/lib/questions';
@@ -156,6 +157,66 @@ describe('RetirementPage', () => {
     expect(screen.getByRole('button', { name: 'Off' })).toBeInTheDocument();
   });
 
+  describe('Social Security start age', () => {
+    it('renders the field and calls onChange with its field id when dragged', () => {
+      const onChange = jest.fn();
+      renderRetirementPage({ onChange });
+
+      const startAgeSlider = screen.getByLabelText('Social Security start age') as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(startAgeSlider, '70');
+      startAgeSlider.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(onChange).toHaveBeenCalledWith('retirementSocialSecurityStartAge', 70);
+    });
+
+    it('defaults to full retirement age (67)', () => {
+      renderRetirementPage();
+      const startAgeSlider = screen.getByLabelText('Social Security start age') as HTMLInputElement;
+      expect(startAgeSlider.value).toBe('67');
+    });
+
+    it('disables the start-age slider once Social Security is turned off, same as the benefit slider', () => {
+      renderRetirementPage({ answers: { socialSecurityEnabled: false } as Answers });
+      const startAgeSlider = screen.getByLabelText('Social Security start age') as HTMLInputElement;
+      expect(startAgeSlider).toBeDisabled();
+    });
+
+    it("its tooltip links to ssa.gov's delayed retirement credits page", async () => {
+      const user = userEvent.setup();
+      renderRetirementPage();
+
+      await user.hover(screen.getByText('Social Security start age'));
+      const tooltip = await screen.findByRole('tooltip');
+      const link = tooltip.querySelector('a');
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute('href', 'https://www.ssa.gov/benefits/retirement/planner/delayret.html');
+      expect(tooltip).toHaveTextContent(/delayed retirement credits/i);
+    });
+
+    it.each([
+      [62, 'earlier than full retirement age', socialSecurityAdjustmentFactor(62)],
+      [67, 'at full retirement age', socialSecurityAdjustmentFactor(67)],
+      [70, 'later than full retirement age', socialSecurityAdjustmentFactor(70)],
+    ])('claiming at %i (%s) scales the shown Social Security income by the real SSA adjustment factor', (startAge, _label, factor) => {
+      // currentAge = targetAge = inspectAge = 75, past every possible startAge in [62, 70] - so
+      // Social Security has already started regardless of which one is chosen, isolating the
+      // adjustment-factor effect from any start-timing difference.
+      const alreadyRetired = {
+        ...BASE_INPUTS,
+        retirementCurrentAge: 75,
+        retirementTargetAge: 75,
+        retirementInspectAge: 75,
+        retirementSocialSecurityStartAge: startAge,
+      };
+      renderRetirementPage({ baseInputs: alreadyRetired });
+
+      const expected = formatCurrency(BASE_INPUTS.retirementSocialSecurityMo * 12 * factor);
+      const ssRow = screen.getByText('Social Security, gross').closest('tr');
+      expect(ssRow).toHaveTextContent(`${expected}/yr`);
+    });
+  });
+
   describe('Social Security on/off toggle', () => {
     it('defaults to On when unanswered, and the benefit slider is enabled', () => {
       renderRetirementPage();
@@ -205,10 +266,15 @@ describe('RetirementPage', () => {
     });
 
     it('contributes $0 to estimated income once turned off, even though the benefit slider still holds a nonzero value', () => {
-      // Already retired at 65 (>= SS_MIN_CLAIMING_AGE) so Social Security is actually active at the
-      // inspected age - BASE_INPUTS's default retirement age of 55 wouldn't be, since Social
-      // Security never starts before 62 regardless of retirement age.
-      const alreadyRetired = { ...BASE_INPUTS, retirementCurrentAge: 65, retirementTargetAge: 65, retirementInspectAge: 65 };
+      // Social Security start age set to match currentAge so it's actually active at the inspected
+      // age immediately, rather than waiting for the default (full retirement age, 67).
+      const alreadyRetired = {
+        ...BASE_INPUTS,
+        retirementCurrentAge: 65,
+        retirementTargetAge: 65,
+        retirementInspectAge: 65,
+        retirementSocialSecurityStartAge: 65,
+      };
 
       const onWithoutSS = renderRetirementPage({ baseInputs: alreadyRetired, answers: { socialSecurityEnabled: false } as Answers });
       const incomeWithoutSS = screen.getByText('Estimated income, inspect age').closest('.metric-card')?.querySelector('.metric-card__value')
@@ -240,7 +306,13 @@ describe('RetirementPage', () => {
     });
 
     it('is not offered when retiring at or after Social Security already starts - no gap to bridge', () => {
-      const alreadyRetired = { ...BASE_INPUTS, retirementCurrentAge: 65, retirementTargetAge: 65, retirementInspectAge: 65 };
+      const alreadyRetired = {
+        ...BASE_INPUTS,
+        retirementCurrentAge: 65,
+        retirementTargetAge: 65,
+        retirementInspectAge: 65,
+        retirementSocialSecurityStartAge: 65,
+      };
       renderRetirementPage({ baseInputs: alreadyRetired });
       expect(screen.queryByText('Reduce Traditional withdrawals once Social Security starts')).not.toBeInTheDocument();
     });
@@ -269,9 +341,9 @@ describe('RetirementPage', () => {
     });
 
     it('reduces the Traditional withdrawal once Social Security starts, once enabled', () => {
-      // Inspect age 62 == SS_MIN_CLAIMING_AGE, the year Social Security (and the bridge's cutback)
-      // actually kicks in for this 35 -> 55 retiree.
-      const atSsStart = { ...BASE_INPUTS, retirementInspectAge: 62 };
+      // Social Security explicitly set to start at 62, inspected at that same age - the year Social
+      // Security (and the bridge's cutback) actually kicks in for this 35 -> 55 retiree.
+      const atSsStart = { ...BASE_INPUTS, retirementInspectAge: 62, retirementSocialSecurityStartAge: 62 };
 
       const off = renderRetirementPage({ baseInputs: atSsStart });
       const withdrawalOff = screen.getByText('Traditional withdrawal, gross').closest('tr')?.textContent;
@@ -379,6 +451,7 @@ describe('RetirementPage', () => {
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
+      ssStartAge: BASE_INPUTS.retirementSocialSecurityStartAge,
       currentAge: 35,
       filingStatus: 'single',
       inflationPct: 3,
@@ -409,6 +482,7 @@ describe('RetirementPage', () => {
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
+      ssStartAge: BASE_INPUTS.retirementSocialSecurityStartAge,
       currentAge: 35,
       filingStatus: 'single',
       inflationPct: 3,
@@ -532,6 +606,7 @@ describe('RetirementPage', () => {
       pensionMonthlyToday: 0,
       pensionStartAge: 65,
       ssMonthlyBenefitToday: 2000,
+      ssStartAge: BASE_INPUTS.retirementSocialSecurityStartAge,
       currentAge: 35,
       filingStatus: 'marriedJoint',
       inflationPct: 3,
@@ -619,6 +694,7 @@ describe('RetirementPage', () => {
         retirementCurrentAge: 55,
         retirementTargetAge: 55,
         retirementInspectAge: 55,
+        retirementSocialSecurityStartAge: 62,
       },
     });
 

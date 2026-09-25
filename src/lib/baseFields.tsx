@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ownsHome, type Answers } from './questions';
 import type { SliderFormat } from './format';
 
@@ -39,6 +40,7 @@ export type BaseFieldId =
   | 'retirementAfterTaxWithdrawalMo'
   | 'retirementAfterTaxGainPct'
   | 'retirementSocialSecurityMo'
+  | 'retirementSocialSecurityStartAge'
   | 'retirementPensionMo'
   | 'retirementPensionStartAge'
   | 'retirementCurrentAge'
@@ -49,7 +51,7 @@ export interface BaseFieldMeta {
   id: BaseFieldId;
   label: string;
   format: SliderFormat;
-  tooltip: string;
+  tooltip: ReactNode;
   /** Field is hidden unless this returns true. Always shown if omitted. */
   visibleIf?: (answers: Answers) => boolean;
 }
@@ -383,7 +385,28 @@ export const RETIREMENT_SOCIAL_SECURITY_FIELD: BaseFieldMeta = {
   label: 'Social Security benefit',
   format: '$',
   tooltip:
-    "Estimated monthly Social Security benefit, in today's dollars (grows with inflation like your other today's-dollar inputs). Never starts before age 62 (the real earliest claiming age), even if you retire earlier. Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart. Use the toggle above to exclude Social Security from the plan entirely, rather than dragging this to $0.",
+    "Estimated monthly Social Security benefit at full retirement age (67), in today's dollars (grows with inflation like your other today's-dollar inputs). Actually claiming earlier or later than that permanently scales this up or down - see the Start age slider below. Up to 85% of it can be taxable alongside your Traditional withdrawals - and since the IRS thresholds that decide how much is taxable are fixed in nominal dollars (frozen since 1984/1993, never inflation-indexed), a growing share becomes taxable purely from nominal income growth over time. See the income breakdown table below the chart. Use the toggle above to exclude Social Security from the plan entirely, rather than dragging this to $0.",
+};
+
+// This field's min/max below should match retirement.ts's SS_MIN_CLAIMING_AGE/SS_MAX_CLAIMING_AGE -
+// same "keep the slider range in sync with the constant" pattern as RETIREMENT_INSPECT_AGE_FIELD's
+// own note about MAX_PROJECTION_AGE.
+export const RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD: BaseFieldMeta = {
+  id: 'retirementSocialSecurityStartAge',
+  label: 'Social Security start age',
+  format: 'n',
+  tooltip: (
+    <>
+      Age you actually start claiming - independent of your retirement age, real Social Security lets you claim while still working or wait well
+      past it. Claiming before full retirement age (67) permanently cuts the benefit above - as much as 30% less at the earliest possible age, 62.
+      Waiting past 67 permanently grows it instead, via delayed retirement credits - up to 24% more at the latest age that still earns them, 70.
+      See{' '}
+      <a href="https://www.ssa.gov/benefits/retirement/planner/delayret.html" target="_blank" rel="noreferrer">
+        ssa.gov on delayed retirement credits
+      </a>
+      .
+    </>
+  ),
 };
 
 export const RETIREMENT_PENSION_FIELD: BaseFieldMeta = {
@@ -451,6 +474,7 @@ export const ALL_BASE_FIELD_IDS: BaseFieldId[] = [
   RETIREMENT_AFTER_TAX_WITHDRAWAL_FIELD.id,
   RETIREMENT_AFTER_TAX_GAIN_FIELD.id,
   RETIREMENT_SOCIAL_SECURITY_FIELD.id,
+  RETIREMENT_SOCIAL_SECURITY_START_AGE_FIELD.id,
   RETIREMENT_PENSION_FIELD.id,
   RETIREMENT_PENSION_START_AGE_FIELD.id,
   RETIREMENT_CURRENT_AGE_FIELD.id,

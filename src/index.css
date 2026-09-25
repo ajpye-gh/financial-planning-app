@@ -73,6 +73,54 @@
   }
 }
 
+/* Manual light/dark override (SettingsMenu). Higher specificity than the prefers-color-scheme
+ * media query above, so an explicit choice always wins over the OS default it started from. */
+:root[data-theme='dark'] {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+  --surface-1: #1b1c23;
+  --surface-2: #21222b;
+
+  --danger: #f97066;
+  --danger-bg: rgba(249, 112, 102, 0.12);
+  --success: #32d583;
+  --success-bg: rgba(50, 213, 131, 0.12);
+  --warning: #fdb022;
+  --warning-bg: rgba(253, 176, 34, 0.12);
+}
+
+:root[data-theme='light'] {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  --accent-bg: rgba(170, 59, 255, 0.1);
+  --accent-border: rgba(170, 59, 255, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --surface-1: #f7f6f4;
+  --surface-2: #f0eef0;
+
+  --danger: #d92d20;
+  --danger-bg: rgba(217, 45, 32, 0.08);
+  --success: #12805c;
+  --success-bg: rgba(18, 128, 92, 0.08);
+  --warning: #b54708;
+  --warning-bg: rgba(181, 71, 8, 0.08);
+}
+
 #root {
   min-height: 100svh;
   box-sizing: border-box;
@@ -555,6 +603,77 @@ button.plan-toolbar__item--active:hover {
   max-width: 280px;
 }
 
+/* Settings menu */
+
+.settings-menu {
+  position: relative;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  background: var(--bg);
+}
+
+.settings-menu__panel {
+  min-width: 180px;
+}
+
+.settings-menu__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.625rem;
+  background: none;
+  color: var(--text-h);
+}
+
+.settings-menu__row:hover {
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.settings-menu__row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.settings-menu__switch {
+  flex-shrink: 0;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.settings-menu__switch--on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-menu__switch-knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg);
+  transition: transform 0.15s;
+}
+
+.settings-menu__switch--on .settings-menu__switch-knob {
+  transform: translateX(14px);
+}
+
 /* Tooltip */
 
 .tooltip {
@@ -578,7 +697,12 @@ button.plan-toolbar__item--active:hover {
   line-height: 1.5;
   font-weight: 400;
   box-shadow: var(--shadow);
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.tooltip__bubble a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 /* Range input */
